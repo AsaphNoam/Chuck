@@ -34,6 +34,8 @@ None.
 
 ## Decisions needing input
 
+- Confirm visible, labeled **Edit** and **Fork from here** controls on both desktop chat
+  surfaces before technical design. The draft is FS-01.R60/A42.
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
   ownership (compatibility change).
 - Whether a pipeline stage paused after failed launch/resume continues withholding **Open agent**,

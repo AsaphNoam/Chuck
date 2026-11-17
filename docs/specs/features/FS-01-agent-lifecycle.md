@@ -171,6 +171,15 @@ orphaned processes.
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
   offer these actions.
 
+- **R60 (planned) — Visible desktop message actions.** On the agent page and in the dashboard
+  chat pane, show a compact, labeled **Edit** beside each sent message and **Fork from here**
+  beside the last reply of a completed turn, following R58's message and surface rules.
+  The controls are visible at rest and reachable by keyboard without opening a context menu.
+  When unavailable, the action shows its reason through pointer and keyboard interaction
+  without opening confirmation. Right-click still offers the same actions and availability.
+  Either entry opens R58's existing confirmation. Dismissing it returns focus to its opener
+  when that opener is still present.
+
 ### Resume
 
 - **R10** — **Resume from archive** (`POST /api/sessions/{id}/resume`) restores an inactive agent's
@@ -816,6 +825,15 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   at pre-check: schedules, check counts, indicator states, notices and transcripts equal the
   recorded no-snapshot results. *Verify by* runtime/server recovery tests sharing A31–A34's
   fixtures, serialized projections, restart/cancel races and the existing quota banner journey.
+
+- **A42 (planned)** (R60) — In the rendered agent page and dashboard chat pane, find **Edit**
+  and **Fork from here** without hovering or right-clicking. Use the visible controls with
+  pointer and keyboard to open confirmation, cancel back to the opener, and complete both
+  operations as in A40. Inspect the reason for unavailable actions by pointer and keyboard.
+  Verify those actions and cancellation send no clone request. Verify the same message and
+  turn boundary from the context menu and that long replies and the narrow desktop pane keep
+  the action legible and associated with its message. *Verify by* desktop transcript component
+  tests and a rendered desktop check with deterministic fork-capable data.
 
 ## 6. Deviations & open decisions
 
