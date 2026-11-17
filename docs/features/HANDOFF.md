@@ -122,6 +122,36 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### TAB-BLANK — Chrome displays only the theme background on tab return (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+**Report (verbatim):** “sometimes the page just goes blank when I switch between tabs and go back,
+click anywhere on the page makes the view render”. The operator confirmed Chrome browser tabs and
+the newest Chuck build: “the Chuck theme color is still active but other than that the screen goes
+completely blank”. No route, incident time, exact field build or browser error was supplied.
+
+**Cause undetermined.** The shell renders a header separately from its route outlet
+(`ui/src/App.tsx:8–15`); route loading and caught render errors show text or a retry, not a blank
+shell. Desktop stream reconnect refreshes data rather than remounting the shell (TS-03.R7–R9).
+The theme marker lives on `<html>` (`ui/src/features/appearance/appearance.ts:17–24`), so the
+remaining color doesn't prove the React tree is still mounted. A click-triggered browser repaint is
+plausible, but no evidence establishes where this failure originates. Source checked at `4d5bce32`;
+isolated browser checks used packaged v0.24.0 (`4d511e1d`), Chrome `157.0.8103.79` and macOS `15.7.7`
+on arm64. Dashboard and Settings kept their shell, content and stable sampled header pixels in
+the automation, with no page error. Automation could not verify real hidden-to-visible transitions;
+native screen verification was blocked by the locked Mac. No failing reproduction or skipped test.
+
+- **Worth fixing** (confirmed from code) — TAB-BLANK-1, missing browser diagnostics: the desktop
+  entry point (`ui/src/main.tsx:12–21`) has no browser error reporting, and the route boundary
+  (`ui/src/components/ErrorBoundary.tsx:22–24`) only logs to the browser console. Ordinary server
+  logs cannot tell whether a foreground return lost the application shell, hit a JavaScript error,
+  or left a healthy DOM that Chrome didn't paint. At the desktop bootstrap and error boundary,
+  report a bounded, deduplicated, visit-correlated event to Chuck's local diagnostic log for an
+  unexpected browser error or a previously mounted shell missing on foreground return (INV §22;
+  TS-01.R15). Allowlist the reason, route kind and mount state; omit console text, paths, and page
+  contents. Verify with an injected render failure and shell loss, and that healthy returns stay
+  quiet. The page cannot attest to pixels on screen; an in-incident screenshot taken before a
+  click, with the approximate time and page, is the next useful field evidence.
+
 ### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Fix rounds closed every finding except the one below. The inventory (EXEC-12) stays in
