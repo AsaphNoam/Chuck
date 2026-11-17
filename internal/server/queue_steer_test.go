@@ -381,3 +381,35 @@ func TestSteerRoutePromotesTheHeldMessage(t *testing.T) {
 		t.Fatalf("second promoting steer = %d: %s, want 409", resp.StatusCode, body)
 	}
 }
+
+// TestRefusedPromotedSteerKeepsTheHoldUnchanged reproduces STEER-HOLD-1/2: an
+// adapter refusal of a promoted Steer must leave the hold exactly as it was
+// (same held_id, so the client's next Steer is not held_changed) and must
+// write nothing to the durable transcript (FS-03.R48/R50, TS-03.R39, INV §19).
+func TestRefusedPromotedSteerKeepsTheHoldUnchanged(t *testing.T) {
+	t.Skip("STEER-HOLD-1/2 reproduction; the /fix session un-skips it as the regression test")
+	t.Setenv("FAKEACP_STEERING", "1")
+	t.Setenv("FAKEACP_STEER_OUTCOME", "reject")
+	_, handler, id, _ := busyAttachmentTestServer(t)
+	base := "/api/sessions/" + id
+	const requestID = "11111111-1111-4111-8111-111111111111"
+	resp, body := postJSONHandler(t, handler, base+"/prompt", map[string]string{"text": "redirect", "request_id": requestID})
+	heldID := fieldOf(t, body, "held_id")
+	if resp.StatusCode != http.StatusAccepted || heldID == "" {
+		t.Fatalf("hold: %d %s", resp.StatusCode, body)
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		resp, body = postJSONHandler(t, handler, base+"/steer", map[string]string{"request_id": requestID, "held_id": heldID})
+		if resp.StatusCode != http.StatusInternalServerError || !strings.Contains(string(body), "refused") {
+			t.Fatalf("attempt %d: want the adapter refusal, got %d %s", attempt, resp.StatusCode, body)
+		}
+		snapshot := serveLocal(t, handler, http.MethodGet, base+"/prompt", nil)
+		if got := fieldOf(t, snapshot.Body.Bytes(), "held_id"); got != heldID {
+			t.Fatalf("attempt %d: refusal replaced held_id %s with %s", attempt, heldID, got)
+		}
+	}
+	transcript := serveLocal(t, handler, http.MethodGet, base+"/transcript", nil)
+	if strings.Contains(transcript.Body.String(), requestID) {
+		t.Fatalf("refused Steer reached the durable transcript: %s", transcript.Body)
+	}
+}

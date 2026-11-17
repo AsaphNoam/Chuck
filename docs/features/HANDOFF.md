@@ -122,6 +122,62 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
+
+**Report (verbatim):** “trying to steer doesn't do anything (message stays queued) and I get "Could
+not steer — held message changed; reload before steering." Reloading the page didn't change
+anything. When the agent finished its turn the message was sent as usual queued message behavior.
+Also the 'Queued — it will be delivered when the agent's assignment continues.' appears a lot of
+times even if there is no queued message, I think it just doesn't leave, when steer does work the
+message 'Delivered into the running turn.' just stays”. No field build, agent, adapter or log was
+supplied. The local dashboard (a v0.22.0-era build running since 2026-11-06) recorded no Steer
+request, so it is not the source; source inspected at `81e67283`.
+
+**Mechanism, reproduced** with the fake adapter set to refuse: the first empty-composer Steer
+returns “The agent refused this steered message”, the server re-holds the message under a new
+`held_id`, and the browser keeps the old one, so the next Steer is `held_changed`; that refreshes the
+hold, and the next Steer is refused again. Turn end then sends the restored hold as an ordinary
+queued message. **Why the person's adapter refused is undetermined.** Neither the refusal reason nor
+desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheHoldUnchanged`
+(`internal/server/queue_steer_test.go`, skipped).
+
+- **Must fix** — STEER-HOLD-1 (confirmed; FS-03.R50, TS-03.R39, INV §5/§19). A refused promoted
+  Steer restores the hold through `hold()`, which mints a new `held_id`
+  (`internal/runtime/chat.go:1032–1035`). The desktop composer refreshes its hold only on
+  `held_changed`, not on a refusal (`ui/src/components/chat/useInputDelivery.ts:171–178`). Every
+  retry therefore fails. Restore the original hold identity (or refresh it on any promoted-Steer
+  refusal), and un-skip the reproduction.
+- **Must fix** — STEER-HOLD-2 (confirmed; FS-03.R48/R50, INV §15/§19). A request-bearing Steer emits
+  its durable `user_text` before the native call (`internal/runtime/chat.go:839–848`). A refusal
+  leaves that entry behind, even though the response says nothing was delivered and the code
+  comment says a refusal writes nothing. Each refused attempt adds another copy, and the restored
+  hold is later sent again. The desktop held projection can match that `request_id` and clear the
+  pending tail early (`ui/src/components/chat/useHeldProjection.ts:35–45`). The skipped test's
+  transcript assertion covers it. Typed Steer has the same ordering.
+- **Worth fixing** — STEER-HOLD-3 (confirmed code path; spec gap; FS-03.R48/R50). Composer notices
+  are cleared only by the next Send or Steer, Withdraw, Cancel or an agent switch
+  (`ui/src/components/chat/Composer.tsx:44,110,188,285,298`;
+  `useInputDelivery.ts:141–147`). “Delivered into the running turn.”, “That turn had already
+  ended…” and “Queued — …assignment continues.” therefore stay after the turn or queued input that
+  they describe has settled. FS-03 names the text but not the lifetime. Specify when each notice
+  clears (for example, at the next turn end or when the queued input is delivered), then add a
+  Composer test.
+- **Worth fixing** — STEER-HOLD-4 (probable contributor; spec gap; FS-03.R48/R50, FS-14.R100). When
+  the visible pending message is assignment-queued input rather than a runtime hold, Steer stays
+  shown but returns silently with an empty composer (`Composer.tsx:178–183`). This matches
+  “steer doesn't do anything”. FS-03.R50 does not say whether assignment-queued input can be steered.
+  Specify the decision (promote it, or withhold Steer and explain it), then test it.
+- **Worth fixing** — STEER-HOLD-5 (observability; INV §22). The refusal transition logs only
+  `provider_refused` (`internal/runtime/chat.go:891–909`). The adapter's RPC code and method are not
+  logged, and desktop route outcomes are not logged either. Log the bounded RPC code with the
+  `request_id`/`held_id` for a refused Steer and `held_changed`. A report like this one could then
+  tell an unsupported adapter, invalid parameters and a stale client apart.
+- **Worth fixing** — STEER-HOLD-6 (inventory; workflow §7 second fix round). Chat input
+  holding and Steer received fixes within 30 days (`7c407643`, `1bf0ffb9`, `de246a42`,
+  `0e98d3c4`). Before patching, list every writer of `turn.held` and `turn.steerFallback`, every
+  Send/Steer/Withdraw/turn-end/stop entry point, the transcript and receipt writes each makes,
+  and where the legal moves are specified.
+
 ### CODEX-FAST — a slow turn with Fast enabled has no tier receipt (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “codex seems to be running really slow even in fast mode, any chance that
