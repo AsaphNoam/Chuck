@@ -140,6 +140,17 @@ on arm64. Dashboard and Settings kept their shell, content and stable sampled he
 the automation, with no page error. Automation could not verify real hidden-to-visible transitions;
 native screen verification was blocked by the locked Mac. No failing reproduction or skipped test.
 
+**Multi-tab follow-up:** Headless Chrome opened six same-origin pages (Dashboard, Tasks, Pipelines,
+Archive, Settings and a project) with one shared stream worker. All retained the same mounted shell,
+visible header and route text through a server stop/restart and reconnection. A simulated
+hidden-to-visible transition on Dashboard triggered two deliberately failed config requests; the
+skin reverted to Core as specified (TS-08.R30), and the shell stayed visible. No page errors. This
+exercises data refresh and reconnect, but does not verify native Chrome painting. The outside-click
+handlers dismiss menus or dialogs; they do not mount or reveal the shell. The fixed, full-viewport
+theme decoration in `ui/src/styles/base.css:16–26` is painted behind the shell and ignores pointer
+input. It is a candidate for a temporary CSS comparison if the failure reproduces with the shell
+still present and no obscuring overlay. Chrome repaint remains a hypothesis.
+
 - **Worth fixing** (confirmed from code) — TAB-BLANK-1, missing browser diagnostics: the desktop
   entry point (`ui/src/main.tsx:12–21`) has no browser error reporting, and the route boundary
   (`ui/src/components/ErrorBoundary.tsx:22–24`) only logs to the browser console. Ordinary server
