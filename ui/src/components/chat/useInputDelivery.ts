@@ -6,6 +6,7 @@ import {
   persistPendingAttachmentSend, removeAcceptedAttachments, restoreAttachments, restorePendingAttachmentSend,
   subscribePendingSendCleared, type DraftAttachment, type PendingAttachmentSend,
 } from "./attachments";
+import { renewDraftRequestId } from "./draftIndex";
 
 function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
   return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
@@ -169,6 +170,11 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
         error(message);
       } else if (pending.steer) {
         if (code === "held_changed") projection.refreshRecovery();
+        // The server answered with a refusal, so it holds a failed receipt for
+        // this ID; a retry of the unchanged draft must ask the adapter again.
+        else if (!promoting && pending.requestId === draftRequestId && typeof (reason as { status?: unknown } | null)?.status === "number") {
+          renewDraftRequestId(agentId);
+        }
         error(`Could not steer — ${message}.`);
       } else if (chatDraftRevision(agentId) === pending.revision) {
         restoreHiddenDraft();

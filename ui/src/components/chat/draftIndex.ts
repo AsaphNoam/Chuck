@@ -57,6 +57,15 @@ export function noteDraftChange(agentId: string, change: { text?: boolean; attac
   return next.requestId;
 }
 
+// A definite refusal settles the draft's request ID on the server, so retrying
+// the unchanged draft needs a new one (FS-03.R50).
+export function renewDraftRequestId(agentId: string) {
+  const index = readIndex();
+  if (!index[agentId]) return;
+  index[agentId] = { ...index[agentId], requestId: newRequestId() };
+  localStorage.setItem(indexKey, JSON.stringify(index));
+}
+
 export function preserveDraftRequestId(agentId: string) {
   return chatDraftRequestId(agentId);
 }

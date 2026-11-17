@@ -1035,6 +1035,14 @@ describe("Composer queued follow-up and steering", () => {
     fireEvent.click(screen.getByRole("button", { name: "Steer" }));
     await waitFor(() => expect(screen.getByText(/Could not steer/)).toBeInTheDocument());
     expect(ta.value).toBe("not acceptable");
+
+    // The server settled that request ID as refused; retrying the unchanged
+    // draft must carry a new one so the adapter is asked again (FS-03.R50).
+    await waitFor(() => expect(screen.getByRole("button", { name: "Steer" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Steer" }));
+    await waitFor(() => expect(steerBodies).toHaveLength(3));
+    expect(JSON.parse(steerBodies[2]).text).toBe("not acceptable");
+    expect(JSON.parse(steerBodies[2]).request_id).not.toBe(JSON.parse(steerBodies[1]).request_id);
   });
 
   it("returns a legacy hold to an empty composer when the agent stops and preserves newer typed text", async () => {
