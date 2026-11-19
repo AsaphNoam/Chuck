@@ -20,6 +20,7 @@ func (s *Server) admitConversationInput(ctx context.Context, receipt state.Attac
 	}
 	if queued {
 		receipt.Delivery, receipt.AssignmentTaskID = "prepared", taskID
+		s.logQueuedAssignmentInput(receipt)
 		return receipt, true, nil
 	}
 	return s.continueRunFromConversation(ctx, receipt, msg)
@@ -154,6 +155,20 @@ func (s *Server) logRunInputTransition(receipt state.AttachmentReceipt) {
 	s.log.Info("conversation input continued paused run", "agent", boundedLogID(receipt.AgentID),
 		"request_id", boundedLogID(receipt.RequestID), "run", boundedLogID(runID),
 		"visit", boundedLogID(receipt.AssignmentTaskID), "surface", "chat", "delivery", receipt.Delivery)
+}
+
+// logQueuedAssignmentInput records that a chat Send was retained for the
+// agent's assignment instead of reaching the transcript, with the assignment's
+// state, so a report of input shown under the composer names the branch that
+// ran. Identities and fixed vocabulary only (INV §15/§22).
+func (s *Server) logQueuedAssignmentInput(receipt state.AttachmentReceipt) {
+	taskState := "unknown"
+	if task, err := s.stateStore.ReadTask(receipt.AssignmentTaskID); err == nil {
+		taskState = task.State
+	}
+	s.log.Info("conversation input queued for assignment", "agent", boundedLogID(receipt.AgentID),
+		"request_id", boundedLogID(receipt.RequestID), "task", boundedLogID(receipt.AssignmentTaskID),
+		"task_state", taskState)
 }
 
 func boundedLogID(id string) string {

@@ -1,13 +1,16 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -139,9 +142,25 @@ func TestWakingMailUsesWaitingAssignmentContinuation(t *testing.T) {
 			}
 			// Manual input is retained for the continuation, not refused and not
 			// delivered around it (TS-09.R69, WAIT-PROMPT-1).
+			var logs bytes.Buffer
+			var logMu sync.Mutex
+			srv.log = slog.New(slog.NewTextHandler(&lockedWriter{w: &logs, mu: &logMu}, nil))
 			resp, body := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": "manual wake", "request_id": "req-manual-wake"})
 			if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"delivery":"queued"`) {
 				t.Fatalf("manual input was not queued for the continuation: %d %s", resp.StatusCode, body)
+			}
+			// INV §22: which assignment took the Send, and in what state, is
+			// traceable from the log without the words.
+			logMu.Lock()
+			logged := logs.String()
+			logMu.Unlock()
+			for _, want := range []string{"conversation input queued for assignment", "agent=" + id, "request_id=req-manual-wake", "task=" + taskID, "task_state=ready"} {
+				if !strings.Contains(logged, want) {
+					t.Fatalf("queued input log lacks %q:\n%s", want, logged)
+				}
+			}
+			if strings.Contains(logged, "manual wake") {
+				t.Fatalf("queued input log carries message text:\n%s", logged)
 			}
 			if got := promptCount(t, promptLog); got != 0 {
 				t.Fatalf("manual input produced %d prompts before continuation admission", got)
