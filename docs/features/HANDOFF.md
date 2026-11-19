@@ -17,7 +17,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   [v0.24.0-only waiver](../archive/state/RELEASE-v0.24.0-notes.md). The owed combined review of
   `v0.23.0..d26e5fe2` is now recorded in the
   [receipt](../archive/reviews/architecture/v0.23.0-next.json); it did not gate v0.24.0. Its fixes
-  are recorded there; EXEC-6c is its only open Must-fix item. The next release needs its own review and
+  are recorded there. The operator resolved EXEC-6c by retaining the existing shrink-only
+  test-fixture exceptions in TS-01.R50. The next release needs its own review and
   `v0.24.0-next.json`.
 - **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
   was still running when release CI completed. The prior waiting-input UI fixture failure had a
@@ -34,24 +35,28 @@ None.
 
 ## Decisions needing input
 
-- Message actions use light, borderless icons at the top right on hover, with Copy on every
-  message, Edit only on the last message, and Fork on every message. Confirm the draft's
-  interpretation of "last message" as the latest sent message, then finish Edit's reply,
-  retention/recovery and technical design. Draft FS-01.R60–R62/A42–A44; see Ideas being defined.
-- Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID
-  ownership (compatibility change).
-- Whether a pipeline stage paused after failed launch/resume continues withholding **Open agent**,
-  matching restart recovery, or permits chat under a wider continuation contract.
-- Whether a model or effort the adapter accepted without echoing it back should show as
-  unconfirmed (CR-A10 lead 13; INV §20 reads missing evidence as unknown).
-- WITHDRAW-SEND-3 (FS-03.R48, TS-09.R71): pending chat input renders in two places — a runtime
-  hold at the transcript's end (`TranscriptView.tsx`) and input queued for the agent's assignment
-  under the composer (`Composer.tsx`, `QueuedInput.tsx`); a person reported the second as a re-sent
-  message “at the bottom of the text box” after Withdraw. Decide whether assignment-queued input
-  renders as the same pending tail at the transcript's end, labelled as delivered with the
-  assignment's next turn; then specify and test it. Field evidence still wanted: the agent and a
-  screenshot from the next occurrence; the server now logs `conversation input queued for
-  assignment` with the task and its state.
+None.
+
+## Resolved decisions
+
+- Message action design lives in the FS-01 draft and the matching **Ideas being defined** entry.
+- Keep the current HTTP error envelopes and provider model-ID ownership. Revisit each
+  compatibility contract when there is a concrete caller need and a migration plan.
+- Keep **Open agent** hidden after a failed launch or resume. Explain the pause and offer
+  **Retry stage**, consistent with restart recovery.
+- Treat an unechoed model or effort request as **Unconfirmed** where confirmation evidence is
+  available. The current launch path discards that distinction before the UI sees it, so the
+  display change is deferred. The operator approved using existing evidence only.
+- WITHDRAW-SEND-3 and STEER-HOLD-4: show assignment-queued input once, labelled as queued for
+  the assignment's next turn. The in-progress FS-03.R48 change puts it at the transcript tail.
+  The empty composer hides Steer when only assignment-queued input is pending. Runtime-held
+  input keeps its Withdraw action.
+- EXEC-6c: TS-01.R50 permits the 11 existing test-only store writers under the shrink-only
+  `fixtureOnlyWriters` list. The archived architecture receipt records closure at `596821bf`.
+- AUTH-TRUST-1: keep the existing authority boundary. First reproduce the original failure
+  with explicit Continue input on v0.24.0 or later and a live provider reviewer. Revisit
+  assignment delivery if current evidence calls for it (INV §21).
+- AUTH-TRUST-2: the assignment heading now says “Why this stage visit started.”
 
 ## Design consistency notes
 
@@ -65,13 +70,6 @@ None.
   switch shows it above the composer.
 
 ## Review queue
-
-- **Give agent execution one owner** — reviewed 2026-11-15, `193f301e..1d6077fa` (TS-01.R45–R50,
-  TS-02.R67–R68, TS-08.R168); the 2026-11-15 fix rounds left only the
-  EXEC-6c remainder, blocked on a human decision under **Review findings**. Its ready change and plan stay until they close. Both implementer notes were
-  confirmed: the room rule stays inside task admission's claiming compare-and-swap, and the
-  gate-versus-row span is sound except on a failed end write (EXEC-2). Credentialed provider and
-  device gates are not closed by it.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
@@ -226,11 +224,6 @@ desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheH
   existing toast surface (`ui/src/components/shell/NotificationCenter.tsx`, which currently
   auto-dismisses after 6s) with a per-toast 3s duration and a fade. Add a Composer test for the
   3s dismissal. Errors stay where they are.
-- **Worth fixing** — STEER-HOLD-4 (probable contributor; spec gap; FS-03.R48/R50, FS-14.R100, INV §8). When
-  the visible pending message is assignment-queued input rather than a runtime hold, Steer stays
-  shown but returns silently with an empty composer (`Composer.tsx:178–183`). This matches
-  “steer doesn't do anything”. FS-03.R50 does not say whether assignment-queued input can be steered.
-  Specify the decision (promote it, or withhold Steer and explain it), then test it.
 - **Worth fixing** — STEER-HOLD-5 (observability; INV §22). The refusal transition logs only
   `provider_refused` (`internal/runtime/chat.go:891–909`). The adapter's RPC code and method are not
   logged, and desktop route outcomes are not logged either. Log the bounded RPC code with the
@@ -338,25 +331,6 @@ made zero transcript requests from the grid tabs. Native screen painting remains
   streaming updates, then compare the long-task trace with the same fixture and verify scroll,
   selection and transcript correctness across reconnect. This is a bounded render-path fix.
 
-### Give agent execution one owner (`193f301e..1d6077fa`) — reviewed 2026-11-15 at `1d6077fa` — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Fix rounds closed every finding except the one below. The inventory (EXEC-12) stays in
-`docs/ideas.md` ("One exit rule for a claimed chat turn"), with the independent check's
-same-cause concerns; on 2026-11-15 the operator declined a design pass for it while
-TURN-STOP-1–3 were open. They are closed and the Stop inventory is the next `docs/ideas.md` entry.
-The independent check is owed again only for the EXEC-6c repair.
-
-- **Must fix** — EXEC-6c (remainder, blocked on human): 11 exported `*Store` writers are called
-  only from other packages' tests — `AddThinkTankRecord`, `AttachTaskContext`,
-  `BindAssignmentInput`, `BindPipelineStageTaskStandingAgent`, `ConsumeTurnBudget`,
-  `FinalizeThinkTankAttempt`, `InsertPipelineAttempt`, `InterruptTask`,
-  `MarkQuotaProviderStarted`, `ObserveQuota`, `StartQuotaCheck` (about 85 call sites, 30 for
-  `ObserveQuota`). Each wraps an unexported state helper with no exported production writer of the
-  same effect, so retargeting means driving each test through a longer production path, and a raw
-  `DB().Exec` fixture would copy write logic that can drift (INV §17). They stay in the
-  shrink-only `fixtureOnlyWriters` list (`internal/state/store_writer_callers_test.go`); the
-  decision is under **Blocked on human** (TS-01.R50, INV §10, §17).
-
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution
@@ -385,26 +359,6 @@ for run-page and conversation Continue. Not reproduced against a live provider r
 skipped test was added because the reported path no longer fails at HEAD. First step for whoever
 picks this up: install v0.24.0 and repeat the report's approval through Continue.
 
-- **Worth fixing** (spec gap; confirmed from code) — AUTH-TRUST-1: person-authored work still
-  reaches an already-running agent only as tool output. A task a person creates for an existing
-  agent (`internal/server/task_handlers.go:69`) and every later stage of a run on its standing
-  owner start through the payload-free activation (`internal/server/task_dispatcher.go:426`), so
-  the instruction, run goal and stage inputs arrive only through `get_assigned_task`. FS-16.R26
-  requires that; FS-00.R15 calls an assignment “a durable bounded prompt the recipient reads as
-  ordinary conversation”. No requirement says which person-authored text must cross as a user
-  turn, so the same reviewer refusal remains reachable when the authorization lives in a task
-  instruction or run goal. Needs a §3 security decision before any change: whether, and for which
-  authors, Chuck places person-authored instructions in the prompt; agent-authored text must never
-  gain that standing. Then FS-16.R26/FS-00.R15 via §10, the activation seam, and a test that a
-  person-created task's instruction is in the `session/prompt` content while an agent-created
-  one's is not. INV §21.
-- **Worth fixing** (confirmed from code) — AUTH-TRUST-2: `Human continuation input:`
-  (`internal/pipeline/assignment.go:112–114`) no longer carries anything a person wrote. Its
-  callers now pass Chuck's resume notice, recovery evidence, the replacement notice, and the
-  owner agent's own `decision.Reason` (`internal/pipeline/decisions.go:78`), so agent-authored
-  text is presented to the next agent as human input. INV §21. Fix: rename the heading to what it
-  holds (why this visit exists) and assert in `assignment_test.go` that no caller-supplied text
-  appears under a heading naming a human.
 - **Worth fixing** (undetermined) — AUTH-TRUST-3: the preamble that now accompanies the person's
   text in the prompt says it “does not approve a permission request or a pipeline checkpoint”
   (`internal/runtime/message.go:77`). Whether a provider reviewer reads that sentence as negating
@@ -416,14 +370,8 @@ picks this up: install v0.24.0 and repeat the report's approval through Continue
 
 ## Blocked on human
 
-- **File reader full UI closure:** permission requested through the asynchronous question to
-  scope the pre-existing withdrawal test assertion to its exact error message (one test line).
-  The four requested product changes are committed and independently reviewable. No unrelated
-  test correction has been made without approval (repository instruction on separate fixes).
-- **EXEC-6c test-only store writers (TS-01.R50):** choose (a) rewrite the ~85 test call sites of
-  the 11 remaining writers to reach the same rows through production paths, then delete the
-  writers (large, test-by-test); or (b) amend R50 so a writer kept for other packages' tests is
-  allowed when named in the shrink-only `fixtureOnlyWriters` list, closing EXEC-6c as is.
+None. The file reader's withdrawal test already matches the exact recovery error.
+The full UI suite passed all 1,294 tests on 2026-11-19.
 
 The published `v0.11.0` release body remains empty; its notes are in
 [`RELEASE-v0.11.0-notes.md`](../archive/state/RELEASE-v0.11.0-notes.md).

@@ -59,13 +59,15 @@ func TestRenderAssignmentCarriesManagedChildAndPriorResults(t *testing.T) {
 	stage := Stage{ID: "review", Title: "Review", Objective: "Review the change"}
 
 	prompt, _ := renderAssignment(run, Template{Version: 2}, stage, nil, assignmentContext{
-		Coordinator: &coordinatorHandoff{TaskID: "tk_coord", Role: "implementer", Objective: "Implement the change"},
+		Continuation: "Previous attempt needs another visit",
+		Coordinator:  &coordinatorHandoff{TaskID: "tk_coord", Role: "implementer", Objective: "Implement the change"},
 		PriorResults: []stageResultSummary{{
 			StageID: "work", Attempt: 2, Outcome: state.OutcomeSuccess, Summary: "implemented",
 			TaskID: "tk_work2", Outputs: map[string]string{"implementation": "added the endpoint"},
 		}},
 	})
 	for _, required := range []string{
+		"Why this stage visit started:\nPrevious attempt needs another visit",
 		"Managed coordinator: task tk_coord (role implementer)",
 		"Objective delegated to it: Implement the change",
 		"It reports upward to you",

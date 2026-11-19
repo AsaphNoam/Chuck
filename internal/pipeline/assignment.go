@@ -110,7 +110,7 @@ func renderAssignment(run state.PipelineRunRecord, template Template, stage Stag
 		}
 	}
 	if strings.TrimSpace(continuation) != "" {
-		fmt.Fprintf(&variable, "\nHuman continuation input:\n%s\n", clipText(continuation, MaxValueRunes))
+		fmt.Fprintf(&variable, "\nWhy this stage visit started:\n%s\n", clipText(continuation, MaxValueRunes))
 	}
 	if len(outputs) > 0 {
 		variable.WriteString("\nOutput guidance:\n")
