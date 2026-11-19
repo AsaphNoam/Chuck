@@ -19,7 +19,7 @@ import (
 // cannot see. Each entry needs a justification. Empty is the goal (TS-01.R50).
 var uncalledWriterAllowlist = map[string]string{}
 
-// fixtureOnlyWriters is the open remainder of EXEC-6(c): writers that only
+// fixtureOnlyWriters records the TS-01.R50 exceptions: writers that only
 // other packages' tests call, so they cannot move into a state _test.go file
 // without retargeting those tests. The list may only shrink: a new uncalled
 // writer fails, and so does an entry that gained a production caller.

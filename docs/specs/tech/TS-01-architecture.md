@@ -798,10 +798,12 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   hold is written only from a state a continuation can still follow and compares the revision. A
   row-shape assertion runs after every store test: a continuation marker only on a `ready` or
   `starting` task, a yield marker only on a `running` one. An exported store writer with no
-  production caller is deleted. *Why:* one flag has three contracts depending on which statement
+  production caller is deleted unless it is already in the shrink-only `fixtureOnlyWriters`
+  inventory for callers in other packages' tests. Remove an exception when its last test caller
+  goes away or the writer gains a production caller. *Why:* one flag has three contracts depending on which statement
   wrote the state, and four copies of the commitment rule disagree (INV §2, §5, §10). *Verify:* a
   parked or finished continuation frees its agent for the next task; a cancelled quota wait is
-  not re-armed by a later failed turn; the writer inventory lists no uncalled writer.
+  not re-armed by a later failed turn; the writer inventory enforces the fixture-only exceptions.
 
 ## 3. Interfaces & data shapes
 
