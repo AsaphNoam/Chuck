@@ -217,10 +217,12 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **Make message Edit and Fork from here visible in desktop chat.** The operator reported
-  that neither action was exposed. Both ship in the message right-click menu on the agent
-  page and the dashboard chat pane (FS-01.R58, TS-08.R162). The proposed visible actions
-  are drafted in FS-01.R60/A42. Awaiting confirmation of the desktop scope and placement.
+- **Edit the current conversation and expose message actions on hover.** The operator specified
+  on 2026-11-19 that Edit edits the current conversation, Fork branches after a completed turn,
+  and controls appear at the message's top right on hover. FS-01.R60–R61/A42–A43 draft this
+  behavior for the agent page and dashboard chat pane. Shipped Edit currently clones
+  (FS-01.R58, TS-08.R162). Awaiting the treatment of an edited message's reply and later turns,
+  then provider feasibility, retention/recovery decisions, and technical design.
 
 - **One owner for a sent prompt's echo and the held tail.** From the request-ID matching review's
   inventory (PROMPT-4, 2026-11-15). PROMPT-1–3 were patched: one echo per request ID, both desktop

@@ -169,16 +169,27 @@ orphaned processes.
   copied into this agent by Clone, Edit or Fork from here (fork from the source agent instead). A fork the provider rejects creates no
   agent, transcript, process or messaging identity and reports the rejection. Nothing rewrites or
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
-  offer these actions.
+  offer these actions. *R61 plans replacement of the Edit behavior described here.*
 
-- **R60 (planned) — Visible desktop message actions.** On the agent page and in the dashboard
-  chat pane, show a compact, labeled **Edit** beside each sent message and **Fork from here**
-  beside the last reply of a completed turn, following R58's message and surface rules.
-  The controls are visible at rest and reachable by keyboard without opening a context menu.
+- **R60 (planned) — Message actions at the top right on hover.** On the agent page and in
+  the dashboard chat pane, hovering a sent message reveals **Edit** at its top right.
+  Hovering the final reply of a completed turn reveals **Fork from here** at its top right.
+  Keyboard focus reveals the same controls, which stay visible while focus or the pointer is
+  within the message or its actions. The controls occupy a stable position without covering
+  message content or shifting the transcript. Edit follows R61; Fork follows R58.
   When unavailable, the action shows its reason through pointer and keyboard interaction
   without opening confirmation. Right-click still offers the same actions and availability.
-  Either entry opens R58's existing confirmation. Dismissing it returns focus to its opener
-  when that opener is still present.
+  Fork opens R58's existing confirmation. Dismissing an action returns focus to its opener when
+  that opener is still present.
+
+- **R61 (planned; history treatment awaiting decision) — Edit the current conversation.**
+  Replaces R58's Edit behavior when implemented. Edit opens the selected sent message for
+  editing within the current conversation, retaining its agent identity and current chat route.
+  The person explicitly submits the edited text or cancels. Cancellation preserves the
+  conversation. Successful editing updates both the visible conversation and the context used
+  by the provider. A failure preserves the edited text and explains the next valid action.
+  The treatment of the selected message's old reply and later turns is an open decision in
+  section 6; its acceptance and technical design must be completed before this change is ready.
 
 ### Resume
 
@@ -826,16 +837,30 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   recorded no-snapshot results. *Verify by* runtime/server recovery tests sharing A31–A34's
   fixtures, serialized projections, restart/cancel races and the existing quota banner journey.
 
-- **A42 (planned)** (R60) — In the rendered agent page and dashboard chat pane, find **Edit**
-  and **Fork from here** without hovering or right-clicking. Use the visible controls with
-  pointer and keyboard to open confirmation, cancel back to the opener, and complete both
-  operations as in A40. Inspect the reason for unavailable actions by pointer and keyboard.
-  Verify those actions and cancellation send no clone request. Verify the same message and
-  turn boundary from the context menu and that long replies and the narrow desktop pane keep
-  the action legible and associated with its message. *Verify by* desktop transcript component
-  tests and a rendered desktop check with deterministic fork-capable data.
+- **A42 (planned)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
+  message and the last reply of a completed turn to reveal their respective actions at the
+  top right. Reach and reveal both controls with the keyboard, move focus into them, dismiss
+  the editor or confirmation, and return to the opener. Inspect unavailable reasons by pointer
+  and keyboard. Verify Fork copies through the selected completed turn as in A40. Verify
+  long text, narrow panes, and moving into the controls preserve content, scroll position,
+  visibility, and message association. *Verify by* transcript component tests and rendered
+  desktop checks with deterministic data.
+
+- **A43 (planned; history decision pending)** (R61) — Edit and submit a sent message, verifying
+  that the same agent identity and chat route remain and that the provider receives the revised
+  conversation. Cancel an edit and verify the transcript is preserved. Fail submission and
+  verify edited text remains recoverable with an actionable error. Complete the checks for the
+  old reply and later turns after section 6's decision. *Verify by* lifecycle/API tests and a
+  rendered edit journey with a deterministic provider, plus bounded packaged-provider receipts.
 
 ## 6. Deviations & open decisions
+
+- **Current-conversation Edit (R61, being defined 2026-11-19).** The operator specified that Edit
+  acts on the current conversation, Fork branches after a turn, and both controls appear at
+  the message's top right on hover. Confirm whether submitting an earlier message replaces
+  it, removes the previous reply and all later turns, and regenerates from that point.
+  Retention of replaced history and recovery after a partially failed edit require definition
+  before technical design is ready.
 
 - **Provider quota recognition repair (implemented 2026-10-30):** R55/R57/A37/A39 extend
   terminal-RPC recognition and reset extraction for direct continuation at reset plus one minute.
