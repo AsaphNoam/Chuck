@@ -35,7 +35,7 @@ None.
 ## Decisions needing input
 
 - Message actions use light, borderless icons at the top right on hover, with Copy on every
-  message, Edit only on the last message, and Fork on every other message. Confirm the draft's
+  message, Edit only on the last message, and Fork on every message. Confirm the draft's
   interpretation of "last message" as the latest sent message, then finish Edit's reply,
   retention/recovery and technical design. Draft FS-01.R60–R62/A42–A44; see Ideas being defined.
 - Whether to standardize TS-03.R3–R4 mixed legacy error envelopes or TS-04.R3 provider model-ID

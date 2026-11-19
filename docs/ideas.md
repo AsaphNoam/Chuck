@@ -218,8 +218,8 @@ These are worth shaping into a possible change, but are not ready to build. Defi
 the relevant feature and technical specifications; it does not change product code.
 
 - **Edit the current conversation and expose message actions on hover.** The operator specified
-  on 2026-11-19 that Edit acts on the current conversation's last message, every other message
-  offers Fork after its completed turn, and Copy joins the top-right hover controls.
+  on 2026-11-19 that Edit acts on the current conversation's last message, every message
+  including the last offers Fork after its completed turn, and Copy joins the hover controls.
   Controls are light, borderless icons with tooltips and keyboard access.
   FS-01.R60–R62/A42–A44 draft the agent page and dashboard chat pane.
   Confirm whether "last message" means the most recent message sent by the person after a

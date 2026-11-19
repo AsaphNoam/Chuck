@@ -173,8 +173,8 @@ orphaned processes.
 
 - **R60 (planned) — Message actions at the top right on hover.** On the agent page and in
   the dashboard chat pane, hovering a user or assistant text message reveals a compact action
-  row at its top right. The last sent message offers **Edit**; every other message offers
-  **Fork from here**. Each message also offers **Copy** (R62).
+  row at its top right. Every message offers **Copy** (R62) and **Fork from here**.
+  The last sent message additionally offers **Edit**.
   The controls use small, muted, borderless icons with transparent resting backgrounds.
   Accessible names and tooltips identify each action; hover and keyboard focus provide quiet,
   legible feedback. The message text keeps visual priority.
@@ -190,7 +190,7 @@ orphaned processes.
 
 - **R61 (planned; history treatment awaiting decision) — Edit the current conversation.**
   Replaces R58's Edit behavior when implemented. Edit is offered only on the last sent message;
-  earlier messages offer Fork through R60. Edit opens that last message for
+  Fork remains available on that message through R60. Edit opens that last message for
   editing within the current conversation, retaining its agent identity and current chat route.
   The person explicitly submits the edited text or cancels. Cancellation preserves the
   conversation. Successful editing updates both the visible conversation and the context used
@@ -851,7 +851,7 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
 
 - **A42 (planned)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
   message and an assistant reply to reveal their action icons at the top right. Verify only
-  the last sent message offers Edit and every other message offers Fork, alongside Copy.
+  the last sent message offers Copy, Edit and Fork, and every other message offers Copy and Fork.
   Inspect muted, borderless icons and their tooltips in each supported appearance.
   Reach and reveal the controls with the keyboard, move focus into them, dismiss
   the editor or confirmation, and return to the opener. Inspect unavailable reasons by pointer
@@ -877,8 +877,8 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
 ## 6. Deviations & open decisions
 
 - **Current-conversation Edit (R61, being defined 2026-11-19).** The operator specified that Edit
-  acts on the current conversation and is offered only for the last message; every other message
-  offers Fork. Copy joins the top-right hover actions, all rendered as light, borderless icons.
+  acts on the current conversation and is offered only for the last message. Every message,
+  including the last, offers Fork and Copy as light, borderless icons at the top right on hover.
   The draft interprets "last message" as the most recent message sent by the person, including
   after a reply; confirmation of that interpretation is pending. Fork resolves any selected
   message to the end of its completed turn. Define the treatment of the last message's old
