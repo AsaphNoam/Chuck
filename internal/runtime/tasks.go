@@ -48,11 +48,13 @@ type BackgroundTaskData struct {
 	CanStop    bool   `json:"can_stop,omitempty"`
 }
 
+// taskRef keeps a task's raw provider id. Its announcing session (root or a
+// child) is not kept: both pinned adapters register tasks per root session and
+// stop only through it (TASK-STOP-1), so Stop always addresses as.sessionID.
 type taskRef struct {
-	sessionID string // provider session owning the task (root or child)
-	rawID     string
-	scope     activityScope
-	running   bool
+	rawID   string
+	scope   activityScope
+	running bool
 }
 
 // onAsyncTaskUpdate handles async-task lifecycle updates, reporting whether
@@ -60,8 +62,7 @@ type taskRef struct {
 // dropped so one provider task yields one row per state (INV §16, FS-05.R38).
 func (c *ChatRuntime) onAsyncTaskUpdate(as *agentState, scope activityScope, params json.RawMessage) bool {
 	var su struct {
-		SessionID string `json:"sessionId"`
-		Update    struct {
+		Update struct {
 			SessionUpdate string `json:"sessionUpdate"`
 			AsyncTaskID   string `json:"asyncTaskId"`
 			ToolCallID    string `json:"toolCallId"`
@@ -94,7 +95,7 @@ func (c *ChatRuntime) onAsyncTaskUpdate(as *agentState, scope activityScope, par
 		if as.tasks == nil {
 			as.tasks = map[string]*taskRef{}
 		}
-		as.tasks[id] = &taskRef{sessionID: su.SessionID, rawID: u.AsyncTaskID, scope: scope, running: true}
+		as.tasks[id] = &taskRef{rawID: u.AsyncTaskID, scope: scope, running: true}
 		as.openTasks++
 		data.State, data.Name, data.CanStop = "running", strutil.ClipRunes(u.Name, maxTaskName), u.CanStop
 	default:
@@ -138,9 +139,9 @@ func (c *ChatRuntime) StopBackgroundTask(ctx context.Context, agentID, taskID st
 	}
 	as.mu.Lock()
 	ref, ok := as.tasks[taskID]
-	var sessionID, rawID string
+	var rawID string
 	if ok && ref.running {
-		sessionID, rawID = ref.sessionID, ref.rawID
+		rawID = ref.rawID
 	}
 	as.mu.Unlock()
 	if rawID == "" {
@@ -148,7 +149,7 @@ func (c *ChatRuntime) StopBackgroundTask(ctx context.Context, agentID, taskID st
 	}
 	callCtx, cancel := context.WithTimeout(ctx, taskStopTimeout)
 	defer cancel()
-	res, err := as.transport.Call(callCtx, asyncTaskStopMethod, map[string]any{"sessionId": sessionID, "asyncTaskId": rawID})
+	res, err := as.transport.Call(callCtx, asyncTaskStopMethod, map[string]any{"sessionId": as.sessionID, "asyncTaskId": rawID})
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrBackgroundTaskStopRefused, err)
 	}

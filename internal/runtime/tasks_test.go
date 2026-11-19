@@ -94,6 +94,28 @@ func TestStopBackgroundTaskWaitsForTheRuntimeUpdate(t *testing.T) {
 	}
 }
 
+// A running subagent's task is announced under the child session, but both
+// pinned adapters stop tasks only through the root session; Stop must address
+// the root with the raw id, and the child-routed terminal update finishes the
+// child-scoped row (TASK-STOP-1, FS-03.R59, TS-04.R64).
+func TestStopRunningChildBackgroundTaskAddressesTheRootSession(t *testing.T) {
+	c, h, ch := startTaskAgent(t, "FAKEACP_CAPS=1", "FAKEACP_CHILD_TASK=running")
+	drainTurn(t, ch)
+	child := activityIDFor("th_child_1")
+	if err := c.StopBackgroundTask(context.Background(), h.AgentID, child+"/th_child_1:tc_long"); err != nil {
+		t.Fatalf("stop running child task = %v", err)
+	}
+	select {
+	case ev := <-ch:
+		want := child + "|" + child + "/th_child_1:tc_long|" + child + "/tc_long|stopped|"
+		if got := taskStates([]Event{ev}); len(got) != 1 || got[0] != want {
+			t.Fatalf("after child stop = %q (%s), want %q", got, ev.Type, want)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no terminal child task update")
+	}
+}
+
 // The status row carries the generation's running count: the root task stays
 // counted after the child's completes, and the runtime's stop update clears
 // it without a status transition (TS-04.R104, FS-02.A64).

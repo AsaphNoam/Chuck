@@ -879,7 +879,9 @@ diagnostic and no invented Chuck identity.
 AIR async negotiation the runtime maps `async_task_spawned` and `async_task_state_update` into one
 stable background-task lifecycle keyed by the root agent, optional child activity and adapter task
 id; related tool-call id is retained and output is never copied. `_session/async_task/stop` receives
-the exact runtime-owned ACP session id and task id after a generation-scoped lookup; task/process ids
+the agent's root ACP session id and the adapter's raw task id after a generation-scoped lookup, also
+for a task announced under a child session: the pinned adapters keep one task registry per root
+session and refuse a child session id. Task/process ids
 never come from the browser unchecked. Acceptance of the request emits no optimistic terminal state.
 Task maps are bounded to announced unfinished tasks plus a bounded terminal tail and are cleared on
 generation teardown; load reconstruction de-duplicates the durable lifecycle before republishing

@@ -29,6 +29,13 @@ import (
 
 const sessionID = "fake-sess-1"
 
+// task_flow's child, and its long-running command under codex-acp's wire id
+// (`<thread>:<item>`, unique in the root session's task registry).
+const (
+	taskFlowChild    = "th_child_1"
+	childRunningTask = taskFlowChild + ":tc_long"
+)
+
 // activeSession is the session later updates address: session/fork switches it
 // to the forked id, as the real adapter's updates follow the new session.
 var activeSession atomic.Value
@@ -460,18 +467,23 @@ func handle(msg *rpcMessage) {
 	case "_session/async_task/stop":
 		// Upstream finishes the task (publishing its terminal update under the
 		// owning session) before answering {stopped:true}; unknown tasks and a
-		// refused terminate answer {stopped:false}.
+		// refused terminate answer {stopped:false}. Both pinned adapters keep one
+		// task registry per root session, so a child session id is refused too
+		// (TASK-STOP-1); a child's task is still reported under the child.
 		var p struct {
 			SessionID   string `json:"sessionId"`
 			AsyncTaskID string `json:"asyncTaskId"`
 		}
 		_ = json.Unmarshal(msg.Params, &p)
-		toolCallID := map[string]string{"task_1": "tc_bg", "task_2": "tc_bg2"}[p.AsyncTaskID]
-		if os.Getenv("FAKEACP_TASK_STOP") == "refuse" || toolCallID == "" {
+		owner, toolCallID := currentSession(), map[string]string{"task_1": "tc_bg", "task_2": "tc_bg2"}[p.AsyncTaskID]
+		if p.AsyncTaskID == childRunningTask {
+			owner, toolCallID = taskFlowChild, "tc_long"
+		}
+		if os.Getenv("FAKEACP_TASK_STOP") == "refuse" || toolCallID == "" || p.SessionID != currentSession() {
 			respond(*msg.ID, map[string]any{"stopped": false})
 			return
 		}
-		emitUpdateIn(p.SessionID, map[string]any{"sessionUpdate": "async_task_state_update", "asyncTaskId": p.AsyncTaskID, "state": "stopped", "toolCallId": toolCallID})
+		emitUpdateIn(owner, map[string]any{"sessionUpdate": "async_task_state_update", "asyncTaskId": p.AsyncTaskID, "state": "stopped", "toolCallId": toolCallID})
 		respond(*msg.ID, map[string]any{"stopped": true})
 	case "_session/steering":
 		// The adapter owns the injected-vs-new-turn choice and reports it; the
@@ -984,7 +996,9 @@ func runScenario(name string) string {
 		// the tool call is marked backgrounded, then the task is announced under
 		// its owning session. A child reuses the root's raw task id, and the
 		// root announcement repeats as a replayed duplicate (FS-03.A41).
-		const child = "th_child_1"
+		// FAKEACP_CHILD_TASK=running leaves a child command running under a live
+		// child, with codex-acp's root-unique wire id, for a targeted stop.
+		const child = taskFlowChild
 		emitUpdate(map[string]any{"sessionUpdate": "tool_call", "toolCallId": "tc_bg", "name": "exec_command", "title": "npm run dev", "kind": "execute", "rawInput": map[string]any{"command": "npm run dev"}})
 		emitUpdate(map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "tc_bg", "_meta": map[string]any{"jetbrains": map[string]any{"air": map[string]any{"asyncTasks": map[string]any{"backgrounded": true}}}}})
 		spawn := map[string]any{"sessionUpdate": "async_task_spawned", "asyncTaskId": "task_1", "name": "npm run dev", "taskType": "shell", "showInTranscript": false, "canStop": true, "toolCallId": "tc_bg"}
@@ -993,6 +1007,10 @@ func runScenario(name string) string {
 		emitUpdate(map[string]any{"sessionUpdate": "subagent_spawned", "subagentSessionId": child, "name": "researcher", "capabilities": map[string]any{}})
 		emitUpdateIn(child, map[string]any{"sessionUpdate": "async_task_spawned", "asyncTaskId": "task_1", "name": "go test", "taskType": "shell", "canStop": true, "toolCallId": "tc_c"})
 		emitUpdateIn(child, map[string]any{"sessionUpdate": "async_task_state_update", "asyncTaskId": "task_1", "state": "completed", "toolCallId": "tc_c"})
+		if os.Getenv("FAKEACP_CHILD_TASK") == "running" {
+			emitUpdateIn(child, map[string]any{"sessionUpdate": "async_task_spawned", "asyncTaskId": childRunningTask, "name": "npm run watch", "taskType": "shell", "canStop": true, "toolCallId": "tc_long"})
+			return "end_turn"
+		}
 		emitUpdate(map[string]any{"sessionUpdate": "subagent_state_update", "subagentSessionId": child, "state": "completed"})
 		return "end_turn"
 

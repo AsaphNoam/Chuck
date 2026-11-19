@@ -132,55 +132,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### TASK-STOP — Stop in the running-commands popover answers “Could not stop this task” (investigated 2026-11-18) — **Fix model:** difficult — Codex Sol.
-
-**Report (verbatim):** “I tried stopping a running process via the running popup in the agent chat
-menu and received - could not stop this task - try again”. No agent, build or log was supplied.
-The local dashboard (`bin/chuck` running since 2026-11-06, logging every request) has no
-`background-task-stop` request in its log and no transcript written today, so it is not the source.
-Source inspected at `2d6c7af9` against the pinned `claude-agent-acp` 0.85.1 package. The UI shows
-that one message for every failure (404, 409, 422, network), so the server's answer is unknown.
-
-**Mechanism, reproduced for subagent tasks.** The adapter keeps one async-task registry per root
-session and its `stopAsyncTask` resolves `this.sessions[params.sessionId]`, where only root sessions
-are registered (`dist/acp-agent.js:2215–2229`). A task started by a native subagent is announced
-routed to the child session id (`native-subagents.js:233–256`). Chuck stores that routed id and sends
-it back on Stop, so the adapter answers `{stopped:false}` → 409 → the reported message. Whether the
-person's task belonged to a subagent is **undetermined**; a root task fails only on an adapter
-refusal or a task that already ended. Reproduction: `TestStopRunningChildBackgroundTaskAddressesTheRootSession`
-(`internal/runtime/tasks_child_stop_repro_test.go`, skipped).
-
-- **Must fix** — TASK-STOP-1 (confirmed; FS-03.R59/R107, TS-04.R64, INV §11). `onAsyncTaskUpdate`
-  records the notification's `sessionId` as the task owner (`internal/runtime/tasks.go:97`) and
-  `StopBackgroundTask` sends it (`tasks.go:151`). Stopping any running subagent task therefore
-  always fails. Send the root session id (`as.sessionID`) with the raw task id. Make fakeacp's
-  `_session/async_task/stop` refuse a non-root `sessionId`, as the real adapter does; it currently
-  accepts any id (`internal/runtime/testdata/fakeacp/main.go:460–475`). Then un-skip the
-  reproduction and add a running-child stop to the fake-ACP tests.
-- **Must fix** — TASK-STOP-2 (probable; spec gap; FS-03.R59/R107, TS-04.R64, INV §1/§18). Once a
-  subagent is terminal, the adapter drops every update routed to it, including later
-  `async_task_state_update`s for tasks it started (`native-subagents.js:233–237, 242–256`). A
-  background command started by a subagent outlives it, so Chuck's row and running count stay
-  `running` until a resume fence. The Stop on that row fails too after the command ends on its own.
-  R59 says the state is “exactly as reported by the runtime”, but this runtime goes silent.
-  Specify what Chuck shows for a task whose child ended (for example, keep it stoppable via the
-  root and say its final state is unknown). Implement and test it with the fake reproducing the
-  dropped updates. This is external-protocol behaviour and sets the unit's fix model.
-- **Worth fixing** — TASK-STOP-3 (confirmed; FS-03.R59, TS-03.R44, INV §8).
-  `RunningTasks.tsx:22` maps every rejection to “Could not stop this task. Try again.” A 404
-  (task no longer running) and a 422 (no stop control) invite retries that cannot succeed. Show
-  the stale or unavailable outcome for those, and keep the retry text for 409 and network failures.
-  Add component tests for each status.
-- **Worth fixing** — TASK-STOP-4 (observability; INV §22). `StopBackgroundTask` returns the RPC
-  error or `stopped:false` without logging it (`tasks.go:151–160`), and the route logs only its
-  status. Log agent, task id, whether the target was root or child, and the bounded RPC
-  code or `stopped:false` at Warn. A report like this one could then separate an id mismatch,
-  an adapter refusal and a stale row.
-- **Worth fixing** — TASK-STOP-5 (inventory; workflow §7 second fix round). The background-task Stop
-  flow was fixed on 2026-10-31 (`0277c5da`, BGRUN-UI-1/2). Before patching, list every writer of a
-  task's running state (adapter routing, `as.tasks`, generation teardown, `collectTasks` fences),
-  every Stop entry point (desktop popover, phone, API), and where their legal moves are specified.
-
 ### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
 
 **Report (verbatim):** “trying to steer doesn't do anything (message stays queued) and I get "Could

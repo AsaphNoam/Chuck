@@ -14,6 +14,33 @@ Example:
 - **Pinned agents.** Let people keep frequently used agents at the top of the dashboard.
 ```
 
+- **One rule for a background task's running state and Stop.** TASK-STOP-5 inventory (2026-11-19).
+  TASK-STOP-1 was patched: Stop now addresses the root session. Writers: `onAsyncTaskUpdate`
+  (`internal/runtime/tasks.go`) is the only server writer. It feeds `openTasks`, which becomes the
+  persisted `background_running` (`applyLive` in `chat.go`), read by the agent card, the
+  pipeline-stall and pipeline-task code, and the auto-settle gate (`registry.go`). The maps die
+  with the generation's `agentState`, and no terminal event is written at teardown. The popover
+  instead folds the transcript (`collectTasks` in `runtimeActivity.ts`) and fences running rows
+  only at `resumed_at` or `fork_boundary`. Stop entry points: the desktop popover
+  (`RunningTasks.tsx`), the operator CLI `background-task-stop`, and the
+  `POST …/background-task-stop` route that both use (404 unknown, 422 unavailable, 409 otherwise).
+  The phone has no Stop. Divergent or missing rules:
+  - a subagent's end never closes its tasks, and the adapter drops later updates routed to an
+    ended child. The row, the count and the auto-settle block then stay until teardown. Chuck also
+    forgets ended children after `maxEndedChildren`, so their late updates are dropped too. Stop on
+    such a row now reaches the adapter, but its terminal update is dropped, so the row stays
+    “Stopping…” (TASK-STOP-2, Must fix, spec gap: R59 assumes the runtime keeps reporting);
+  - the card count (server `openTasks`) and the popover (transcript fold) compute "running"
+    differently. They disagree after a no-resume restart, a dropped late update or the 128-task cap.
+    The server ignores `canStop`, while the UI hides Stop for it;
+  - `as.stopped` leaves `openTasks` set, so pipeline readers may see a stale persisted count
+    (unconfirmed);
+  - the popover maps every failure to “Could not stop this task. Try again.” (TASK-STOP-3), and
+    the server does not log a refused or failed stop (TASK-STOP-4);
+  - the resume/fork fence, the 128/32 caps and FS-03.A41 (still planned) have no explicit rule.
+
+  Governing items: FS-03.R59/R107, TS-04.R64/R104, TS-03.R44, FS-02.A64.
+
 - **One owner for browser chat-input settlement.** INPUT-8 inventory from the shared desktop and
   phone delivery review. Browser text is written by composer editing, draft restoration and
   navigation, accepted delivery and agent deletion (`drafts.ts`, `useComposerEditing.ts`,
