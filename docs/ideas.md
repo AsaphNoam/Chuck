@@ -218,11 +218,13 @@ These are worth shaping into a possible change, but are not ready to build. Defi
 the relevant feature and technical specifications; it does not change product code.
 
 - **Edit the current conversation and expose message actions on hover.** The operator specified
-  on 2026-11-19 that Edit edits the current conversation, Fork branches after a completed turn,
-  and controls appear at the message's top right on hover. FS-01.R60–R61/A42–A43 draft this
-  behavior for the agent page and dashboard chat pane. Shipped Edit currently clones
-  (FS-01.R58, TS-08.R162). Awaiting the treatment of an edited message's reply and later turns,
-  then provider feasibility, retention/recovery decisions, and technical design.
+  on 2026-11-19 that Edit acts on the current conversation's last message, every other message
+  offers Fork after its completed turn, and Copy joins the top-right hover controls.
+  Controls are light, borderless icons with tooltips and keyboard access.
+  FS-01.R60–R62/A42–A44 draft the agent page and dashboard chat pane.
+  Confirm whether "last message" means the most recent message sent by the person after a
+  reply. Shipped Edit currently clones (FS-01.R58, TS-08.R162); current-conversation Edit
+  needs provider feasibility, the old reply's treatment, retention/recovery, and technical design.
 
 - **One owner for a sent prompt's echo and the held tail.** From the request-ID matching review's
   inventory (PROMPT-4, 2026-11-15). PROMPT-1–3 were patched: one echo per request ID, both desktop

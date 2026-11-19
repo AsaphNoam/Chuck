@@ -169,27 +169,39 @@ orphaned processes.
   copied into this agent by Clone, Edit or Fork from here (fork from the source agent instead). A fork the provider rejects creates no
   agent, transcript, process or messaging identity and reports the rejection. Nothing rewrites or
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
-  offer these actions. *R61 plans replacement of the Edit behavior described here.*
+  offer these actions. *R60–R61 plan replacement of message-action placement and Edit behavior.*
 
 - **R60 (planned) — Message actions at the top right on hover.** On the agent page and in
-  the dashboard chat pane, hovering a sent message reveals **Edit** at its top right.
-  Hovering the final reply of a completed turn reveals **Fork from here** at its top right.
+  the dashboard chat pane, hovering a user or assistant text message reveals a compact action
+  row at its top right. The last sent message offers **Edit**; every other message offers
+  **Fork from here**. Each message also offers **Copy** (R62).
+  The controls use small, muted, borderless icons with transparent resting backgrounds.
+  Accessible names and tooltips identify each action; hover and keyboard focus provide quiet,
+  legible feedback. The message text keeps visual priority.
   Keyboard focus reveals the same controls, which stay visible while focus or the pointer is
   within the message or its actions. The controls occupy a stable position without covering
-  message content or shifting the transcript. Edit follows R61; Fork follows R58.
+  message content or shifting the transcript. Edit follows R61. Fork creates R58's new agent
+  after the completed turn containing the selected message, with provider context and visible
+  history ending at that same turn. Until the turn is complete, Fork explains its unavailable state.
   When unavailable, the action shows its reason through pointer and keyboard interaction
   without opening confirmation. Right-click still offers the same actions and availability.
   Fork opens R58's existing confirmation. Dismissing an action returns focus to its opener when
   that opener is still present.
 
 - **R61 (planned; history treatment awaiting decision) — Edit the current conversation.**
-  Replaces R58's Edit behavior when implemented. Edit opens the selected sent message for
+  Replaces R58's Edit behavior when implemented. Edit is offered only on the last sent message;
+  earlier messages offer Fork through R60. Edit opens that last message for
   editing within the current conversation, retaining its agent identity and current chat route.
   The person explicitly submits the edited text or cancels. Cancellation preserves the
   conversation. Successful editing updates both the visible conversation and the context used
   by the provider. A failure preserves the edited text and explains the next valid action.
   The treatment of the selected message's old reply and later turns is an open decision in
   section 6; its acceptance and technical design must be completed before this change is ready.
+
+- **R62 (planned) — Copy a message from its hover actions.** Copy writes the selected message's
+  full text to the clipboard, including Markdown source when present. On success the icon
+  briefly shows a copied state, also announced accessibly. Clipboard failure reports an
+  actionable error. Copy remains available independently of Edit or Fork availability.
 
 ### Resume
 
@@ -838,10 +850,13 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   fixtures, serialized projections, restart/cancel races and the existing quota banner journey.
 
 - **A42 (planned)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
-  message and the last reply of a completed turn to reveal their respective actions at the
-  top right. Reach and reveal both controls with the keyboard, move focus into them, dismiss
+  message and an assistant reply to reveal their action icons at the top right. Verify only
+  the last sent message offers Edit and every other message offers Fork, alongside Copy.
+  Inspect muted, borderless icons and their tooltips in each supported appearance.
+  Reach and reveal the controls with the keyboard, move focus into them, dismiss
   the editor or confirmation, and return to the opener. Inspect unavailable reasons by pointer
-  and keyboard. Verify Fork copies through the selected completed turn as in A40. Verify
+  and keyboard. Verify Fork from either a user message or an assistant reply copies through
+  that message's completed turn as in A40. Verify
   long text, narrow panes, and moving into the controls preserve content, scroll position,
   visibility, and message association. *Verify by* transcript component tests and rendered
   desktop checks with deterministic data.
@@ -853,13 +868,21 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   old reply and later turns after section 6's decision. *Verify by* lifecycle/API tests and a
   rendered edit journey with a deterministic provider, plus bounded packaged-provider receipts.
 
+- **A44 (planned)** (R62) — Copy a user message and a Markdown assistant message by pointer
+  and keyboard. Independently read the clipboard and compare the complete source text,
+  including line breaks. Observe copied feedback. Deny clipboard access and verify a visible
+  error, then copy from a message whose Edit or Fork action is unavailable. *Verify by*
+  focused component checks and the rendered message-action journey.
+
 ## 6. Deviations & open decisions
 
 - **Current-conversation Edit (R61, being defined 2026-11-19).** The operator specified that Edit
-  acts on the current conversation, Fork branches after a turn, and both controls appear at
-  the message's top right on hover. Confirm whether submitting an earlier message replaces
-  it, removes the previous reply and all later turns, and regenerates from that point.
-  Retention of replaced history and recovery after a partially failed edit require definition
+  acts on the current conversation and is offered only for the last message; every other message
+  offers Fork. Copy joins the top-right hover actions, all rendered as light, borderless icons.
+  The draft interprets "last message" as the most recent message sent by the person, including
+  after a reply; confirmation of that interpretation is pending. Fork resolves any selected
+  message to the end of its completed turn. Define the treatment of the last message's old
+  reply on edit, retention of replaced history, and recovery after a partially failed edit
   before technical design is ready.
 
 - **Provider quota recognition repair (implemented 2026-10-30):** R55/R57/A37/A39 extend
