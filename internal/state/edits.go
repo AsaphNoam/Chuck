@@ -191,9 +191,30 @@ candidate_session=?, reason='', updated_at=? WHERE agent_id=? AND request_id=? A
 	return rev, tx.Commit()
 }
 
-// FinishEdit moves a committing edit to committed.
+// FinishEdit moves a committing edit to committed and selects its candidate
+// session in the same transaction; the staged candidate never wrote it
+// (TS-01.R51, TS-02.R69).
 func (s *Store) FinishEdit(agentID, requestID string) error {
-	return s.editUpdate(`phase='committed', reason=''`, `phase IN ('committing','committed')`, agentID, requestID)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("state: begin edit finish: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE sessions SET last_session_id = (SELECT candidate_session FROM edit_transitions
+WHERE agent_id=? AND request_id=? AND phase='committing' AND candidate_session<>'') WHERE agent_id=? AND EXISTS
+(SELECT 1 FROM edit_transitions WHERE agent_id=? AND request_id=? AND phase='committing' AND candidate_session<>'')`,
+		agentID, requestID, agentID, agentID, requestID); err != nil {
+		return fmt.Errorf("state: select edit session: %w", err)
+	}
+	res, err := tx.Exec(`UPDATE edit_transitions SET phase='committed', reason='', updated_at=? WHERE agent_id=? AND request_id=?
+AND phase IN ('committing','committed')`, nowUTC(), agentID, requestID)
+	if err != nil {
+		return fmt.Errorf("state: finish edit: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return ErrEditConflict
+	}
+	return tx.Commit()
 }
 
 // MarkEditDispatched records that the replacement entered ordinary prompt

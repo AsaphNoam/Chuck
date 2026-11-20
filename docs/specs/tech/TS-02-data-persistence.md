@@ -1100,7 +1100,9 @@ digest check rather than silently moving.
 Search text, span provenance, previews and rollups rebuild together from active history through
 the existing per-conversation repair/index builder. A committed revision whose index repair
 fails marks that conversation's search projection unavailable until repaired; stale text is
-never returned as current. Journal truth remains committed. Reset live accumulators before
+never returned as current. *As built 2026-11-20:* the failure withdraws the conversation's
+full-text rows and span provenance, keeps its session row, and records the edit's reason naming
+`chuck reindex` as the repair. Journal truth remains committed. Reset live accumulators before
 indexing the replacement turn. The revision event is metadata, carries no native ids or message
 text, and never settles quota, task, room, mail or turn control. Retained audit records do not
 re-trigger any of those effects. Verify populated-store upgrades under both SQLite variants,

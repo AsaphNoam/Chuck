@@ -805,7 +805,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   parked or finished continuation frees its agent for the next task; a cancelled quota wait is
   not re-armed by a later failed turn; the writer inventory enforces the fixture-only exceptions.
 
-**R51 (implemented 2026-11-20; packaged live receipts owed; see EDIT-STOP finding) — Last-message editing is one same-agent lifecycle transition.** For
+**R51 (implemented 2026-11-20; packaged live receipts owed) — Last-message editing is one same-agent lifecycle transition.** For
 FS-01.R61, the server coordinates Edit through the existing lifecycle claim, runtime idle-turn
 reservation and generation-scoped start/teardown seams. The reservation excludes Send, Steer,
 held promotion and autonomous turn starts until edit preparation commits or aborts. Validate
@@ -832,6 +832,13 @@ decision: before it, abort preparation; after it, stop the revised response and 
 undispatched replacement receipt. Before the decision, Stop also stops the source agent;
 turn Cancel aborts the edit and restores the source's previous running/stopped condition.
 After the decision, turn Cancel uses the revised turn's normal cancellation semantics.
+*As built 2026-11-20:* Stop and turn Cancel reach the edit through a per-agent control that
+serializes with the decision and wait for the edit to release its lifecycle claim. The staged
+candidate keeps its launch generation in its running row, which carries no native session id
+until publication, and a preparing edit ignores SessionStart hook session ids. Restart
+reconciliation therefore cannot retain the candidate. The committed phase and the candidate
+selection share one SQLite transaction; the live candidate then publishes its session_meta,
+running session id and ready status before dispatch.
 Time-bounded preparation uses the existing startup deadline,
 and late callbacks recheck both operation and launch generation (INV §1/§2/§4/§5/§15/§19/§23).
 Verify FS-01.A43 through failure injection on both sides of the decision and send boundary.

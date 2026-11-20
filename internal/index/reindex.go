@@ -300,6 +300,32 @@ func (ix *Indexer) RemoveAgent(agentID string) error {
 	return nil
 }
 
+// WithdrawSearch removes one conversation's search text and span provenance
+// while keeping its session row, so a failed rebuild after a history revision
+// never returns superseded text as current (TS-02.R70). A later successful
+// reindex restores it.
+func (ix *Indexer) WithdrawSearch(agentID string) error {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	delete(ix.content, agentID)
+	tx, err := ix.db.Begin()
+	if err != nil {
+		return fmt.Errorf("index: begin withdraw: %w", err)
+	}
+	defer tx.Rollback()
+	if ok, err := ix.ftsWritable(tx); err != nil {
+		return fmt.Errorf("index: detect FTS for %s: %w", agentID, err)
+	} else if ok {
+		if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent_id=?`, agentID); err != nil {
+			return fmt.Errorf("index: withdraw FTS for %s: %w", agentID, err)
+		}
+	}
+	if _, err := tx.Exec(`DELETE FROM session_search_spans WHERE agent_id=?`, agentID); err != nil {
+		return fmt.Errorf("index: withdraw spans for %s: %w", agentID, err)
+	}
+	return tx.Commit()
+}
+
 // retainedSession is the part of a sessions row that is committed straight to
 // SQLite and never appended to the transcript, so replay cannot rebuild it
 // (TS-02.R9): the hook-learned native conversation ID (TS-02.R54) and the

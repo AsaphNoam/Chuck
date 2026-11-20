@@ -162,6 +162,9 @@ type Server struct {
 	lifecycleBusy   map[string]chan struct{}
 	lifecycleClosed bool
 	lifecycleWG     sync.WaitGroup
+	// editControls holds each running Edit's Stop/Cancel control until its
+	// worker releases the lifecycle claim (TS-01.R51). Guarded by lifecycleMu.
+	editControls map[string]*editControl
 	// startCheckouts names the canonical checkout each claimed start entered,
 	// until its claim releases after durable registration; removingCheckouts
 	// refuses new starts there while a removal runs (TS-12.R15, INV §5).
@@ -385,6 +388,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 		mcpCleanups:               map[string]func(){},
 		switching:                 map[string]bool{},
 		lifecycleBusy:             map[string]chan struct{}{},
+		editControls:              map[string]*editControl{},
 		startCheckouts:            map[string]string{},
 		removingCheckouts:         map[string]bool{},
 		projectArchiving:          map[string]bool{},

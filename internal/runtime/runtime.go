@@ -100,6 +100,10 @@ type LaunchSpec struct {
 	// provider session instead of a fresh one (FS-01.R36, TS-04.R65). It is
 	// one-shot launch input and never persisted as configuration (INV §3).
 	Fork *ForkPlan
+	// EditStaged keeps a last-message Edit's candidate unpublished until the
+	// edit commits (TS-01.R51): Resume defers its session snapshot,
+	// session_meta, running session id and status to PublishStaged.
+	EditStaged bool
 }
 
 // Provider-preparation purposes (TS-01.R40): execution intent for one process

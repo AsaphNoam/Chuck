@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/attachment"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
@@ -20,12 +22,20 @@ import (
 // ordinary start (TS-01.R51).
 const editStartTimeout = 3 * time.Minute
 
+// editBeforeDecision lets tests hold a prepared candidate at the decision
+// boundary; nil in production.
+var editBeforeDecision func(ctx context.Context, agentID string)
+
 // Edit message-level refusal reasons (FS-01.R61).
 const (
 	editReasonInjected   = "This message was sent while the agent was working; edit the message that began that turn."
 	editReasonUnfinished = "Wait for this turn to finish."
 	editReasonNoProof    = "This agent's adapter cannot prove a complete earlier turn; update to the supported package to edit later messages."
 	editReasonNoMessage  = "This conversation has no sent message to edit."
+	// editReasonSearchUnavailable is the committed edit's attention reason
+	// when its search rebuild failed (TS-02.R70).
+	editReasonSearchUnavailable = "The edit was applied, but search cannot find this conversation until `chuck reindex` repairs it."
+	editReasonAttachment        = "An attachment on this message is no longer available, so it cannot be edited. Send a new message instead."
 )
 
 type editRequest struct {
@@ -134,11 +144,75 @@ func (s *Server) handleEditLast(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("edit accepted", "agent", id, "request_id", req.RequestID, "message_seq", req.MessageSeq)
 	s.touchState(id)
 	accepted, _ := s.stateStore.ReadEdit(id, req.RequestID)
+	ctx, cancel := context.WithTimeout(context.Background(), editStartTimeout)
+	ctl := &editControl{cancel: cancel, done: make(chan struct{})}
+	s.lifecycleMu.Lock()
+	if s.editControls == nil {
+		s.editControls = map[string]*editControl{}
+	}
+	s.editControls[id] = ctl
+	s.lifecycleMu.Unlock()
 	writeJSON(w, http.StatusAccepted, s.editResultFor(accepted, false))
 	go func() {
-		defer release()
-		s.runEdit(agent, snap, accepted, plan, msg)
+		defer func() {
+			cancel()
+			release()
+			s.lifecycleMu.Lock()
+			if s.editControls[id] == ctl { // a later edit may already own the slot
+				delete(s.editControls, id)
+			}
+			s.lifecycleMu.Unlock()
+			close(ctl.done)
+		}()
+		s.runEdit(ctx, ctl, agent, snap, accepted, plan, msg)
 	}()
+}
+
+// editControl lets Stop and turn Cancel reach a running Edit, serialized
+// against its commit decision (TS-01.R51).
+type editControl struct {
+	mu      sync.Mutex
+	cancel  context.CancelFunc
+	decided bool
+	stop    bool
+	done    chan struct{}
+}
+
+// interrupt asks the edit to stop. Before the decision it cancels
+// preparation; Stop then leaves the agent stopped, while Cancel restores the
+// source's running/stopped condition. After the decision a Stop releases the
+// undispatched replacement. It reports whether the decision was still ahead.
+func (c *editControl) interrupt(stop bool) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if stop {
+		c.stop = true
+	}
+	if c.decided {
+		return false
+	}
+	c.cancel()
+	return true
+}
+
+// interruptEdit interrupts the agent's running Edit, if any, and waits for
+// its worker to release the lifecycle claim. handled is false when no edit
+// runs; beforeDecision reports whether the edit was aborted.
+func (s *Server) interruptEdit(ctx context.Context, id string, stop bool) (handled, beforeDecision bool, ae *runtime.APIError) {
+	s.lifecycleMu.Lock()
+	ctl := s.editControls[id]
+	s.lifecycleMu.Unlock()
+	if ctl == nil {
+		return false, false, nil
+	}
+	beforeDecision = ctl.interrupt(stop)
+	s.log.Info("edit interrupted", "agent", id, "stop", stop, "before_decision", beforeDecision)
+	select {
+	case <-ctl.done:
+		return true, beforeDecision, nil
+	case <-ctx.Done():
+		return true, beforeDecision, apiError(runtime.CodeTransitionInProgress, "the edit is still finishing; try again")
+	}
 }
 
 // editPlan is the validated replacement: the superseded range and, for a
@@ -240,30 +314,66 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 		plan.fork = &runtime.ForkPlan{InPlace: true, SourceAgentID: id, SourceSessionID: snap.LastSessionID,
 			SourceSeq: previousEnd.Seq, ForkPoint: previousEnd.ForkPoint, HistoryPrimer: snap.HistoryPrimer}
 	}
+	// The kept attachments must still be retained intact, under Send's own
+	// bounds, before anything is accepted (TS-03.R90).
+	store := attachment.New(s.configStore.Home())
+	for _, d := range original.Attachments {
+		f, current, err := store.Open(id, d.ID)
+		if err != nil {
+			return none, runtime.Message{}, snap, editUnavailable(editReasonAttachment)
+		}
+		f.Close()
+		if current.SHA256 != d.SHA256 || current.Size != d.Size {
+			return none, runtime.Message{}, snap, editUnavailable(editReasonAttachment)
+		}
+	}
 	msg := runtime.Message{Text: req.Text, Attachments: original.Attachments, RequestID: req.RequestID}
+	if len(msg.Attachments) > 0 {
+		if encoded, err := json.Marshal(msg); err != nil || len(encoded) > 96<<10 {
+			return none, runtime.Message{}, snap, apiError(runtime.CodeValidation, "replacement text and attachments exceed the message limit")
+		}
+	}
 	return plan, msg, snap, nil
 }
 
 // runEdit prepares the replacement session, commits the revision and hands
 // the replacement input to ordinary prompt admission exactly once.
-func (s *Server) runEdit(agent state.Agent, snap state.SessionSnapshot, rec state.EditTransition, plan editPlan, msg runtime.Message) {
+func (s *Server) runEdit(ctx context.Context, ctl *editControl, agent state.Agent, snap state.SessionSnapshot, rec state.EditTransition, plan editPlan, msg runtime.Message) {
 	id, requestID := agent.AgentID, rec.RequestID
-	ctx, cancel := context.WithTimeout(context.Background(), editStartTimeout)
-	defer cancel()
 	wasRunning := s.registry.Owns(id)
-	if err := s.prepareEditCandidate(ctx, agent, snap, plan); err != nil {
-		s.abortEdit(ctx, agent, snap, requestID, wasRunning, err.Error())
+	abort := func(reason string) {
+		ctl.mu.Lock()
+		stopped := ctl.stop
+		ctl.mu.Unlock()
+		switch {
+		case stopped:
+			reason = "the agent was stopped before the edit was applied."
+		case errors.Is(ctx.Err(), context.Canceled):
+			reason = "the edit was cancelled before it was applied."
+		}
+		s.abortEdit(agent, snap, requestID, wasRunning && !stopped, reason)
+	}
+	candidateSession, err := s.prepareEditCandidate(ctx, agent, snap, plan)
+	if err != nil {
+		abort(err.Error())
 		return
 	}
-	candidate, err := s.stateStore.ReadSession(id)
-	if err != nil {
-		s.abortEdit(ctx, agent, snap, requestID, wasRunning, "read the prepared session: "+err.Error())
+	if editBeforeDecision != nil {
+		editBeforeDecision(ctx, id)
+	}
+	// The irreversible decision, serialized against Stop and Cancel: from
+	// here recovery completes the revision.
+	ctl.mu.Lock()
+	if ctx.Err() != nil {
+		ctl.mu.Unlock()
+		abort(ctx.Err().Error())
 		return
 	}
-	// The irreversible decision: from here recovery completes the revision.
-	revision, err := s.stateStore.DecideEdit(id, requestID, plan.from, plan.through, candidate.LastSessionID)
+	revision, err := s.stateStore.DecideEdit(id, requestID, plan.from, plan.through, candidateSession)
+	ctl.decided = err == nil
+	ctl.mu.Unlock()
 	if err != nil {
-		s.abortEdit(ctx, agent, snap, requestID, wasRunning, "record the edit decision: "+err.Error())
+		abort("record the edit decision: " + err.Error())
 		return
 	}
 	s.log.Info("edit committing", "agent", id, "request_id", requestID, "revision", revision)
@@ -273,24 +383,38 @@ func (s *Server) runEdit(agent state.Agent, snap state.SessionSnapshot, rec stat
 		s.touchState(id)
 		return
 	}
+	ctl.mu.Lock()
+	stopped := ctl.stop
+	ctl.mu.Unlock()
+	if stopped {
+		// Stop after the decision: the revised conversation stays, and the
+		// undispatched replacement goes to explicit recovery.
+		if rec, err := s.stateStore.ReadEdit(id, requestID); err == nil {
+			s.releaseUndispatchedEdit(rec)
+		}
+		s.touchState(id)
+		return
+	}
 	s.dispatchEdit(ctx, id, requestID, msg)
 }
 
 // prepareEditCandidate stops the current runtime and starts the replacement
 // session under the same agent identity: an in-place fork ending at the kept
 // turn, or the frozen initial context for the first message (TS-04.R113).
-func (s *Server) prepareEditCandidate(ctx context.Context, agent state.Agent, snap state.SessionSnapshot, plan editPlan) error {
+// The candidate is staged: nothing selects it until the edit commits, and it
+// returns the candidate's native session for the decision.
+func (s *Server) prepareEditCandidate(ctx context.Context, agent state.Agent, snap state.SessionSnapshot, plan editPlan) (string, error) {
 	id := agent.AgentID
 	if ae := s.acquireAgentStart(agent.Project, id); ae != nil {
-		return errors.New(ae.Message)
+		return "", errors.New(ae.Message)
 	}
 	defer s.releaseAgentStart(agent.Project, id)
 	if err := s.registry.Stop(ctx, id); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
-			return fmt.Errorf("stop the current runtime: %w", err)
+			return "", fmt.Errorf("stop the current runtime: %w", err)
 		}
 		if err := s.reapOrphanRuntime(id); err != nil {
-			return fmt.Errorf("reap orphan runtime: %w", err)
+			return "", fmt.Errorf("reap orphan runtime: %w", err)
 		}
 	}
 	s.teardownAgentRegistration(id)
@@ -298,20 +422,29 @@ func (s *Server) prepareEditCandidate(ctx context.Context, agent state.Agent, sn
 		return s.composeSwitchSpecFrom(ctx, agent, "", snap, nil)
 	}, func(spec *runtime.LaunchSpec) *runtime.APIError {
 		spec.Fork = plan.fork
+		spec.EditStaged = true
 		return nil
 	})
 	if stopErr != nil {
-		return fmt.Errorf("stop the failed candidate: %w", stopErr)
+		return "", fmt.Errorf("stop the failed candidate: %w", stopErr)
 	}
 	if ae != nil {
-		return errors.New(ae.Message)
+		return "", errors.New(ae.Message)
 	}
-	return nil
+	session, ok := s.registry.StagedSession(id)
+	if !ok {
+		return "", errors.New("the prepared session is no longer running")
+	}
+	return session, nil
 }
 
-// abortEdit restores the original selection after a failure before the
-// decision, restarting the original session when it was running.
-func (s *Server) abortEdit(ctx context.Context, agent state.Agent, snap state.SessionSnapshot, requestID string, wasRunning bool, reason string) {
+// abortEdit stops a staged candidate after a failure, Stop or Cancel before
+// the decision, restarting the original session when it was running and
+// should be restored. The staged candidate published nothing, so the
+// original selection and history need no rewrite.
+func (s *Server) abortEdit(agent state.Agent, snap state.SessionSnapshot, requestID string, restart bool, reason string) {
+	ctx, cancel := context.WithTimeout(context.Background(), editStartTimeout)
+	defer cancel()
 	id := agent.AgentID
 	s.log.Warn("edit aborted", "agent", id, "request_id", requestID, "reason", clipDetail(reason))
 	if s.registry.Owns(id) {
@@ -320,13 +453,11 @@ func (s *Server) abortEdit(ctx context.Context, agent state.Agent, snap state.Se
 		}
 		s.teardownAgentRegistration(id)
 	}
+	// A failed candidate start can have written its applied agent identity.
 	if err := s.stateStore.RestoreSwitchSource(agent, snap); err != nil {
 		s.log.Error("restore edit source", "agent", id, "err", err)
 	}
-	if err := s.appendRestoredSessionMeta(agent, snap); err != nil {
-		s.log.Warn("record restored edit source", "agent", id, "err", err)
-	}
-	if wasRunning {
+	if restart {
 		ae, stopErr := s.startRuntimeClaimed(ctx, false, func() (runtime.LaunchSpec, *runtime.APIError) {
 			return s.composeSwitchSpecFrom(ctx, agent, snap.LastSessionID, snap, nil)
 		}, nil)
@@ -366,9 +497,20 @@ func (s *Server) completeEditRevision(id, requestID string) error {
 			return err
 		}
 	}
-	// Search, previews and rollups rebuild from the active history (TS-02.R70).
+	// The committed candidate becomes visible only now (TS-01.R51); after a
+	// restart no candidate runs and the snapshot already selects it.
+	if err := s.registry.PublishStaged(id); err != nil && !errors.Is(err, runtime.ErrNoHandle) {
+		return fmt.Errorf("publish the edited session: %w", err)
+	}
+	// Search, previews and rollups rebuild from the active history. A failed
+	// rebuild withdraws the conversation's search text rather than leaving the
+	// superseded text searchable as current (TS-02.R70).
 	if err := s.indexer.ReindexAgent(s.configStore.Home(), id); err != nil {
-		s.log.Warn("reindex edited conversation", "agent", id, "err", err)
+		s.log.Error("reindex edited conversation", "agent", id, "request_id", requestID, "err", err)
+		if dropErr := s.indexer.WithdrawSearch(id); dropErr != nil {
+			s.log.Error("withdraw edited conversation search", "agent", id, "err", dropErr)
+		}
+		_ = s.stateStore.SetEditReason(id, requestID, editReasonSearchUnavailable)
 	}
 	s.touchState(id)
 	return nil

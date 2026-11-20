@@ -1,6 +1,6 @@
 # Message hover actions and Edit in the current conversation
 
-**State:** Finished (2026-11-20); packaged live receipts owed; open findings EDIT-1…4
+**State:** Finished (2026-11-20); packaged live receipts owed; EDIT-1…4 repaired; EDIT-EDGE open
 **Why:** The operator requested visible message actions, corrected Edit to act on the current
 conversation, limited it to the latest sent message, requested Copy and Fork on every message,
 and approved completing the design on 2026-11-20.

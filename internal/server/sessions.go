@@ -884,6 +884,16 @@ func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]any{"cancelled": cancelled})
 		return
 	}
+	// Before an Edit's decision, turn Cancel aborts it and restores the
+	// source's running/stopped condition; afterwards it cancels the revised
+	// turn normally (TS-01.R51).
+	if handled, aborted, ae := s.interruptEdit(r.Context(), id, false); ae != nil {
+		writeAPIError(w, ae)
+		return
+	} else if handled && aborted {
+		writeJSON(w, http.StatusAccepted, map[string]any{"cancelled": true})
+		return
+	}
 	cancelled, err := s.registry.Cancel(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, runtime.ErrNoHandle) {
@@ -919,6 +929,11 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
 // (INV §4). Losing the claim returns the same conflict a losing resume returns;
 // the caller may retry once the transition settles.
 func (s *Server) stopAgent(ctx context.Context, id string) *runtime.APIError {
+	// A running Edit owns the lifecycle claim: Stop first ends it, then stops
+	// whichever conversation it left running (TS-01.R51).
+	if _, _, ae := s.interruptEdit(ctx, id, true); ae != nil {
+		return ae
+	}
 	release, ok := s.claimQuotaActions(quotaAgentKeys([]string{id}))
 	if !ok {
 		return apiError(runtime.CodeConflict, "a lifecycle or quota action is already in progress")

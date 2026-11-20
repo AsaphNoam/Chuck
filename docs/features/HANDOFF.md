@@ -102,7 +102,9 @@ They are not queued for `/fix`. The recorded text is in
   record, annotation, backend_switch and fork_boundary inside a superseded range; each folded read
   pre-scans its prefix for revision records; contextref pinned references read folded; restart
   releases an undispatched replacement to explicit recovery instead of resending it.
-  Open findings EDIT-1…EDIT-4 below. Packaged live receipts are owed in ACCEPTANCE-GATES.
+  EDIT-1…4 were repaired before review (Stop/Cancel edit control, staged candidate start,
+  attachment validation, search withdrawal on failed reindex); EDIT-EDGE below remains open.
+  Packaged live receipts are owed in ACCEPTANCE-GATES.
 - **Assignment-queued input at the transcript tail** (WITHDRAW-SEND-3/STEER-HOLD-4; FS-03.R48):
   reviewed at `b16c722f` for implementation `c02083df`; open findings QUEUED-TAIL-1–4 below.
 
@@ -198,25 +200,22 @@ specs, live user state or unrelated dirty files changed.
   replacement, restart and recovery. Include the prompt snapshot, transcript, search and each
   browser projection, and identify which existing rule governs each handoff.
 
-### EDIT — known gaps in current-conversation Edit as built (2026-11-20) — **Fix model:** medium — Codex Terra or Claude Opus.
+### EDIT-EDGE — Edit edge paths found by the EDIT fix's independent check (2026-11-20) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Recorded by the implementing session; each is a stated requirement the first build does not yet
-meet, kept open rather than narrowed (workflow §3).
-
-- **Must fix** — EDIT-1 (TS-01.R51, INV §18). While an edit prepares it holds the lifecycle
-  claim, so Stop and turn Cancel are refused with `transition_in_progress` instead of aborting
-  preparation and restoring the source's running/stopped condition. The wait is bounded by
-  `editStartTimeout` (3 min); after dispatch Stop and Cancel act normally.
-- **Must fix** — EDIT-2 (TS-01.R51, INV §1/§15). The candidate start is not staged: it writes
-  the session snapshot, `session_meta` and running status before the commit decision. Abort
-  restores the snapshot and appends a restored `session_meta` (the switch-runtime pattern), so a
-  reader can briefly see the candidate selection beside the original history.
-- **Must fix** — EDIT-3 (TS-03.R90). Original attachment bytes are not validated before
-  acceptance; a missing attachment surfaces only when the committed replacement is sent, which
-  releases it to explicit recovery.
-- **Must fix** — EDIT-4 (TS-02.R70). A failed post-commit reindex is logged, not projected:
-  search is not marked unavailable for that conversation, so stale search text can remain until
-  the next reindex.
+- **Worth fixing** — EDIT-EDGE-1 (TS-01.R51, INV §15/§18). If `PublishStaged` fails after
+  `FinishEdit` (`internal/server/edit.go` `completeEditRevision`), the worker records a reason and
+  returns. It neither dispatches the replacement nor releases it to recovery, so the input waits for
+  the next restart's `recoverEdits`, and the candidate keeps running unpublished. Restart in the
+  committing phase selects the candidate but never journals its session_meta.
+- **Worth fixing** — EDIT-EDGE-2 (TS-01.R51, INV §1). Staging defers the candidate's start status
+  only. A `usage_update` still republishes live context through `republishLive`
+  (`internal/runtime/chat.go`), and a SessionStart hook still applies its status. Either can write
+  candidate usage onto the source's stopped status row, and the values can survive an aborted edit.
+- **Worth fixing** — EDIT-EDGE-3 (TS-01.R51). Only the Stop route and turn Cancel reach a running
+  edit. Group release (`groups.go`) and peer stop (`peer_stop.go`) take the lifecycle claim directly
+  and still get a conflict for up to the 3-minute preparation bound. So does a Stop in the instant
+  between edit acceptance and control registration. No test covers Stop or Cancel after the
+  decision.
 
 ### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
 

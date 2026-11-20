@@ -401,6 +401,16 @@ func refreshRunningFromHook(tx *sql.Tx, payload HookPayload, current RunningEntr
 	// The token-bound running row is the current generation, so its native
 	// conversation becomes durable here, before Stop or a crash can delete the
 	// row (TS-02.R54, ASRB-1). An empty hook ID never replaces a known one.
+	// A preparing Edit candidate stays unpublished until its commit, which
+	// writes its selection (TS-01.R51).
+	var preparing int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM edit_transitions WHERE agent_id = ? AND phase = 'preparing'`,
+		payload.AgentID).Scan(&preparing); err != nil {
+		return fmt.Errorf("state: read edit phase: %w", err)
+	}
+	if preparing > 0 {
+		return nil
+	}
 	if payload.SessionID != "" {
 		if _, err := tx.Exec(`UPDATE sessions SET last_session_id = ? WHERE agent_id = ?`,
 			payload.SessionID, payload.AgentID); err != nil {

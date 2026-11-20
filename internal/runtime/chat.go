@@ -270,10 +270,13 @@ type agentState struct {
 	modeMu       sync.Mutex
 	modes        SessionModes
 	modeRevision uint64
-	hub          *Hub
-	stdin        interface{ Close() error }
-	stderr       *ringBuffer
-	stderrDone   chan struct{}
+	// staged holds an Edit candidate's deferred publication until
+	// PublishStaged (TS-01.R51); nil once published. Guarded by mu.
+	staged     *stagedStart
+	hub        *Hub
+	stdin      interface{ Close() error }
+	stderr     *ringBuffer
+	stderrDone chan struct{}
 
 	ctx    context.Context // turn-scoped base context, cancelled on Stop
 	cancel context.CancelFunc
@@ -1911,22 +1914,41 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	resumedMeta.ResumedAt = &resumeNow
 	resumedCaps := as.capabilities()
 	resumedMeta.RuntimeCapabilities = &resumedCaps
-	c.emit(as, EvSessionMeta, resumedMeta)
 
 	// Write fresh running and status rows with usage for the actual context.
 	now := time.Now().UTC()
-	if err := c.store.WriteRunning(state.RunningEntry{
+	running := state.RunningEntry{
 		AgentID: as.agentID, PID: pgid, ProcessBirth: birth, SessionID: resolvedSessionID,
 		Interface: "chat", HookToken: spec.HookToken, StartedAt: now, Generation: spec.Generation,
 		FastAvailable: applied.FastAvailable, SteeringAvailable: as.steeringSupported(),
-	}); err != nil {
+	}
+	status := state.Status{
+		AgentID: as.agentID, State: state.ComposeChatStatus(state.ChatProcessLive, state.ConversationTurn{}, false), Detail: "resumed",
+		LastTrace: "SessionStart",
+	}
+	if spec.EditStaged {
+		// The running row still owns the process for teardown and orphan
+		// reconciliation, but carries no session id, so nothing can retain
+		// the candidate's selection before the edit commits (TS-01.R51).
+		as.mu.Lock()
+		as.staged = &stagedStart{meta: resumedMeta, running: running, status: status}
+		as.mu.Unlock()
+		running.SessionID = ""
+		if err := c.store.WriteRunning(running); err != nil {
+			as.shutdown()
+			return nil, fmt.Errorf("runtime: write running: %w", err)
+		}
+		c.mu.Lock()
+		c.agents[as.agentID] = as
+		c.mu.Unlock()
+		return &Handle{AgentID: as.agentID, Pid: pgid, SessionID: resolvedSessionID, Fast: applied.Fast}, nil
+	}
+	c.emit(as, EvSessionMeta, resumedMeta)
+	if err := c.store.WriteRunning(running); err != nil {
 		as.shutdown()
 		return nil, fmt.Errorf("runtime: write running: %w", err)
 	}
-	if err := c.writeStatus(as, state.Status{
-		AgentID: as.agentID, State: state.ComposeChatStatus(state.ChatProcessLive, state.ConversationTurn{}, false), Detail: "resumed",
-		LastTrace: "SessionStart",
-	}); err != nil {
+	if err := c.writeStatus(as, status); err != nil {
 		as.shutdown()
 		_ = c.store.DeleteRunning(as.agentID)
 		return nil, fmt.Errorf("runtime: write status: %w", err)
@@ -1938,6 +1960,49 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 
 	c.quotaSessionOpened(as)
 	return &Handle{AgentID: as.agentID, Pid: pgid, SessionID: resolvedSessionID, Fast: applied.Fast}, nil
+}
+
+// stagedStart is an Edit candidate's deferred start publication.
+type stagedStart struct {
+	meta    SessionMetaData
+	running state.RunningEntry
+	status  state.Status
+}
+
+// PublishStaged publishes a staged Edit candidate once the edit has committed
+// (TS-01.R51): its session_meta, session snapshot, running session id and
+// ready status, in that order. It is a no-op for an unstaged agent.
+func (c *ChatRuntime) PublishStaged(agentID string) error {
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return err
+	}
+	as.mu.Lock()
+	staged := as.staged
+	as.mu.Unlock()
+	if staged == nil {
+		return nil
+	}
+	c.emit(as, EvSessionMeta, staged.meta)
+	c.mu.Lock()
+	ix := c.indexer
+	c.mu.Unlock()
+	if ix != nil {
+		if err := ix.UpsertSessionMeta(agentID, staged.meta); err != nil {
+			return fmt.Errorf("runtime: index session meta: %w", err)
+		}
+	}
+	if err := c.store.WriteRunning(staged.running); err != nil {
+		return fmt.Errorf("runtime: write running: %w", err)
+	}
+	if err := c.writeStatus(as, staged.status); err != nil {
+		return fmt.Errorf("runtime: write status: %w", err)
+	}
+	as.mu.Lock()
+	as.staged = nil
+	as.mu.Unlock()
+	c.quotaSessionOpened(as)
+	return nil
 }
 
 func copyStringSet(source map[string]struct{}) map[string]struct{} {
@@ -2736,6 +2801,9 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 	if closed {
 		_ = as.journal.Close(attachment, spec.isClone())
 		return errors.New("runtime: agent exited while opening its transcript")
+	}
+	if spec.EditStaged {
+		return nil // PublishStaged writes the snapshot once the edit commits
 	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {
 		as.closeJournal(spec.isClone()) // a failed clone leaves no transcript (INV §15)

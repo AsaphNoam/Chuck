@@ -335,6 +335,25 @@ func (r *Registry) Resume(ctx context.Context, spec LaunchSpec) (*Handle, error)
 	return r.start(ctx, spec, true)
 }
 
+// StagedSession returns a staged Edit candidate's native session id.
+func (r *Registry) StagedSession(agentID string) (string, bool) {
+	as, err := r.chat.lookup(agentID)
+	if err != nil {
+		return "", false
+	}
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	if as.staged == nil {
+		return "", false
+	}
+	return as.staged.running.SessionID, true
+}
+
+// PublishStaged publishes a committed Edit candidate (TS-01.R51).
+func (r *Registry) PublishStaged(agentID string) error {
+	return r.chat.PublishStaged(agentID)
+}
+
 // SendPrompt routes a prompt to the owning runtime.
 func (r *Registry) SendPrompt(ctx context.Context, agentID, text string) error {
 	rt, err := r.ownerFor(agentID)
