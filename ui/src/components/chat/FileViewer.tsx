@@ -13,6 +13,8 @@ import { claimWebLink, isHtmlPath, webLinkActions, type OpenInBrowser } from "..
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
 import { useUiStore } from "../../store/uiStore";
 import { HtmlPreview } from "./HtmlPreview";
+import { CsvTable } from "./CsvTable";
+import { isCsvPath, parseCsv, type CsvSort } from "../../lib/csv";
 import { emptyAnchors, type Anchors, type DisplayMode, type ReadingAnchor, type TabView } from "../../features/fileTabs/model";
 import { ReadDropped, type ReadKind } from "../../features/fileTabs/readLimiter";
 
@@ -29,6 +31,13 @@ const editRefusal = (reason?: string) => ({
   unsupported_metadata: "This file's access metadata cannot be safely preserved.",
   parent_not_writable: "The file's folder is not writable.",
 } as Record<string, string>)[reason ?? ""] ?? "This file cannot be safely edited.";
+
+const CSV_NOTES = {
+  truncated: "Showing Source: this file is larger than the viewer reads, so it cannot be shown as a table.",
+  malformed: "Showing Source: this CSV has invalid quoting or rows of different widths, so it cannot be shown as a table.",
+  "too-large": "Showing Source: this CSV is too large to show as a table.",
+  cited: "Showing the cited source line; open this file without a line citation to see the table.",
+} as const;
 
 type ViewState =
   | { status: "loading" }
@@ -271,17 +280,28 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
     try { return formatJSON(view.file.content); }
     catch { return null; }
   }, [view]);
+  // CSV rows are derived once per complete snapshot (TS-08.R174).
+  const csv = useMemo(() => {
+    // An empty file is plain Source with no note: there is nothing to tabulate.
+    if (view.status !== "loaded" || view.file.image || !isCsvPath(view.file.path) || view.file.content.replace(/^﻿/, "") === "") return null;
+    return view.file.truncated ? { ok: false as const, reason: "truncated" as const } : parseCsv(view.file.content);
+  }, [view]);
+  const csvTable = csv?.ok ? csv : null;
+  const [csvSortState, setCsvSortState] = useState<{ path: string; sort: CsvSort | null }>({ path: shownPath, sort: null });
+  const csvSort = csvTable && csvSortState.path === shownPath && csvSortState.sort && csvSortState.sort.column < csvTable.columns ? csvSortState.sort : null;
   // A source citation always wins over the presentation preference.
   const showFormatted = formattedJSON !== null && rendered && link.line === undefined;
   const showRendered = isMarkdown && rendered;
   const showHtml = canPreviewHtml && rendered && link.line === undefined;
-  const mode: DisplayMode = showRendered ? "rendered" : showFormatted ? "formatted" : "source";
+  const showTable = csvTable !== null && rendered && link.line === undefined;
+  const csvNote = csv && !csv.ok ? CSV_NOTES[csv.reason] : csvTable && link.line !== undefined ? CSV_NOTES.cited : null;
+  const mode: DisplayMode = showRendered ? "rendered" : showFormatted || showTable ? "formatted" : "source";
   useReadingPosition(bodyRef, reader, mode, !showHtml);
 
   // The one mapping from a selection to a file draft, for the context menu and
   // the touch action alike (TS-08.R133): Source captures its line range,
   // Rendered only the path (FS-13.R25).
-  const currentSelection = () => !reader.editing && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
+  const currentSelection = () => !reader.editing && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && !showTable ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
 
   const openFileMenu = (x: number, y: number) => setMenu({ x, y, actions: webLinkActions(shownPath, pushError, onOpenInBrowser) });
   useEffect(() => { setMenu(null); }, [shownPath, view.status, rendered]);
@@ -313,15 +333,15 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       <header className="file-viewer-header" data-slot="header">
         <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}>{shownPath}</span>
         <div className="file-viewer-actions" data-slot="actions">
-          {!reader.editing && (isMarkdown || canPreviewHtml || formattedJSON !== null) && (
-            <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : isHtml ? "HTML display" : "JSON display"}>
-              <button type="button" aria-pressed={showRendered || showHtml || showFormatted} disabled={!isMarkdown && link.line !== undefined} title={!isMarkdown && link.line !== undefined ? "Showing the cited source line; open this file without a line citation to render it." : undefined} onClick={() => setRendered(true)}>{isMarkdown || isHtml ? "Rendered" : "Formatted"}</button>
-              <button type="button" aria-pressed={!showRendered && !showHtml && !showFormatted} onClick={() => setRendered(false)}>Source</button>
+          {!reader.editing && (isMarkdown || canPreviewHtml || formattedJSON !== null || csvTable !== null) && (
+            <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : isHtml ? "HTML display" : csvTable ? "CSV display" : "JSON display"}>
+              <button type="button" aria-pressed={showRendered || showHtml || showFormatted || showTable} disabled={!isMarkdown && link.line !== undefined} title={!isMarkdown && link.line !== undefined ? "Showing the cited source line; open this file without a line citation to render it." : undefined} onClick={() => setRendered(true)}>{isMarkdown || isHtml ? "Rendered" : csvTable ? "Table" : "Formatted"}</button>
+              <button type="button" aria-pressed={!showRendered && !showHtml && !showFormatted && !showTable} onClick={() => setRendered(false)}>Source</button>
             </div>
           )}
           <button type="button" className="ad-button-secondary" disabled={reader.editing} title={reader.editing ? "Save or Cancel the edit before reloading." : undefined} onClick={reader.reload}>Reload</button>
           {reader.editor && !reader.editing && view.status === "loaded" && <button type="button" className="ad-button-secondary" disabled={!view.file.editable || !view.file.revision} title={view.file.editable ? undefined : `Read-only: ${editRefusal(view.file.edit_refusal)}`} onClick={() => reader.setEditing(true)}>Edit</button>}
-          {!reader.editing && onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && (
+          {!reader.editing && onAnnotateSelection && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && !showTable && (
             <button type="button" className="ad-button-secondary" onPointerDown={() => { pressed.current = currentSelection()?.draft ?? null; }} onClick={(click) => { click.currentTarget.focus(); annotateSelection(); }}>Annotate selection</button>
           )}
           {actions}
@@ -370,14 +390,19 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
           <FileImage key={view.readAt.getTime()} image={view.file.image} path={view.file.path} />
         ) : showHtml ? (
           <HtmlPreview key={view.readAt.getTime()} content={view.file.content} path={view.file.path} onContextMenu={onOpenInBrowser ? openFileMenu : undefined} />
+        ) : showTable ? (
+          <CsvTable rows={csvTable.rows} columns={csvTable.columns} sort={csvSort} onSort={(sort) => setCsvSortState({ path: shownPath, sort })} />
         ) : showRendered ? (
           <div className="file-viewer-rendered">
             <SanitizedMarkdown text={view.file.content} onOpenFile={onOpenFile} sourcePath={view.file.path} onOpenInBrowser={onOpenInBrowser} />
           </div>
         ) : (
-          <CodeBlock language={view.file.language || "text"} className={`language-${view.file.language || "text"}`} showLineNumbers={!showFormatted} markedLine={link.line}>
-            {showFormatted ? formattedJSON! : view.file.content}
-          </CodeBlock>
+          <>
+            {csvNote && <p className="file-viewer-note" role="status">{csvNote}</p>}
+            <CodeBlock language={view.file.language || "text"} className={`language-${view.file.language || "text"}`} showLineNumbers={!showFormatted} markedLine={link.line}>
+              {showFormatted ? formattedJSON! : view.file.content}
+            </CodeBlock>
+          </>
         ))}
       </div>
       <PointerContextMenu menu={menu} onClose={() => setMenu(null)} />

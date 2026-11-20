@@ -2895,4 +2895,39 @@ a.agent-mini-card:focus-visible {
   flex-wrap: wrap;
   gap: var(--ad-space-2);
 }
+
+/* A CSV table scrolls horizontally inside its own container. */
+.file-viewer-csv {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.file-viewer-csv-table {
+  border-collapse: collapse;
+  font-family: var(--ad-font-mono);
+  font-size: 0.75rem;
+}
+
+.file-viewer-csv-table th,
+.file-viewer-csv-table td {
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  padding: var(--ad-space-1) var(--ad-space-2);
+  text-align: left;
+  white-space: pre;
+}
+
+.file-viewer-csv-table th button {
+  background: none;
+  border: 0;
+  color: var(--ad-text-primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.file-viewer-note {
+  color: var(--ad-text-muted);
+  font-size: 0.75rem;
+  margin: 0 0 var(--ad-space-2);
+}
 }

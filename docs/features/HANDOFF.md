@@ -41,7 +41,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 5. Shared file menu: Copy path, Open in Finder (project and chat), HTML new-tab viewer page
    (FS-11.R16, FS-03.R119, TS-08.R173); then closure and spec `(planned)` removal.
 
-Next: slice 1.
+Done: slice 1 (`internal/server/project_files.go`; tests `TestProjectResource*`) and slice 3
+(`ui/src/lib/csv.ts`, `CsvTable.tsx`; tests `csv.test.ts`, `FileViewer.csv.test.tsx`).
+Project reads return `project_id` and `edit_refusal: project_read_only`; busy scans return
+429 `resource_scan_busy`. Next: slice 2. Spec `(planned)` markers stay until closure.
 
 ## Decisions needing input
 
