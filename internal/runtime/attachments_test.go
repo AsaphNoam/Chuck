@@ -163,18 +163,34 @@ func TestAttachmentOnlyHeldPromotionPreservesIdentityAndFallbackOnce(t *testing.
 			release()
 			waitForRuntimeStatus(t, c, h.AgentID, "idle")
 			events := history()
-			count := 0
+			var pendingSeq int64
+			var settlement SteerResolutionData
+			ordinary := 0
 			for _, ev := range events {
-				if ev.Type == EvUserPrompt {
+				switch ev.Type {
+				case EvUserPrompt:
 					var d UserPromptData
 					json.Unmarshal(ev.Data, &d)
 					if d.RequestID == m.RequestID {
-						count++
+						if d.SteerPending {
+							if pendingSeq != 0 {
+								t.Fatal("attachment Steer recorded twice")
+							}
+							pendingSeq = ev.Seq
+						} else {
+							ordinary++
+						}
 					}
+				case EvSteerResolution:
+					json.Unmarshal(ev.Data, &settlement)
 				}
 			}
-			if count != 1 {
-				t.Fatalf("accepted prompt persisted %d times", count)
+			wantOutcome, wantOrdinary := "accepted", 0
+			if outcome == "promptRequired" {
+				wantOutcome, wantOrdinary = "retracted", 1
+			}
+			if pendingSeq == 0 || settlement.PromptSeq != pendingSeq || settlement.Outcome != wantOutcome || ordinary != wantOrdinary {
+				t.Fatalf("pending seq %d settlement %+v ordinary prompts %d, want %s and %d ordinary", pendingSeq, settlement, ordinary, wantOutcome, wantOrdinary)
 			}
 		})
 	}
