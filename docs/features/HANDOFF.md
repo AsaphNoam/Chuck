@@ -213,20 +213,24 @@ specs, live user state or unrelated dirty files changed.
   file, moves focus, or dispatches a file action. Locate the rules for source changes, nested menu
   ownership and focus return before repairing the findings.
 
-### STEER-HOLD — refused Steer of a held message (fixed 2026-11-20; remaining work) — **Fix model:** difficult — Codex Sol.
+### STEER-HOLD — write-ahead Steer (verification pending) — **Fix model:** difficult — Codex Sol.
 
-STEER-HOLD-1/2/3/5 are fixed and the inventory (STEER-HOLD-6) is in `docs/ideas.md` as “One
-transition table for a held message and a Steer”. One gap from the fix's independent check remains.
+- **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §15/§19). The repair is in
+  `3590f5c5`, `40dbbca0` and `fd169e61`. It records the Steer before native delivery and
+  settles that exact row. The targeted regressions and independent check passed. Full Go
+  closure is blocked by EDIT-IDLE-1. Rerun it after repairing that finding.
 
-- **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §19). To keep a refused Steer out
-  of history, the Steer `user_text` is now written after the native `_session/steering` answer,
-  not before it (`internal/runtime/chat.go` `SteerMessage`). The receipt still records `unknown`
-  before the call, so the input stays recoverable. A crash, Stop or transport close while that
-  call is pending can now leave a delivered or possibly delivered Steer out of the transcript; a
-  late append after Stop fails and only logs. An injected Steer's first reply chunks can also be
-  written before its row (suspected, not reproduced). R13 says every accepted prompt is appended
-  before publication. Choose with the transition-table idea: write ahead with a retraction record
-  on refusal, or narrow R13 for Steer to “recoverable through its receipt”.
+### EDIT-IDLE — Edit tests can reach admission before the prior turn settles (2026-11-20) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — EDIT-IDLE-1 (medium; TS-01.R51, INV §5/§17). The full server suite intermittently
+  fails Edit requests with `422 edit_unavailable` (“Wait for the agent to finish its current
+  turn”) or direct reservation with `ErrEditBusy` after the fixture observes `idle`.
+  `TestEditStopAndCancelAfterDecision`, `TestEditLastAbortRestoresTheOriginal` and
+  `TestSendRefusedWhileEditOwnsTheConversation` all reproduced with the pre-Steer source
+  (`a66c0f52`, 12 runs of each test). The fixture waits on the durable status row
+  (`internal/server/queue_steer_test.go`); reservation checks runtime turn ownership under lock
+  (`internal/runtime/edit_reservation.go`). Control that ordering to determine whether the
+  fixture needs a settlement barrier or the published idle state is premature.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

@@ -266,7 +266,7 @@ Example:
   hold portion with INPUT-8's inventory.
 - **One transition table for a held message and a Steer.** From the STEER-HOLD review's
   inventory (STEER-HOLD-6, 2026-11-20). STEER-HOLD-1/2/3/5 were patched: a refused promoted Steer
-  restores the original hold (same `held_id`), a refused Steer writes no `user_text`, outcome
+  restores the original hold (same `held_id`), a refused Steer leaves no visible user message, outcome
   notices are 3s toasts, and adapter refusals and `held_changed` are logged. Writers of
   `turn.held`: `SendMessageOrHold` (replace), `resolveSteerFallback` (refused-promotion restore),
   `restoreRefusedHeld` (history refusal), and clears in Withdraw, Steer promotion,
@@ -287,9 +287,9 @@ Example:
   - an `unknown` receipt left pending across the native Steer call has no stated resolution after
     a crash, and `held_id` minting and preservation are unspecified.
   Define the legal moves for Send, Steer, Withdraw, turn end, Stop, crash, quota block and refused
-  begin, with the receipt and transcript write each makes and their order, including when a
-  Steer's `user_text` is written (open as STEER-HOLD-7). Coordinate with the entry above and the
-  QUEUED-TAIL review's inventory.
+  begin, with the receipt and transcript write each makes and their order. STEER-HOLD-7 records
+  the Steer before delivery and settles that row after the provider responds. Coordinate with
+  the entry above and the QUEUED-TAIL review's inventory.
 - **One transition table for assignment-queued input.** From the QUEUED-TAIL review's inventory
   (QUEUED-TAIL-4, 2026-11-20). QUEUED-TAIL-1–3 were patched: a claimed receipt stays listed as
   queued until `submitted`, every surface hides a card whose own `user_text` is in history, the
