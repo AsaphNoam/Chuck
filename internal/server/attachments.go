@@ -183,10 +183,19 @@ func openWorkspaceImage(root, path string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	parts := strings.Split(rel, string(filepath.Separator))
+	return openatNoFollow(fd, strings.Split(rel, string(filepath.Separator)), false)
+}
+
+// openatNoFollow walks parts beneath the directory descriptor dirfd, opening
+// every component without following a symlink, and returns the final
+// descriptor. It takes ownership of dirfd and closes it on every path. Every
+// intermediate component must be a directory; finalDir requires the last one to
+// be a directory too (TS-05.R30).
+func openatNoFollow(dirfd int, parts []string, finalDir bool) (int, error) {
+	fd := dirfd
 	for i, part := range parts {
 		flags := unix.O_RDONLY | unix.O_NOFOLLOW | unix.O_NONBLOCK | unix.O_CLOEXEC
-		if i < len(parts)-1 {
+		if i < len(parts)-1 || finalDir {
 			flags |= unix.O_DIRECTORY
 		}
 		next, err := unix.Openat(fd, part, flags, 0)

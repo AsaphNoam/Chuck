@@ -35,6 +35,7 @@ type fileContent struct {
 	Editable         bool       `json:"editable"`
 	EditRefusal      string     `json:"edit_refusal,omitempty"`
 	AgentID          string     `json:"agent_id"`
+	ProjectID        string     `json:"project_id,omitempty"`
 	Path             string     `json:"path"`
 	Size             int64      `json:"size"`
 	ModTime          string     `json:"mod_time"`
@@ -243,6 +244,15 @@ func readLocalFileSnapshot(path, display string, afterClassification func(), noF
 	}
 	f := os.NewFile(uintptr(fd), path)
 	defer f.Close()
+	return readOpenedFile(f, path, display, noFollow, probeOnly, afterRead, "")
+}
+
+// readOpenedFile verifies an already-opened descriptor as a regular file and
+// decodes its bounded snapshot. It is shared by the chat loader, which opens by
+// path, and the project resource loader, which opens descriptor-relatively
+// (TS-05.R30). A non-empty readOnly makes the snapshot read-only with that
+// refusal and never consults path for edit permission.
+func readOpenedFile(f *os.File, path, display string, noFollow, probeOnly bool, afterRead func(), readOnly string) (fileContent, *runtime.APIError) {
 	info, err := f.Stat()
 	if err != nil {
 		return fileContent{}, apiError(runtime.CodeFileUnreadable, "that file could not be read")
@@ -286,6 +296,10 @@ func readLocalFileSnapshot(path, display string, afterClassification func(), noF
 	decorate := func(out fileContent) fileContent {
 		out.ObservedRevision = opaqueFileRevision(before)
 		out.EditRefusal = "incomplete_text"
+		if readOnly != "" {
+			out.EditRefusal = readOnly
+			return out
+		}
 		if !out.Truncated && out.Image == nil {
 			out.Revision = textFileRevision(before, body)
 			out.EditRefusal = fileEditRefusal(path, f)

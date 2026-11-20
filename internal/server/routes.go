@@ -80,6 +80,9 @@ func (s *Server) routeTable() []routeEntry {
 	// Worktree projects (FS-19 / TS-12).
 	api("POST /api/projects/{project}/worktree-fork", s.handleWorktreeFork)
 	api("GET /api/projects/{project}/worktree", s.handleWorktreeStatus)
+	// Project file browser (FS-11.R11–R16, TS-03.R93); desktop only.
+	api("GET /api/projects/{project}/resource-files", s.handleProjectResourceFiles)
+	api("GET /api/projects/{project}/resource-file", s.handleProjectResourceFile)
 
 	// Native sequential pipeline templates and durable runs (FS-14 / TS-09).
 	api("GET /api/pipelines", s.handlePipelineTemplates)

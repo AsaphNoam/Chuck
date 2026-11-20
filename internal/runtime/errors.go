@@ -193,6 +193,9 @@ const (
 	CodeProviderIncompatible      = "provider_incompatible"        // 422
 	// CodeProviderCheckBusy: two provider refreshes are already running (TS-03.R53).
 	CodeProviderCheckBusy = "provider_check_busy" // 429
+	// CodeResourceScanBusy: four project file catalogs are already being built;
+	// the caller retries (TS-03.R93).
+	CodeResourceScanBusy = "resource_scan_busy" // 429
 )
 
 // APIError is the normalized error payload. It serializes to the §7.7 envelope:
@@ -234,7 +237,7 @@ func statusForCode(code string) int {
 		CodeBackendExists, CodeBackendCatalogChanged, CodeDirectoryPickerBusy,
 		CodeAgentBusy, CodeTransitionInProgress, CodeEditConflict, CodeEditInProgress, CodeRequestConflict:
 		return http.StatusConflict // 409
-	case CodeProviderCheckBusy:
+	case CodeProviderCheckBusy, CodeResourceScanBusy:
 		return http.StatusTooManyRequests // 429
 	case CodeNotImplemented:
 		return http.StatusNotImplemented // 501

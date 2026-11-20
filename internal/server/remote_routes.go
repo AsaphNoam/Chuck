@@ -85,6 +85,8 @@ var remoteDenied = map[string]bool{
 	"PUT /api/think-tanks/{id}/sources/{source_id}/file":               true,
 	"POST /api/sessions/{id}/file/open-browser":                        true,
 	"POST /api/think-tanks/{id}/sources/{source_id}/file/open-browser": true,
+	// The project file browser is desktop-only (FS-11.R13, TS-05.R30).
+	"GET /api/projects/{project}/resource-files": true, "GET /api/projects/{project}/resource-file": true,
 	"POST /api/roles": true, "PUT /api/roles/{role}": true, "DELETE /api/roles/{role}": true,
 	"POST /api/projects": true, "PUT /api/projects/{project}": true, "DELETE /api/projects/{project}": true,
 	// The backend catalog carries backend and model env, which may hold keys.
