@@ -808,7 +808,10 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
 **R51 (implemented 2026-11-20; packaged live receipts owed) — Last-message editing is one same-agent lifecycle transition.** For
 FS-01.R61, the server coordinates Edit through the existing lifecycle claim, runtime idle-turn
 reservation and generation-scoped start/teardown seams. The reservation excludes Send, Steer,
-held promotion and autonomous turn starts until edit preparation commits or aborts. Validate
+held promotion and autonomous turn starts until edit preparation commits or aborts. The
+reservation is taken under the runtime's turn-claim lock and refuses a claimed turn, held input,
+a Steer fallback or open background tasks; every turn claim consults it under that lock, so
+the two exclude each other. Validate
 the active history revision, last user message and turn ownership under that reservation,
 before acceptance. Refuse task/room ownership, unresolved input/permission, active background work,
 quota continuation and unsupported history without changing any of them.

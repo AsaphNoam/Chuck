@@ -137,7 +137,8 @@ func (s *Server) handleEditLast(w http.ResponseWriter, r *http.Request) {
 	s.editControls[id] = ctl
 	s.lifecycleMu.Unlock()
 	chat := s.registry.Chat()
-	reserved := chat.ReserveEdit(id, req.RequestID)
+	reserveErr := chat.ReserveEdit(id, req.RequestID)
+	reserved := reserveErr == nil
 	release := func() {
 		cancel()
 		if reserved {
@@ -153,7 +154,11 @@ func (s *Server) handleEditLast(w http.ResponseWriter, r *http.Request) {
 	}
 	if !reserved {
 		release()
-		writeAPIError(w, editUnavailable(state.EditReasonEditing))
+		reason := state.EditReasonEditing
+		if errors.Is(reserveErr, runtime.ErrEditBusy) {
+			reason = state.EditReasonBusy
+		}
+		writeAPIError(w, editUnavailable(reason))
 		return
 	}
 	plan, msg, snap, ae := s.validateEdit(agent, req)
@@ -281,6 +286,13 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 	}
 	if gate := state.EditAvailability(view, snap.LastSessionID, false); !gate.Available {
 		return none, runtime.Message{}, snap, editUnavailable(gate.Reason)
+	}
+	// An assignment, including a waiting or ready continuation, owns the
+	// agent's next turn; Edit must not replace the context it continues.
+	if _, err := s.stateStore.TaskAssignment(id); err == nil {
+		return none, runtime.Message{}, snap, editUnavailable(state.EditReasonTask)
+	} else if !errors.Is(err, state.ErrNotFound) {
+		return none, runtime.Message{}, snap, apiError(runtime.CodeInternal, "read task assignment")
 	}
 	revision, err := s.stateStore.HistoryRevision(id)
 	if err != nil {

@@ -59,13 +59,15 @@ type EditOperation struct {
 
 // Edit gate reasons (FS-01.R61).
 const (
-	EditReasonNotChat   = "Only chat conversations can be edited."
-	EditReasonArchived  = "Restore this agent before editing."
-	EditReasonBusy      = "Wait for the agent to finish its current turn."
-	EditReasonQuota     = "A quota continuation is pending; cancel it or let it run before editing."
-	EditReasonEditing   = "An edit is already in progress."
-	EditReasonNoFork    = "This agent's runtime cannot prepare an edited conversation."
-	EditReasonNoSession = "This conversation has no provider session to edit."
+	EditReasonNotChat    = "Only chat conversations can be edited."
+	EditReasonArchived   = "Restore this agent before editing."
+	EditReasonBusy       = "Wait for the agent to finish its current turn."
+	EditReasonBackground = "Background work is still running; wait for it to finish or stop it before editing."
+	EditReasonTask       = "A task is assigned to this agent; finish or release it before editing."
+	EditReasonQuota      = "A quota continuation is pending; cancel it or let it run before editing."
+	EditReasonEditing    = "An edit is already in progress."
+	EditReasonNoFork     = "This agent's runtime cannot prepare an edited conversation."
+	EditReasonNoSession  = "This conversation has no provider session to edit."
 )
 
 // EditAvailability is the agent-level Edit gate the projection and the
@@ -80,6 +82,8 @@ func EditAvailability(a AgentState, nativeSessionID string, open bool) CloneAffo
 		return CloneAffordance{Reason: EditReasonEditing}
 	case CloneBusyState(a.State):
 		return CloneAffordance{Reason: EditReasonBusy}
+	case a.BackgroundRunning > 0:
+		return CloneAffordance{Reason: EditReasonBackground}
 	case a.Quota != nil && (a.Quota.ContinuationState == QuotaScheduled || a.Quota.ContinuationState == "waiting" || a.Quota.ContinuationState == "starting"):
 		return CloneAffordance{Reason: EditReasonQuota}
 	case !a.RuntimeCapabilities.Fork:

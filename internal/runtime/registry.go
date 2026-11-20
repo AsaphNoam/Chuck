@@ -388,8 +388,11 @@ func (r *Registry) ContinueSettledChat(agentID, generation string, decide func(s
 		as.mu.Unlock()
 		return err
 	}
-	turnID, _ := as.claimTurnLocked()
+	turnID, claimed := as.claimTurnLocked()
 	as.mu.Unlock()
+	if !claimed { // an Edit reservation owns the idle turn (TS-01.R51)
+		return nil
+	}
 	return r.chat.runMessageTurnFrom(as, Message{Text: prompt}, turnID, state.TurnOrigin{Kind: state.TurnOriginOwnerContinuation, ID: settled})
 }
 

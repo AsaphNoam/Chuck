@@ -242,6 +242,9 @@ func (c *ChatRuntime) SetPersistence(home string, open TranscriptOpener, ix Pers
 type agentState struct {
 	agentID    string
 	generation string
+	// edits is the runtime's conversation-scoped Edit reservation, read by
+	// the turn claim under mu (TS-01.R51).
+	edits *editReservations
 	// adapterInfo is this process's initialize self-description, written once
 	// during startup before its session metadata is built.
 	adapterInfo adapterIdentity
@@ -484,6 +487,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 	actx, acancel := context.WithCancel(context.Background())
 	as := &agentState{
 		agentID:          spec.Agent.AgentID,
+		edits:            &c.edits,
 		generation:       spec.Generation,
 		roots:            append([]string{spec.Cwd}, spec.StartAddDirs()...),
 		cmd:              cmd,
@@ -679,7 +683,13 @@ func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, mes
 		as.mu.Unlock()
 		return false, ErrNoHandle
 	}
-	turnID, claimed := as.claimTurnLocked()
+	// Rechecked under the turn lock: an Edit reserved after the check above
+	// refuses this input rather than holding it (TS-01.R51).
+	if as.editBlocksLocked(message.RequestID) {
+		as.mu.Unlock()
+		return false, ErrEditInProgress
+	}
+	turnID, claimed := as.claimTurnForLocked(message.RequestID)
 	if !claimed {
 		if err := c.messageTransitionReason(as.agentID, as.turn.held.RequestID, "released", "queue", "replaced"); err != nil {
 			as.mu.Unlock()
@@ -838,6 +848,10 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 	if as.turnUnavailableLocked() {
 		as.mu.Unlock()
 		return "", ErrNoHandle
+	}
+	if as.editBlocksLocked("") {
+		as.mu.Unlock()
+		return "", ErrEditInProgress
 	}
 	heldSnapshot := as.turn.held.message()
 	if heldSnapshot.RequestID == "" {
@@ -1094,7 +1108,14 @@ func (as *agentState) resolveSteerFallback(outcome SteerOutcome, callErr error, 
 }
 
 func (as *agentState) claimTurnLocked() (string, bool) {
-	if as.turn.turnActive || as.turnUnavailableLocked() {
+	return as.claimTurnForLocked("")
+}
+
+// claimTurnForLocked claims the turn for requestID's input ("" for automatic
+// work). An Edit reservation refuses every claim but its own replacement's,
+// decided under the same lock ReserveEdit takes (TS-01.R51, INV §5).
+func (as *agentState) claimTurnForLocked(requestID string) (string, bool) {
+	if as.turn.turnActive || as.turnUnavailableLocked() || as.editBlocksLocked(requestID) {
 		return "", false
 	}
 	as.turn.turnActive = true
@@ -1103,6 +1124,10 @@ func (as *agentState) claimTurnLocked() (string, bool) {
 	turnID := as.nextTurnIDLocked()
 	as.setExecTurnLocked(turnID)
 	return turnID, true
+}
+
+func (as *agentState) editBlocksLocked(requestID string) bool {
+	return as.edits != nil && as.edits.blocks(as.agentID, requestID)
 }
 
 func (as *agentState) turnUnavailableLocked() bool {
@@ -1751,6 +1776,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	actx, acancel := context.WithCancel(context.Background())
 	as := &agentState{
 		agentID: spec.Agent.AgentID,
+		edits:   &c.edits,
 		// A resumed agent carries its launch generation exactly like Start and both
 		// terminal paths (INV §4): the crash callback is matched against the
 		// registry's generation, so an empty value is rejected as stale and the

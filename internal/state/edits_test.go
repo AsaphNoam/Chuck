@@ -62,3 +62,16 @@ func TestDispatchEditTransfersOwnershipInOneTransaction(t *testing.T) {
 		t.Fatalf("recovery after restart = %+v %v", rec, err)
 	}
 }
+
+// EDIT-REVIEW-3 (FS-01.R61): background work keeps Edit unavailable even on
+// an idle chat, because preparation stops the runtime that owns it.
+func TestEditAvailabilityWaitsForBackgroundWork(t *testing.T) {
+	idle := AgentState{Interface: "chat", State: "idle", RuntimeCapabilities: RuntimeCapabilities{Fork: true}}
+	if gate := EditAvailability(idle, "s1", false); !gate.Available {
+		t.Fatalf("idle gate = %+v", gate)
+	}
+	idle.BackgroundRunning = 1
+	if gate := EditAvailability(idle, "s1", false); gate.Available || gate.Reason != EditReasonBackground {
+		t.Fatalf("background gate = %+v", gate)
+	}
+}

@@ -225,8 +225,8 @@ func TestSendRefusedWhileEditOwnsTheConversation(t *testing.T) {
 	if _, err := srv.stateStore.AttachmentReceipt(id, "send-1"); err == nil {
 		t.Fatal("refused send left a receipt")
 	}
-	if !srv.registry.Chat().ReserveEdit(id, "edit-1") {
-		t.Fatal("reserve")
+	if err := srv.registry.Chat().ReserveEdit(id, "edit-1"); err != nil {
+		t.Fatalf("reserve: %v", err)
 	}
 	defer srv.registry.Chat().ReleaseEdit(id, "edit-1")
 	if _, err := srv.registry.SendMessageOrHold(t.Context(), id, runtime.Message{Text: "x", RequestID: "other"}); err == nil || !strings.Contains(err.Error(), "being edited") {
