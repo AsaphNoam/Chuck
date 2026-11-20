@@ -482,7 +482,13 @@ function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpen
   if (kind === "user_text" && edit.seq !== null && edit.seq === event.seq && !event.activity_id) return <MessageEditor agentId={agentId} event={event} />;
   if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} onOpenInBrowser={onOpenInBrowser} />;
   if (kind === "user_text")
-    return <article className="message user-message" data-ui="transcript" data-variant="user"><MarkedSourceText text={String(event.text ?? "")} /><MessageAttachments agentId={agentId} attachments={event.attachments ?? []} />{event.steer_pending ? <small>Steer delivery unconfirmed</small> : null}</article>;
+    return (
+      <article className="message user-message" data-ui="transcript" data-variant="user">
+        <MarkedSourceText text={String(event.text ?? "")} />
+        <MessageAttachments agentId={agentId} attachments={event.attachments ?? []} />
+        {event.steer_pending ? <div><small>Steer delivery unconfirmed</small></div> : null}
+      </article>
+    );
   if (kind === "assistant_image") return <article className="message assistant-message" data-ui="transcript" data-variant="assistant"><AssistantImageRow agentId={agentId} attachment={event.attachment} path={typeof event.path === "string" ? event.path : undefined} name={typeof event.name === "string" ? event.name : undefined} error={typeof event.error === "string" ? event.error : undefined} /></article>;
   if (kind === "permission_request") return <PermissionPrompt agentId={agentId} event={event} />;
   if (kind === "diff") return <DiffBlock event={event} onAnnotate={onAnnotate} onOpenFile={onOpenFile} />;
