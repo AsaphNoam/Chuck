@@ -2353,6 +2353,12 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   A cited line stays in Source. Preserve the existing source actions, safe inline rendering,
   freshness behavior and reader-specific authority. Use a semantic table with local horizontal
   scrolling, and render its cell values without HTML interpretation or formula evaluation.
+  Use header buttons and expose `aria-sort` on the active column. Keep the sort key and direction
+  in the active file view. A numeric column has at least one nonblank value and every nonblank
+  value parses as a finite decimal number. Compare other columns as text using the UI locale.
+  Compute a sorted row projection with original indices as the tie-breaker and blanks last in
+  either direction. Preserve the snapshot and Source order. Reapply the active sort on refresh
+  while the column exists and start a different file in file order.
 
 ## 3. Interfaces & data shapes
 

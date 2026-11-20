@@ -16,7 +16,8 @@ return to the same results without leaving the project dashboard.
 - Add the desktop **Files** dialog with Name, Path, Last modified, folder selection and removable
   type badges in the name/path search field. Reuse the file viewer inside the dialog.
 - Add **Open in new tab** for project HTML through the sandboxed viewer and **Open in Finder**
-  for project and chat files. Add CSV **Table** and **Source** to the shared viewer.
+  for project and chat files. Add CSV **Table** and **Source** to the shared viewer, with ascending
+  and descending sorting by column header.
 - Use the existing `ProjectResourcesPath` owner. `fileread.go` already provides bounded snapshot
   decoding, but the chat loader has broader filesystem authority. Reuse it below authorization,
   with the descriptor-relative no-follow pattern in `attachments.go` for project paths.
@@ -31,5 +32,5 @@ return to the same results without leaving the project dashboard.
   return, and recovery at supported desktop widths in the real browser (FS-11.A6–A10).
 - Verify root and traversal boundaries with temporary files, including replacement during access,
   partial scans, phone denial, local Host/Origin rejection, and read-only previews.
-- Open a sandboxed HTML preview in a second browser tab, verify accurate CSV Table/Source, and
+- Open a sandboxed HTML preview in a second browser tab, verify CSV table sorting and exact Source, and
   check that Finder selects the exact file from both project Files and chat on a Mac (FS-03.A94–A95).

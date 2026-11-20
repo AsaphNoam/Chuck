@@ -1198,9 +1198,13 @@ available for recovery and never creates a sent bubble. Send now acts on the exa
 - **R120 (planned) — Render CSV as a table in the existing viewer.** Complete readable `.csv`
   files offer **Table** and **Source**, defaulting to Table for an uncited file that can be parsed.
   Display cells as literal text, preserving quoted commas, embedded newlines, escaped quotes,
-  empty fields, and the original row order. The first row remains visible as data. Wide tables
-  scroll within the viewer. Source preserves exact text, existing line targets, and source-based
-  annotation where available. Explicit line citations, malformed files, and truncated or
+  and empty fields. The table starts in file order, with the first row visible as data. Clicking
+  or keyboard-activating a column header sorts whole rows ascending by that column. Activating
+  the same header again reverses the order. Selecting a different column starts ascending and
+  the active header shows the direction. Sort numeric columns numerically and other columns as
+  text. Empty cells stay last and ties keep file order in both directions. Sorting changes only
+  the displayed table. Wide tables scroll within the viewer. Source preserves exact text, existing
+  line targets, and source-based annotation where available. Explicit line citations, malformed files, and truncated or
   over-limit previews open in Source with the appropriate explanation. Table mode does not
   evaluate formulas or add editing or export actions. Existing reader access rules apply.
 
@@ -1855,9 +1859,11 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   a missing or out-of-scope file yields an explanation. A paired phone cannot trigger a reveal.
   *Verify:* menu and server boundary tests plus a local Mac Finder check.
 - **A95 (planned, R120)** — Open a CSV with quoted commas, line breaks, escaped quotes, empty cells
-  and formula-like text. Check literal table values and scrolling, then switch to Source and
-  inspect exact text. Repeat with a line citation, malformed input, and a partial read. *Verify:*
-  viewer tests and a rendered preview journey from chat and project Files.
+  and formula-like text. Check literal table values and scrolling. Sort numeric values such as
+  2 and 10 ascending and descending, verify ties and empty cells, then keyboard-activate a text
+  column and verify it starts ascending. Switch to Source and inspect exact text in file order.
+  Repeat with a line citation, malformed input, and a partial read. *Verify:* viewer tests and a
+  rendered preview journey from chat and project Files.
 
 ## 6. Deviations & open decisions
 
