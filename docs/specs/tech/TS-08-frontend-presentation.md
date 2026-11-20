@@ -2320,7 +2320,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Verify FS-01.A42–A44 on the agent page and dashboard pane at the supported desktop floor,
   with long content, all appearances, keyboard focus and reduced motion (INV §1/§2/§8/§10/§13).
 
-- **R172 (planned) — One project modal owns browse and preview.** For FS-11.R11–R16 use the scoped
+- **R172 — One project modal owns browse and preview.** For FS-11.R11–R16 use the scoped
   project header and existing dialog, search, menu, and file-viewer primitives. Fetch one TS-03.R93
   catalog on open or Refresh and derive query, file type, and folder filters from metadata. If the
   catalog is incomplete, a selected known folder can request its own bounded catalog. Keep both
@@ -2331,7 +2331,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   with no new motion. Verify the real project route at the supported desktop floor and across
   appearances, including empty states, long paths, focus, keyboard operation and reduced motion.
 
-- **R173 (planned) — Shared actions and source-qualified preview.** Use the existing file viewer
+- **R173 — Shared actions and source-qualified preview.** Use the existing file viewer
   with an explicit project loader and no editing or annotation callbacks. Resolve relative file
   links from the previewed file in the same project loader. Reuse shared file-action composition
   for the project table and chat menus, including clipboard/failure feedback. Bind Finder to the
@@ -2343,7 +2343,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   tab. Verify independent tabs, refusal of out-of-root links and preservation of the existing chat
   HTML and annotation actions.
 
-- **R174 (planned) — Share a bounded CSV table renderer.** For FS-03.R120 derive CSV rows once per
+- **R174 — Share a bounded CSV table renderer.** For FS-03.R120 derive CSV rows once per
   complete text snapshot in the shared file viewer. Recognize case-insensitive `.csv`, support an
   initial UTF-8 BOM, CRLF/LF records, escaped quotes, quoted newlines and empty fields, and keep the
   exact source independently of the parsed rows. Use literal cell text and numbered columns, with

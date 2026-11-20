@@ -9,6 +9,7 @@ import { SanitizedMarkdown } from "./renderers/SanitizedMarkdown";
 import type { FileLink } from "./renderers/filePath";
 import type { AnnotationDraft } from "../../api/types";
 import { clipAnnotationExcerpt } from "../../lib/annotations";
+import { useRevealInFinder } from "../../lib/revealInFinder";
 import { claimWebLink, isHtmlPath, webLinkActions, type OpenInBrowser } from "../../lib/linkActions";
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
 import { useUiStore } from "../../store/uiStore";
@@ -248,6 +249,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   const bodyRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<PointerMenuState | null>(null);
   const pushError = useUiStore((state) => state.pushError);
+  const revealInFinder = useRevealInFinder();
   const editorIdentity = reader.editor?.identity;
   const recoveredDraft = editorIdentity ? getDraft(editorIdentity) : undefined;
   const editInitial: FileContent | undefined = view.status === "loaded" ? view.file : recoveredDraft ? {
@@ -303,7 +305,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   // Rendered only the path (FS-13.R25).
   const currentSelection = () => !reader.editing && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && !showTable ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
 
-  const openFileMenu = (x: number, y: number) => setMenu({ x, y, actions: webLinkActions(shownPath, pushError, onOpenInBrowser) });
+  const openFileMenu = (x: number, y: number) => setMenu({ x, y, actions: webLinkActions(shownPath, pushError, onOpenInBrowser, revealInFinder) });
   useEffect(() => { setMenu(null); }, [shownPath, view.status, rendered]);
 
   const openSelectionMenu = (event: MouseEvent<HTMLDivElement>) => {
@@ -311,7 +313,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
     if (selected && onSelectionMenu) {
       event.preventDefault();
       onSelectionMenu({ x: event.clientX, y: event.clientY, text: selected.text, draft: selected.draft, link: claimWebLink(event) ?? (isHtml ? shownPath : undefined) });
-    } else if (isHtml) {
+    } else if (isHtml || revealInFinder) {
       event.preventDefault();
       openFileMenu(event.clientX, event.clientY);
     }
@@ -331,7 +333,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
     <aside className="file-viewer" data-ui="file-viewer" data-state={view.status} data-variant={variant} aria-label="Open file">
       {tabs}
       <header className="file-viewer-header" data-slot="header">
-        <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}>{shownPath}</span>
+        <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml || revealInFinder ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}>{shownPath}</span>
         <div className="file-viewer-actions" data-slot="actions">
           {!reader.editing && (isMarkdown || canPreviewHtml || formattedJSON !== null || csvTable !== null) && (
             <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : isHtml ? "HTML display" : csvTable ? "CSV display" : "JSON display"}>
@@ -389,7 +391,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
         ) : view.status === "loaded" && (view.file.image ? (
           <FileImage key={view.readAt.getTime()} image={view.file.image} path={view.file.path} />
         ) : showHtml ? (
-          <HtmlPreview key={view.readAt.getTime()} content={view.file.content} path={view.file.path} onContextMenu={onOpenInBrowser ? openFileMenu : undefined} />
+          <HtmlPreview key={view.readAt.getTime()} content={view.file.content} path={view.file.path} onContextMenu={onOpenInBrowser || revealInFinder ? openFileMenu : undefined} />
         ) : showTable ? (
           <CsvTable rows={csvTable.rows} columns={csvTable.columns} sort={csvSort} onSort={(sort) => setCsvSortState({ path: shownPath, sort })} />
         ) : showRendered ? (

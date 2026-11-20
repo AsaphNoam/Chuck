@@ -11,6 +11,7 @@ import { createReadLimiter, type ReadLimiter } from "./readLimiter";
 import { fileTabs, flushFileTabs, useFileTabsStore } from "./store";
 import { PointerContextMenu, type PointerMenuState } from "../../components/ui/PointerContextMenu";
 import { webLinkActions } from "../../lib/linkActions";
+import { useRevealInFinder } from "../../lib/revealInFinder";
 import { useUiStore } from "../../store/uiStore";
 import { confirmDraftLeave, draftPersistenceUnsafe, useDraftSummary } from "./drafts";
 
@@ -139,6 +140,7 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, openBr
   const tabIds = JSON.stringify(tabs.map((tab) => tab.id));
   useEffect(() => setMenu(null), [active?.id, tabIds]);
   const pushError = useUiStore((state) => state.pushError);
+  const revealInFinder = useRevealInFinder();
   const list = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const dragged = useRef(false);
@@ -214,7 +216,7 @@ function TabStrip({ tabs, active, onSelect, onClose, onMove, sourceLabel, openBr
                     onContextMenu={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
-                      setMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(tab.path, pushError, openBrowserFor ? (path) => openBrowserFor(tab, path) : undefined) });
+                      setMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(tab.path, pushError, openBrowserFor ? (path) => openBrowserFor(tab, path) : undefined, revealInFinder) });
                     }}
                     onKeyDown={(event) => onKeyDown(event, index)}
                   />

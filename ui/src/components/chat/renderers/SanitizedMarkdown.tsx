@@ -9,6 +9,7 @@ import { MermaidDiagram } from "./MermaidDiagram";
 import { classifyFileLink, resolveFromFile, type FileLink } from "./filePath";
 import { PointerContextMenu, type PointerMenuState } from "../../ui/PointerContextMenu";
 import { offerWebLink, webLinkActions } from "../../../lib/linkActions";
+import { useRevealInFinder } from "../../../lib/revealInFinder";
 import { useUiStore } from "../../../store/uiStore";
 import { LocalImage } from "../AttachmentView";
 import { useSourceTextRanges } from "../searchPassage";
@@ -92,6 +93,9 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpe
   openRef.current = onOpenFile;
   const browserRef = useRef(onOpenInBrowser);
   browserRef.current = onOpenInBrowser;
+  const reveal = useRevealInFinder();
+  const revealRef = useRef(reveal);
+  revealRef.current = reveal;
   const agentRef = useRef(agentId);
   agentRef.current = agentId;
   const sourcePathRef = useRef(sourcePath);
@@ -101,7 +105,7 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpe
   const pushError = useUiStore((state) => state.pushError);
   const onPathContextMenu = (mouse: ReactMouseEvent<HTMLButtonElement | HTMLSpanElement>) => {
     const { clientX: x, clientY: y } = mouse;
-    offerWebLink(mouse, (path) => setMenu({ x, y, actions: webLinkActions(path, pushError, browserRef.current) }));
+    offerWebLink(mouse, (path) => setMenu({ x, y, actions: webLinkActions(path, pushError, browserRef.current, revealRef.current) }));
   };
   const components = useMemo<Components>(() => ({
     code({ className, children, node }) {

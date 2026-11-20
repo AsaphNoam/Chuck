@@ -5,6 +5,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { FilesTab } from "./FilesTab";
 import type { TrackedFile } from "../../api/types";
+import { RevealInFinderProvider, resetRevealSupportedForTest } from "../../lib/revealInFinder";
 
 const mockFiles: TrackedFile[] = [
   {
@@ -101,7 +102,7 @@ describe("tracked rows as a file-viewer entry point", () => {
   it("opens the named file while Copy and Diff still work", async () => {
     const onOpenFile = vi.fn();
     const onReveal = vi.fn();
-    const writeText = vi.fn();
+    const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     render(<FilesTab agentId="a_1" onReveal={onReveal} onOpenFile={onOpenFile} />);
 
@@ -119,5 +120,30 @@ describe("tracked rows as a file-viewer entry point", () => {
     render(<FilesTab agentId="a_1" />);
     expect(await screen.findByText("src/auth.ts")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "src/auth.ts" })).not.toBeInTheDocument();
+  });
+});
+
+describe("FilesTab Open in Finder", () => {
+  async function openMenu(supported: boolean) {
+    resetRevealSupportedForTest();
+    server.use(http.get("/api/capabilities", () => HttpResponse.json({ reveal_in_finder: supported })));
+    render(<RevealInFinderProvider agentId="a_1"><FilesTab agentId="a_1" /></RevealInFinderProvider>);
+    const path = await screen.findByText("src/auth.ts");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    fireEvent.contextMenu(path);
+  }
+
+  it("reveals the file through the chat route when the host supports it", async () => {
+    let body: unknown;
+    server.use(http.post("/api/sessions/a_1/file/reveal-in-finder", async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    await openMenu(true);
+    fireEvent.click(await screen.findByText("Open in Finder"));
+    await waitFor(() => expect(body).toEqual({ path: "src/auth.ts" }));
+  });
+
+  it("omits it when the host does not support it", async () => {
+    await openMenu(false);
+    expect(await screen.findByText("Copy path")).toBeInTheDocument();
+    expect(screen.queryByText("Open in Finder")).toBeNull();
   });
 });

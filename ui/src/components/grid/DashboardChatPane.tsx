@@ -6,6 +6,7 @@ import { useTranscriptStore } from "../../store/transcriptStore";
 import { Composer } from "../chat/Composer";
 import { TranscriptView } from "../chat/TranscriptView";
 import { useHeldProjection } from "../chat/useHeldProjection";
+import { RevealInFinderProvider } from "../../lib/revealInFinder";
 import type { FileLink } from "../chat/renderers/filePath";
 import { CONVERSATION_FILE_KEYS, writeFileTarget } from "../../features/fileTabs/useFileTabRoute";
 
@@ -27,15 +28,17 @@ export function DashboardChatPane({ agent }: { agent: AgentState }) {
 
   return (
     <div className="dashboard-chat-pane" data-slot="chat-pane" data-agent-pane={agent.agent_id}>
-      <TranscriptView
-        agentId={agent.agent_id}
-        events={events}
-        sourceActive={!agent.archived}
-        forkActionsEnabled={agent.interface === "chat" && !agent.archived}
-        busy={agent.state === "busy"}
-        onOpenFile={openOnAgentScreen}
-        taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)}
-      />
+      <RevealInFinderProvider agentId={agent.agent_id}>
+        <TranscriptView
+          agentId={agent.agent_id}
+          events={events}
+          sourceActive={!agent.archived}
+          forkActionsEnabled={agent.interface === "chat" && !agent.archived}
+          busy={agent.state === "busy"}
+          onOpenFile={openOnAgentScreen}
+          taskControl={agent.running && Boolean(agent.runtime_capabilities?.background_task_stop)}
+        />
+      </RevealInFinderProvider>
       <div className="dashboard-chat-composer">
         <Composer agentId={agent.agent_id} busy={agent.state === "busy" || agent.state === "waiting_input"} variant="dashboard" attachmentCapabilities={agent.attachment_capabilities} />
       </div>

@@ -1529,7 +1529,7 @@ kind per visit; a healthy return sends nothing. Console text, paths, stacks and 
 leave the browser. The route is desktop-only and denied to the phone (TS-13). The page cannot
 attest to what Chrome painted (INV §22).
 
-**R93 (planned) — Project resources have dedicated local read routes.** For FS-11.R11–R16,
+**R93 — Project resources have dedicated local read routes.** For FS-11.R11–R16,
 `GET /api/projects/{id}/resource-files` returns an on-demand metadata catalog with an optional
 root-relative `folder` scope. Its `entries` array carries `path`, `name`, `kind` (`file`,
 `directory`, `symlink`, or `special`), and `mod_time` (UTC RFC 3339 or null if unavailable).
@@ -1555,7 +1555,7 @@ the existing bounded UTF-8/image snapshot logic, using a project-qualified respo
 refusals. Browser loader schemas and server responses ship together. No project edit, native
 HTML launch, CLI, MCP, SSE, or paired-phone equivalent is introduced (INV §2/§7/§10/§11/§14/§16).
 
-**R94 (planned) — Reveal a validated file in Finder via a local POST.** For FS-03.R119 and
+**R94 — Reveal a validated file in Finder via a local POST.** For FS-03.R119 and
 FS-11.R16, add `POST /api/projects/{id}/resource-file/reveal-in-finder` and
 `POST /api/sessions/{id}/file/reveal-in-finder`. Both take a bounded JSON `{path}` and return 204
 when the macOS reveal command accepts the request. Use the originating read authority in

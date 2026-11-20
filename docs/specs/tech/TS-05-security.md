@@ -344,7 +344,7 @@ local Host/Origin rejection and direct phone PUT denial independently. Noncooper
 writers can race the final check/rename as explicitly accepted in TS-03.R81; do not claim OS-level
 exclusive file ownership or protection against a hostile same-user process.
 
-**R30 (planned) — Project file operations use a descriptor-scoped shared root.** For FS-11.R11–R16
+**R30 — Project file operations use a descriptor-scoped shared root.** For FS-11.R11–R16
 and TS-03.R93/R94, read the configured project by validated id and derive its root only through
 `ProjectResourcesPath` (TS-02.R13). Validate the resource parent and project directory as real,
 owner-only directories. Open them and walk beneath them descriptor-relatively with no-follow
@@ -359,7 +359,7 @@ reveal endpoints behind `localOnly` and explicitly deny them to the remote mux. 
 ancestor and final-entry symlink substitutions, missing projects, path escapes, non-regular files,
 and local Host/Origin and paired-phone denial (INV §14/§17).
 
-**R31 (planned) — Finder reveals only an explicitly selected regular file.** Require a local menu
+**R31 — Finder reveals only an explicitly selected regular file.** Require a local menu
 selection to call TS-03.R94 from the browser. The server resolves chat paths using the existing
 local chat authority and working-directory rules (R24) and project paths using R30. Check the
 target as a readable regular file independently of whether its content has a supported preview.

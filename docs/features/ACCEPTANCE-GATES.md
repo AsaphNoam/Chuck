@@ -4,6 +4,11 @@ Live list of native, provider, device and hosted checks that have not been run. 
 gate; remove an entry when its receipt exists. A gate that was run and failed is a finding in
 [HANDOFF.md](HANDOFF.md#review-findings), not an entry here (workflow §4).
 
+- **Project Files and Finder (FS-11.A10, FS-03.A94):** on a Mac with the built binary, reveal a
+  project file from Files and a chat file from its transcript link and tracked row, and confirm
+  Finder selects the exact file. Also run the Files journey against the real server with real
+  symlinks and an unreadable folder. So far there are server tests with an injected reveal runner
+  and a stubbed-API rendered journey (`ui/scripts/project-files-render.mjs`, 59/59).
 
 - **Quota snapshot (FS-09.A49/A52):** one bounded credentialed read each on packaged Claude and
   Codex, compared with the provider's own usage display (window identity, percentage, reset

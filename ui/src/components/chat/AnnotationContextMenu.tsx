@@ -1,5 +1,6 @@
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
 import { webLinkActions } from "../../lib/linkActions";
+import { useRevealInFinder } from "../../lib/revealInFinder";
 import { useUiStore } from "../../store/uiStore";
 
 // link is a rendered link under the pointer, claimed with claimWebLink; its action
@@ -18,13 +19,14 @@ export type AnnotationMenuState = {
 
 export function AnnotationContextMenu({ menu, onClose }: { menu: AnnotationMenuState | null; onClose: () => void }) {
   const pushError = useUiStore((state) => state.pushError);
+  const revealInFinder = useRevealInFinder();
   return (
     <PointerContextMenu
       menu={menu ? {
         x: menu.x,
         y: menu.y,
         actions: [
-          ...(menu.link ? webLinkActions(menu.link, pushError, menu.onOpenInBrowser) : []),
+          ...(menu.link ? webLinkActions(menu.link, pushError, menu.onOpenInBrowser, revealInFinder) : []),
           ...(menu.copy ? [{ label: "Copy selection", select: menu.copy }] : []),
           ...(menu.annotate && menu.label ? [{ label: menu.label, select: menu.annotate }] : []),
           ...(menu.fork ?? []),

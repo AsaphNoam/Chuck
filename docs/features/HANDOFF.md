@@ -31,23 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**[Browse project files](../ready-changes/browse-project-files.md)** — in progress (started
-2026-11-20). Slices, each committed when verified:
-
-1. Server catalog and file read routes over a descriptor-scoped root (TS-03.R93, TS-05.R30).
-2. Finder reveal routes for project and chat files plus the local capability (TS-03.R94, TS-05.R31).
-3. Shared CSV table/source in the file viewer (FS-03.R120, TS-08.R174).
-4. Files dialog: catalog, filters, preview, Back to files, Refresh (FS-11.R11–R15, TS-08.R172).
-5. Shared file menu: Copy path, Open in Finder (project and chat), HTML new-tab viewer page
-   (FS-11.R16, FS-03.R119, TS-08.R173); then closure and spec `(planned)` removal.
-
-Done: slice 1 (`internal/server/project_files.go`; tests `TestProjectResource*`) and slice 3
-(`ui/src/lib/csv.ts`, `CsvTable.tsx`; tests `csv.test.ts`, `FileViewer.csv.test.tsx`).
-Project reads return `project_id` and `edit_refusal: project_read_only`; busy scans return
-429 `resource_scan_busy`. Slice 2 done (`internal/server/filereveal.go`; `reveal_in_finder`
-in `GET /api/capabilities`; tests `*Reveal*`). Next: slice 4 (UI dialog in
-`features/dashboard/ScopedProjectDashboard`, project loader via `useFileReader({load})`).
-Spec `(planned)` markers stay until closure.
+None.
 
 ## Decisions needing input
 
@@ -55,9 +39,9 @@ None.
 
 ## Resolved decisions
 
-- [Project Files](../ready-changes/browse-project-files.md) starts with all shared folders and
-  offers a folder selector. HTML opens in a sandboxed viewer in a new browser tab. The shared
-  folder is desktop-only and symbolic links cannot be followed. The change is in progress.
+- Project Files starts with all shared folders and offers a folder selector. HTML opens in a
+  sandboxed viewer in a new browser tab. The shared folder is desktop-only and symbolic links
+  cannot be followed. Shipped 2026-11-20 (FS-11.R11–R16).
 - Message action design is ready in
   [message-hover-actions-and-current-conversation-edit.md](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
   (FS-01.R60–R62/A42–A44). The last sent message has Copy/Edit/Fork; other messages have
@@ -87,8 +71,9 @@ None.
   under FS-12.R52.
 - When direct-action work resumes, align TS-01.R25/TS-03.R32 with TS-04.R40 and scope FS-17
   section 6's opening sentence to the planned boundary.
-- Injected-steer lifetime edge case needs `/investigate-bug` before `/fix`; FilesTab still copies
-  silently through bare `writeText`.
+- Injected-steer lifetime edge case needs `/investigate-bug` before `/fix`.
+- The shared dialog entrance (`ad-dialog-enter`, `components/primitives.css`) ignores
+  `prefers-reduced-motion` in every dialog, including Project Files.
 - The phone agent header still repeats the model as text under the name now that the model
   switch shows it above the composer.
 
@@ -108,6 +93,15 @@ waiting change [`give-agent-execution-one-owner.md`](../ready-changes/give-agent
 (TS-01.R48, R49 and R50), together with the findings of the 2026-11-14 adversarial assessment.
 They are not queued for `/fix`. The recorded text is in
 [`CR-A10-findings.md`](../archive/reviews/adversarial-2026-11-14/CR-A10-findings.md).
+
+- **Browse project files** (FS-11.R11–R16, FS-03.R119–R120, TS-03.R93–R94, TS-05.R30–R31,
+  TS-08.R172–R174): `8cba163c..` closure, available for review. Notes for the reviewer:
+  project reads open the owner-only shared root by descriptor with no-follow `openat`
+  (`openatNoFollow`, shared with `openWorkspaceImage`); the scan admission semaphore is
+  process-wide (`resourceScans`); the project file menu composes its own actions (absolute
+  Copy path vs relative reveal/preview); chat Finder is provided by `RevealInFinderProvider`
+  on the agent page and dashboard pane only (not Think Tank or Archive). Native Finder and
+  real-server journeys are owed in ACCEPTANCE-GATES.
 
 - **Message hover actions and current-conversation Edit** (FS-01.R60–R62, FS-22.R13,
   TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): reviewed at

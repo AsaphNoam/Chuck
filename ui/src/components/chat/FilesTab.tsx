@@ -2,15 +2,13 @@ import { useEffect, useRef, useState, type MouseEventHandler } from "react";
 import { getTrackedFiles, openFileInBrowser } from "../../api/client";
 import { PointerContextMenu, type PointerMenuState } from "../ui/PointerContextMenu";
 import { webLinkActions } from "../../lib/linkActions";
+import { copyText } from "../../lib/copyText";
+import { useRevealInFinder } from "../../lib/revealInFinder";
 import { useUiStore } from "../../store/uiStore";
 import type { TrackedFile } from "../../api/types";
 import type { FileLink } from "./renderers/filePath";
 
-function copyToClipboard(text: string) {
-  void navigator.clipboard.writeText(text);
-}
-
-function FileRow({ file, onDiffClick, onOpenFile, onPathContextMenu }: { file: TrackedFile; onDiffClick: (seq: number) => void; onOpenFile?: (link: FileLink) => void; onPathContextMenu: MouseEventHandler<HTMLElement> }) {
+function FileRow({ file, onDiffClick, onOpenFile, onPathContextMenu, onCopy }: { file: TrackedFile; onCopy: (path: string) => void; onDiffClick: (seq: number) => void; onOpenFile?: (link: FileLink) => void; onPathContextMenu: MouseEventHandler<HTMLElement> }) {
   return (
     <li className="tracked-row" data-ui="tracked-list" data-slot="row" data-variant="files">
       <div className="tracked-row-top" data-slot="metadata">
@@ -26,7 +24,7 @@ function FileRow({ file, onDiffClick, onOpenFile, onPathContextMenu }: { file: T
             type="button"
             className="ad-button-secondary"
             title="Copy path"
-            onClick={() => copyToClipboard(file.path)}
+            onClick={() => onCopy(file.path)}
           >
             Copy
           </button>
@@ -54,6 +52,7 @@ export function FilesTab({ agentId, onReveal, onOpenFile }: { agentId: string; o
   const [menu, setMenu] = useState<PointerMenuState | null>(null);
   useEffect(() => setMenu(null), [agentId]);
   const pushError = useUiStore((state) => state.pushError);
+  const revealInFinder = useRevealInFinder();
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -107,9 +106,9 @@ export function FilesTab({ agentId, onReveal, onOpenFile }: { agentId: string; o
       ) : (
         <ul className="tracked-list" data-slot="items">
           {filtered.map((f) => (
-            <FileRow key={f.path} file={f} onDiffClick={handleDiff} onOpenFile={onOpenFile} onPathContextMenu={(event) => {
+            <FileRow key={f.path} file={f} onCopy={(path) => { void copyText(path, pushError); }} onDiffClick={handleDiff} onOpenFile={onOpenFile} onPathContextMenu={(event) => {
               event.preventDefault();
-              setMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(f.path, pushError, (path) => openFileInBrowser(agentId, path)) });
+              setMenu({ x: event.clientX, y: event.clientY, actions: webLinkActions(f.path, pushError, (path) => openFileInBrowser(agentId, path), revealInFinder) });
             }} />
           ))}
         </ul>

@@ -16,6 +16,7 @@ import {
 import { WorkspacesPage } from "./features/pipelines/WorkspacesPage";
 import { TasksPage } from "./features/tasks/TasksPage";
 import { ThinkTankPage } from "./features/thinktank/ThinkTankPage";
+import { ProjectFilePreviewPage } from "./features/projectFiles/ProjectFilePreviewPage";
 import { ProjectDashboard, ScopedProjectDashboard } from "./features/dashboard/ProjectDashboard";
 
 const developmentRoutes = import.meta.env.DEV
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <OnboardingGate><ProjectDashboard /></OnboardingGate> },
 	  { path: "project/:project", element: <ScopedProjectDashboard /> },
+      { path: "project/:project/preview", element: <ProjectFilePreviewPage /> },
       { path: "agent/:id", element: <ChatPanel /> },
       { path: "think-tank/:id", element: <ThinkTankPage /> },
       { path: "archive", element: <ArchivePage /> },

@@ -1,7 +1,7 @@
 # FS-11 — Project shared resources
 
-**Status:** Partial
-**Code:** `internal/config/`, `internal/server/launch.go`, `internal/runtime/`, `ui/src/features/settings/` · **Journeys:** —
+**Status:** Current
+**Code:** `internal/config/`, `internal/server/launch.go`, `internal/server/project_files.go`, `internal/runtime/`, `ui/src/features/settings/`, `ui/src/features/dashboard/ProjectFilesDialog.tsx` · **Journeys:** —
 **Absorbed:** —
 
 ## 1. Purpose
@@ -58,14 +58,14 @@ repository change or commit.
 
 ### Project file browser
 
-- **R11 (planned) — Open shared files from the project dashboard.** A visible **Files** button
+- **R11 — Open shared files from the project dashboard.** A visible **Files** button
   opens a modal from a scoped desktop project dashboard, including before its first agent starts.
   The modal identifies the project and starts with files from all folders under its shared-resources
   root (R1). It lists contents
   on demand, independent of agent status or file-tracking history. The checkout, other additional
   directories, and other projects are outside the browser's scope. This adds an explicit read to
   R2/R10 while preserving resource location, agent access, and retention (R1–R7).
-- **R12 (planned) — Scan the newest files and narrow the list.** A compact table shows **Name**,
+- **R12 — Scan the newest files and narrow the list.** A compact table shows **Name**,
   **Path** (parent folder relative to the shared root), and **Last modified**, newest first. Equal
   timestamps sort by name then path. **All folders** includes files at every depth, including hidden
   files. The folder selector lists directories, including empty ones, and choosing a folder scopes
@@ -77,7 +77,7 @@ repository change or commit.
   Files without an extension can be selected as a group. Badges can be removed by pointer or
   keyboard. Clearing text keeps the selected types and folder. Search excludes file contents and
   distinguishes matches, no matches, and incomplete results.
-- **R13 (planned) — Preview in place and return to the same list.** Selecting a regular file shows
+- **R13 — Preview in place and return to the same list.** Selecting a regular file shows
   the existing viewer in the same modal, with its relative path and supported read-only previews
   and refusals (FS-03.R52, R55 and the viewer's current format support). Close and Escape dismiss
   the modal. **Back to files** restores the prior folder, query, type filters, scroll position, and focus to the
@@ -85,18 +85,18 @@ repository change or commit.
   Opening Files focuses search, keyboard users can activate rows, and dismissing the modal restores
   focus to **Files**. This entry adds no editing, file management,
   paired-phone access, or new agent command.
-- **R14 (planned) — Reflect changes and distinguish errors.** Opening the browser reads the current
+- **R14 — Reflect changes and distinguish errors.** Opening the browser reads the current
   directory. **Refresh** updates the active folder or search without clearing its context. Show
   loading, an empty folder, no matches, and a failed read with Retry as distinct states. A legacy
   project whose shared folder has yet to be created shows an empty root without creating it. If a
   folder disappears, explain what happened and offer a return to the root. If a file disappears or
   cannot be previewed, show the reason in the viewer and keep **Back to files** available.
-- **R15 (planned) — Preserve the shared-root boundary.** List symbolic links as unavailable entries
+- **R15 — Preserve the shared-root boundary.** List symbolic links as unavailable entries
   without traversing them or disclosing their targets. Special filesystem entries are also
   unavailable to preview. Directory navigation, search, file actions and links inside a preview
   cannot disclose contents beyond the selected project's shared root. Browsing adds no persistent
   search index, copied file, or change to resource retention.
-- **R16 (planned) — Use the shared file menu.** Right-click or the keyboard context-menu command
+- **R16 — Use the shared file menu.** Right-click or the keyboard context-menu command
   opens the file menu on a file row. **Copy path** copies the absolute path of the selected file.
   **Open in Finder** reveals the selected file on the local Mac (FS-03.R119). **Open in new tab**
   is available for HTML files and opens a separate tab in the current browser with the existing
@@ -120,26 +120,26 @@ repository change or commit.
   path/mode and server-response tests.
 - **A5** — Settings displays and copies the project resource path but offers no mutable
   location field. *Verified by:* Settings UI tests and a usability journey.
-- **A6 (planned)** — From a project with no running agents, open **Files** and verify newest-first
+- **A6 (implemented 2026-11-20; rendered by ui/scripts/project-files-render.mjs)** — From a project with no running agents, open **Files** and verify newest-first
   ordering across root and nested files. Search for mixed-case text shared by similarly named
   Markdown, TS and CSV files. Distinguish duplicate names by path, select two types, remove one
   badge by keyboard, and scope to a subfolder. Locate a hidden entry and an empty folder. A file
   existing only in another project or the checkout never appears. *Verify:* project resource
   integration tests and a rendered desktop journey.
-- **A7 (planned)** — Open a result in the modal viewer with the keyboard and inspect a rendered
+- **A7 (implemented 2026-11-20; rendered by ui/scripts/project-files-render.mjs)** — Open a result in the modal viewer with the keyboard and inspect a rendered
   preview or its Source. Use **Back to files** to restore the query, badges, row, and scroll position,
   then close the modal and continue from **Files**. Long names and parent paths remain distinguishable
   at the supported desktop width. *Verify:* rendered desktop journey including keyboard and narrow
   desktop checks.
-- **A8 (planned)** — Distinguish an empty root, an empty nested folder, no search matches, and an
+- **A8 (implemented 2026-11-20; rendered by ui/scripts/project-files-render.mjs)** — Distinguish an empty root, an empty nested folder, no search matches, and an
   unreadable directory. Create a nested file externally and find it after Refresh. Remove a file
   after listing it and verify the viewer explains the failed read and still returns to the list.
   *Verify:* filesystem integration tests and a rendered recovery journey.
-- **A9 (planned)** — Place links to another project and back into the same directory tree, plus an
+- **A9 (implemented 2026-11-20; rendered by ui/scripts/project-files-render.mjs)** — Place links to another project and back into the same directory tree, plus an
   unsupported file. Browse and search without following links or exposing targets, and see the
   viewer's refusal for the unsupported file. Attempts to read outside the root and from a paired
   phone are refused. *Verify:* server boundary tests and a rendered preview refusal check.
-- **A10 (planned)** — Open the context menu on HTML and CSV rows. Copy the exact path, reveal the
+- **A10 (implemented 2026-11-20; native Finder check owed)** — Open the context menu on HTML and CSV rows. Copy the exact path, reveal the
   selected file in Finder, and open the HTML sandboxed preview in a second browser tab while the
   original retains its query and filter state. Remove the selected file before invoking Finder
   and confirm that the action reports failure and keeps the list. Open the CSV row and see its
@@ -155,7 +155,11 @@ repository change or commit.
   may be designed separately.
 - Repository-resident directories, cloud synchronization, full-text search, access control beyond
   the current same-user model, and configurable locations are out of scope.
-- R11–R16/A6–A10 are planned in [Browse project files](../../ready-changes/browse-project-files.md).
+- R11–R16 shipped 2026-11-20. The project file menu composes its own actions with the shared
+  copy feedback because Copy path is absolute while reveal and preview take the root-relative
+  path; chat menus use the shared `webLinkActions` composition. The A8/A9 recovery and boundary
+  cases are proven by server and component tests; the rendered journey covers the list, preview,
+  CSV and HTML tab. The shared dialog entrance animation does not yet honour reduced motion.
 
 ## 7. Traceability
 

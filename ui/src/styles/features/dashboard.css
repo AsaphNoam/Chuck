@@ -879,6 +879,86 @@
   gap: var(--ad-space-3);
   justify-content: flex-start;
 }
-.scoped-project-header > button { margin-inline-start: auto; }
+.scoped-project-header > button:first-of-type { margin-inline-start: auto; }
 .project-route-state { display: grid; gap: var(--ad-space-4); }
+
+/* Project Files: a viewport-fitted modal holding the list and the preview
+   (TS-08.R172). No transform, so pointer menus inside keep viewport
+   coordinates; the table scrolls inside while its header and the controls
+   stay visible. */
+.dialog-content.project-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ad-space-3);
+  height: calc(100dvh - var(--ad-space-12));
+  inset: var(--ad-space-6);
+  max-height: none;
+  max-width: 1200px;
+  margin-inline: auto;
+  overflow: hidden;
+  padding: var(--ad-space-4);
+  transform: none;
+  width: auto;
+}
+.project-files-header { align-items: center; display: flex; gap: var(--ad-space-3); justify-content: space-between; }
+.project-files-header h2 { font-size: 1rem; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.project-files-browser { display: flex; flex: 1; flex-direction: column; gap: var(--ad-space-3); min-height: 0; }
+.project-files-browser[hidden] { display: none; }
+.project-files-controls { align-items: center; display: flex; flex-wrap: wrap; gap: var(--ad-space-2); }
+.project-files-folder select { max-width: 16rem; }
+.project-files-search {
+  align-items: center;
+  background: var(--ad-surface-raised);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-medium);
+  cursor: text;
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--ad-space-1);
+  min-width: 16rem;
+  padding: var(--ad-space-1) var(--ad-space-2);
+}
+.project-files-search:focus-within { border-color: var(--ad-border-strong); }
+.project-files-search input { background: none; border: 0; flex: 1; min-width: 8rem; outline: none; padding: var(--ad-space-1); }
+.project-files-search select { background: none; border: 0; color: var(--ad-text-secondary); }
+.project-files-badge {
+  background: var(--ad-surface-subtle);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-round);
+  color: var(--ad-text-primary);
+  font-size: 0.75rem;
+  padding: 0 var(--ad-space-2);
+}
+.project-files-note,
+.project-files-state { color: var(--ad-text-muted); margin: 0; }
+.project-files-state { display: grid; gap: var(--ad-space-3); justify-items: start; padding: var(--ad-space-6) 0; }
+.project-files-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+.project-files-table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+.project-files-table th {
+  background: var(--ad-surface-panel);
+  border-bottom: var(--ad-border-thin) solid var(--ad-border-default);
+  color: var(--ad-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: var(--ad-space-2);
+  position: sticky;
+  text-align: left;
+  top: 0;
+}
+.project-files-table th:nth-child(1) { width: 38%; }
+.project-files-table th:nth-child(3) { width: 12rem; }
+.project-files-table td { border-bottom: var(--ad-border-thin) solid var(--ad-border-default); padding: var(--ad-space-2); vertical-align: top; }
+.project-files-table tbody tr { cursor: pointer; }
+.project-files-table tbody tr:hover,
+.project-files-table tbody tr:focus-visible { background: var(--ad-surface-subtle); }
+.project-files-table tbody tr:focus-visible { outline: var(--ad-border-thick) solid var(--ad-border-strong); outline-offset: calc(-1 * var(--ad-border-thick)); }
+.project-files-table tbody tr[aria-disabled="true"] { color: var(--ad-text-muted); cursor: default; }
+.project-files-name,
+.project-files-path { overflow-wrap: anywhere; }
+.project-files-path { color: var(--ad-text-secondary); font-family: var(--ad-font-mono); font-size: 0.75rem; }
+.project-files-time { color: var(--ad-text-secondary); font-size: 0.75rem; white-space: nowrap; }
+.project-files-kind { color: var(--ad-text-muted); display: block; font-size: 0.75rem; }
+.project-files-preview { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.project-files-preview .file-viewer { flex: 1; height: auto; margin: 0; width: auto; }
 }

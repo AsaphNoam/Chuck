@@ -14,6 +14,7 @@ import { useMenuPlacement } from "../../lib/menuPlacement";
 import { ConfirmDialog, ProjectColorPicker } from "../../components/ui";
 import { ProjectForm } from "../settings/ProjectForm";
 import { WorktreeForkDialog } from "./WorktreeForkDialog";
+import { ProjectFilesDialog } from "./ProjectFilesDialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProjectResponse } from "../../schemas/project";
 import type { MouseEvent } from "react";
@@ -318,6 +319,7 @@ export function ScopedProjectDashboard() {
 
 function ScopedProjectView({ id, project }: { id: string; project?: Omit<ProjectResponse, "project"> }) {
   const [forkOpen, setForkOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   const [bgMenu, setBgMenu] = useState<BackgroundMenu | null>(null);
   const bgMenuPlacement = useMenuPlacement(bgMenu);
   const openersRef = useRef<CardGridOpeners | null>(null);
@@ -357,6 +359,7 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
         {project?.repo_backed && !project.archived && (
           <button type="button" onClick={() => setForkOpen(true)}>New worktree project</button>
         )}
+        {project && <button type="button" onClick={() => setFilesOpen(true)}>Files</button>}
       </div>
       <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title || UNAVAILABLE_PROJECT} openersRef={openersRef} />
       {/* Rooms follow the agent grid, one card per row (FS-02.R71). */}
@@ -370,6 +373,9 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
       )}
       {forkOpen && project && (
         <WorktreeForkDialog sourceID={id} sourceTitle={project.title} onClose={() => setForkOpen(false)} />
+      )}
+      {filesOpen && project && (
+        <ProjectFilesDialog projectId={id} title={project.title} resourceDir={project.resource_dir} onClose={() => setFilesOpen(false)} />
       )}
     </section>
   );

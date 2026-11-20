@@ -33,11 +33,14 @@ export type OpenInBrowser = (path: string) => Promise<unknown>;
 
 export function isHtmlPath(path: string) { return /\.html?$/i.test(path); }
 
-export function webLinkActions(href: string, pushError: (title: string, body: string) => void, onOpenInBrowser?: OpenInBrowser) {
+export function webLinkActions(href: string, pushError: (title: string, body: string) => void, onOpenInBrowser?: OpenInBrowser, onRevealInFinder?: OpenInBrowser) {
   const file = classifyFileLink(href);
   if (file) return [
     ...(onOpenInBrowser && isHtmlPath(file.path) && !window.location.pathname.startsWith("/phone") ? [{ label: "Open in browser", select: () => {
       void onOpenInBrowser(file.path).catch((error: unknown) => pushError("Could not open in browser", error instanceof Error ? error.message : "Failed to open file"));
+    } }] : []),
+    ...(onRevealInFinder && !window.location.pathname.startsWith("/phone") ? [{ label: "Open in Finder", select: () => {
+      void onRevealInFinder(file.path).catch((error: unknown) => pushError("Could not open in Finder", error instanceof Error ? error.message : "Failed to reveal file"));
     } }] : []),
     { label: "Copy path", select: () => copyText(file.path, pushError) },
   ];

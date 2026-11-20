@@ -1188,14 +1188,14 @@ available for recovery and never creates a sent bubble. Send now acts on the exa
   `request_id` arrives. Matching by text applies only to a sequenced event that has no
   `request_id`.
 
-- **R119 (planned) — Reveal chat files in Finder.** On the local macOS desktop, the file context
+- **R119 — Reveal chat files in Finder.** On the local macOS desktop, the file context
   menu on chat file links, tracked-file rows and viewer tabs or paths offers **Open in Finder**.
   Invoking it reveals and selects the existing file on the Mac running Chuck. The menu keeps
   **Copy path**, the existing HTML action and applicable annotation actions. The reveal respects
   the originating file's read boundary and reports missing, refused or failed reveals without
   navigating away. Paired phone clients and unsupported hosts cannot invoke the action. The
   project browser uses the same action with its project scope (FS-11.R15–R16).
-- **R120 (planned) — Render CSV as a table in the existing viewer.** Complete readable `.csv`
+- **R120 — Render CSV as a table in the existing viewer.** Complete readable `.csv`
   files offer **Table** and **Source**, defaulting to Table for an uncited file that can be parsed.
   Display cells as literal text, preserving quoted commas, embedded newlines, escaped quotes,
   and empty fields. The table starts in file order, with the first row visible as data. Clicking
@@ -1854,11 +1854,11 @@ later cannot restore it, and unrelated older uncertain input remains recoverable
   it; send the same text twice in one turn; queue a follow-up whose text equals an earlier prompt.
   Each prompt renders once and the queued tail clears only for its own delivery. *Verify:*
   transcript store and composer tests using the real client serializer for both arrival orders.
-- **A94 (planned, R119)** — In desktop chat, reveal a file from its transcript link and tracked
+- **A94 (implemented 2026-11-20, R119; native Finder check owed)** — In desktop chat, reveal a file from its transcript link and tracked
   row. Verify the exact file is selected in Finder, existing context actions remain available, and
   a missing or out-of-scope file yields an explanation. A paired phone cannot trigger a reveal.
   *Verify:* menu and server boundary tests plus a local Mac Finder check.
-- **A95 (planned, R120)** — Open a CSV with quoted commas, line breaks, escaped quotes, empty cells
+- **A95 (implemented 2026-11-20, R120)** — Open a CSV with quoted commas, line breaks, escaped quotes, empty cells
   and formula-like text. Check literal table values and scrolling. Sort numeric values such as
   2 and 10 ascending and descending, verify ties and empty cells, then keyboard-activate a text
   column and verify it starts ascending. Switch to Source and inspect exact text in file order.

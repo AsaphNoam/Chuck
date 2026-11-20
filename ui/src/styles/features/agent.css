@@ -2930,4 +2930,20 @@ a.agent-mini-card:focus-visible {
   font-size: 0.75rem;
   margin: 0 0 var(--ad-space-2);
 }
+
+/* A project file in its own tab fills the page beneath the header. */
+.project-file-preview {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.project-file-preview > .file-viewer {
+  flex: 1;
+}
+
+.project-file-preview-note {
+  color: var(--ad-text-secondary);
+  margin: var(--ad-space-4);
+}
 }

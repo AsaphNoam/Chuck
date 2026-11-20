@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import * as Tabs from "@radix-ui/react-tabs";
+import { RevealInFinderProvider } from "../../lib/revealInFinder";
 import { cancelTurn, resumeAgent, setSessionConfig, switchRuntime } from "../../api/client";
 import { useBackends, useProjects, useRoles } from "../../api/config";
 import { projectTitle as projectTitleFor } from "../../lib/labels";
@@ -66,7 +67,7 @@ export function initialTab(tabParam: string | null, agentInterface?: string): st
 // runtime and other panel state belong to one agent (FS-03.R98, INV §1).
 export function ChatPanel() {
   const { id = "" } = useParams();
-  return <AgentPanel key={id} id={id} />;
+  return <RevealInFinderProvider agentId={id}><AgentPanel key={id} id={id} /></RevealInFinderProvider>;
 }
 
 function AgentPanel({ id }: { id: string }) {

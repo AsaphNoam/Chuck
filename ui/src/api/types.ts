@@ -238,6 +238,8 @@ export interface Capabilities {
     default_driver: string;
     drivers: Record<string, boolean | { available: boolean; reason?: string }>;
   };
+  // The local Finder reveal host action (TS-03.R94); absent means unsupported.
+  reveal_in_finder?: boolean;
 }
 
 export interface ArchiveResult {
@@ -307,6 +309,8 @@ export interface FileContent {
   editable?: boolean;
   edit_refusal?: string;
   agent_id: string;
+  // Present on a project shared-file read (TS-03.R93).
+  project_id?: string;
   path: string;
   size: number;
   mod_time: string;
