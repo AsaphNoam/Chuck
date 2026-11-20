@@ -42,8 +42,19 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Reviewer note:** TS-03.R91's per-message `message_actions` field is not added; fork
   eligibility is still the server's turn-end marker. Add the field with the Edit affordance
   (slice 3) or amend R91 if the turn-end marker suffices.
-- **Next slices:** (2) TS-02.R69–R70 append-only revision journal fold, receipt edit intent and
-  retained raw history, with migration tests; (3) TS-01.R51 edit transition + TS-03.R90/R91
+- **Done (slice 2a):** `conversation_revision` event (`internal/runtime/revision.go`) and the
+  one revision fold in `internal/transcript/reader.go`: every file read returns active history
+  over one captured prefix, before since-seq filtering; `ReadOptions.Raw` keeps retained bytes
+  for attachment ownership, annotation and quota-notice dedupe. Reindex, search, primer, clone
+  prefix, context and HTTP reads inherit it. No producer exists yet.
+- **Reviewer notes (2a):** the fold keeps session_meta, the revision record, annotation,
+  backend_switch and fork_boundary inside a superseded range as "unrelated control/audit
+  records"; everything else in the range is hidden. Each folded read pre-scans the prefix for
+  revision records (bytes match before decode) — a second sequential pass per read.
+  Contextref pinned (immutable) references still read folded; switch them to `Raw` when slice 3
+  defines pinned-reference resolution.
+- **Next slices:** (2b) TS-02.R69 receipt edit action, edit-transition record and additive
+  migration, with populated-store upgrade tests under both SQLite variants; (3) TS-01.R51 edit transition + TS-03.R90/R91
   `edit-last` API, snapshot/revision events and per-message affordances, with fault injection;
   (4) TS-04.R113 complete-turn fork-patch proof and adapter contract tests; (5) inline editor
   UI (TS-08.R171), phone/operator readers, FS-22.R13 CLI; (6) closure matrix, `make embed`,

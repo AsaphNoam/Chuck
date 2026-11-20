@@ -186,7 +186,7 @@ func quotaNoticeClaimMatches(q state.QuotaIntent, generation, turn string) bool 
 func findQuotaNotice(home, agentID, key string) (runtime.Event, bool, error) {
 	var found runtime.Event
 	matched := false
-	err := transcript.ForEachFile(home, agentID, transcript.ReadOptions{}, func(ev runtime.Event) error {
+	err := transcript.ForEachFile(home, agentID, transcript.ReadOptions{Raw: true}, func(ev runtime.Event) error {
 		if ev.Type != runtime.EvNotice {
 			return nil
 		}

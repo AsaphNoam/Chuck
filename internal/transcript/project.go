@@ -214,7 +214,7 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 			)
 		}
 		p.Parts = append(p.Parts, Part{Kind: PartAnnotationOverall, Text: d.OverallInstruction, Indexed: true})
-	case runtime.EvSessionMeta, runtime.EvBackendSwitch, runtime.EvActivityStarted, runtime.EvActivityState, runtime.EvBackgroundTaskState, runtime.EvForkBoundary, runtime.EvFileReport, runtime.EvNotice:
+	case runtime.EvSessionMeta, runtime.EvBackendSwitch, runtime.EvActivityStarted, runtime.EvActivityState, runtime.EvBackgroundTaskState, runtime.EvForkBoundary, runtime.EvFileReport, runtime.EvNotice, runtime.EvConversationRevision:
 		// Deliberately content-free: a launch/resume snapshot, a cross-backend
 		// hand-off marker and child lifecycle records describe the conversation
 		// rather than belonging to it (TS-02.R35). A runtime notice is advisory,

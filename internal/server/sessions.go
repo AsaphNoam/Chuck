@@ -500,7 +500,7 @@ func (s *Server) handleAnnotations(w http.ResponseWriter, r *http.Request) {
 			// HTTP response was lost. Reconcile its embedded command id before
 			// attempting another append.
 			var found bool
-			readErr := transcript.ForEachFile(s.configStore.Home(), sourceID, transcript.ReadOptions{IncludeMeta: true}, func(candidate runtime.Event) error {
+			readErr := transcript.ForEachFile(s.configStore.Home(), sourceID, transcript.ReadOptions{IncludeMeta: true, Raw: true}, func(candidate runtime.Event) error {
 				if candidate.Type != runtime.EvAnnotation {
 					return nil
 				}

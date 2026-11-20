@@ -1079,7 +1079,7 @@ After commit, recovery hands replacement input to the already-revised conversati
 creates another revision of the superseded source message. Unknown delivery keeps the existing
 explicit-recovery acknowledgement and warning.
 
-**R70 (planned) — Active history is a shared projection of retained revisions.** The journal
+**R70 (journal fold implemented 2026-11-20; revision producer, index-unavailable marking and live invalidation planned) — Active history is a shared projection of retained revisions.** The journal
 keeps original bytes and monotonically increasing sequence ids. A conversation_revision hides
 the selected user message and its turn's events through the captured source tail from the
 active view, while keeping revision metadata and unrelated durable control/audit records.

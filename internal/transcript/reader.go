@@ -2,6 +2,8 @@ package transcript
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +29,79 @@ type ReadOptions struct {
 	// Tee, when set, receives every byte ForEachFilePrefix scans, so a caller
 	// can fingerprint the prefix in the same pass (TS-02.R49).
 	Tee io.Writer
+	// Raw reads retained bytes without the revision fold: explicit immutable
+	// references, attachment ownership and audit counters (TS-02.R70). Every
+	// other file read returns active history.
+	Raw bool
+}
+
+// revisionRanges are the root sequence ranges committed conversation
+// revisions superseded (TS-02.R70).
+type revisionRanges [][2]int64
+
+// revisionKept are records a revision never hides: launch metadata, the
+// revision records themselves and durable control/audit markers unrelated to
+// the superseded turn's conversation.
+var revisionKept = map[string]bool{
+	runtime.EvSessionMeta:          true,
+	runtime.EvConversationRevision: true,
+	runtime.EvAnnotation:           true,
+	runtime.EvBackendSwitch:        true,
+	runtime.EvForkBoundary:         true,
+}
+
+func (r revisionRanges) hides(ev runtime.Event) bool {
+	if revisionKept[ev.Type] {
+		return false
+	}
+	for _, span := range r {
+		if ev.Seq >= span[0] && ev.Seq <= span[1] {
+			return true
+		}
+	}
+	return false
+}
+
+var revisionMarker = []byte(`"` + runtime.EvConversationRevision + `"`)
+
+// scanRevisions collects every committed revision boundary in rd, so the
+// fold applies before any since-seq filter, including to a reader starting
+// after the boundary it needs. Only records naming the revision type are
+// decoded.
+func scanRevisions(rd io.Reader) (revisionRanges, error) {
+	var out revisionRanges
+	br := bufio.NewReaderSize(rd, 64*1024)
+	for {
+		line, oversized, err := readLine(br)
+		if !oversized && bytes.Contains(line, revisionMarker) {
+			if ev, ok := decodeRecord(line); ok && ev.Type == runtime.EvConversationRevision {
+				var d runtime.ConversationRevisionData
+				if json.Unmarshal(ev.Data, &d) == nil && d.ReplacesFromSeq > 0 && d.ReplacesThroughSeq >= d.ReplacesFromSeq {
+					out = append(out, [2]int64{d.ReplacesFromSeq, d.ReplacesThroughSeq})
+				}
+			}
+		}
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("transcript: scan revisions: %w", err)
+		}
+	}
+}
+
+// forEachActive folds the first limit bytes of f into active history: one
+// fixed prefix serves both passes, so a revision appended between them
+// cannot produce a mixed page.
+func forEachActive(f *os.File, limit int64, opts ReadOptions, visit func(runtime.Event) error) error {
+	if opts.Raw {
+		return forEachFrom(io.NewSectionReader(f, 0, limit), opts, nil, visit)
+	}
+	hidden, err := scanRevisions(io.NewSectionReader(f, 0, limit))
+	if err != nil {
+		return err
+	}
+	return forEachFrom(io.NewSectionReader(f, 0, limit), opts, hidden, visit)
 }
 
 // Reader replays one transcript.ndjson file.
@@ -116,11 +191,17 @@ func ForEachFilePrefix(home, agentID string, limit int64, opts ReadOptions, visi
 	if last[0] != '\n' {
 		return ErrPrefixUnavailable
 	}
-	var rd io.Reader = io.LimitReader(f, limit)
+	var hidden revisionRanges
+	if !opts.Raw {
+		if hidden, err = scanRevisions(io.NewSectionReader(f, 0, limit)); err != nil {
+			return err
+		}
+	}
+	var rd io.Reader = io.NewSectionReader(f, 0, limit)
 	if opts.Tee != nil {
 		rd = io.TeeReader(rd, opts.Tee)
 	}
-	return forEach(rd, opts, visit)
+	return forEachFrom(rd, opts, hidden, visit)
 }
 
 func (r *Reader) ReadAll(opts ReadOptions) ([]runtime.Event, error) {
@@ -145,24 +226,38 @@ func (r *Reader) ForEach(opts ReadOptions, visit func(runtime.Event) error) erro
 		return fmt.Errorf("transcript: open read: %w", err)
 	}
 	defer f.Close()
-	return forEach(f, opts, visit)
+	fi, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("transcript: stat read: %w", err)
+	}
+	// Bytes after the last '\n' are a torn append every reader discards.
+	limit, err := completeLength(f, fi.Size())
+	if err != nil {
+		return fmt.Errorf("transcript: read prefix: %w", err)
+	}
+	return forEachActive(f, limit, opts, visit)
 }
 
 func readAll(rd io.Reader, opts ReadOptions) ([]runtime.Event, error) {
 	br := bufio.NewReaderSize(rd, 64*1024)
 	out := make([]runtime.Event, 0)
-	err := forEachBuffered(br, opts, func(ev runtime.Event) error {
+	err := forEachBuffered(br, opts, nil, func(ev runtime.Event) error {
 		out = append(out, ev)
 		return nil
 	})
 	return out, err
 }
 
+// forEach is a raw single pass over rd, without the revision fold.
 func forEach(rd io.Reader, opts ReadOptions, visit func(runtime.Event) error) error {
-	return forEachBuffered(bufio.NewReaderSize(rd, 64*1024), opts, visit)
+	return forEachFrom(rd, opts, nil, visit)
 }
 
-func forEachBuffered(br *bufio.Reader, opts ReadOptions, visit func(runtime.Event) error) error {
+func forEachFrom(rd io.Reader, opts ReadOptions, hidden revisionRanges, visit func(runtime.Event) error) error {
+	return forEachBuffered(bufio.NewReaderSize(rd, 64*1024), opts, hidden, visit)
+}
+
+func forEachBuffered(br *bufio.Reader, opts ReadOptions, hidden revisionRanges, visit func(runtime.Event) error) error {
 	var lastSeq int64
 	for {
 		line, oversized, err := readLine(br)
@@ -184,6 +279,9 @@ func forEachBuffered(br *bufio.Reader, opts ReadOptions, visit func(runtime.Even
 					keep = false
 				}
 				if opts.SinceSeq > 0 && ev.Seq <= opts.SinceSeq {
+					keep = false
+				}
+				if keep && hidden.hides(ev) {
 					keep = false
 				}
 				if keep {

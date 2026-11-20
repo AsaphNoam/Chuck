@@ -54,16 +54,17 @@ func sampleEvents(t *testing.T) map[string]runtime.Event {
 			ToolCallID: "tc1", Name: "Bash", Reason: "runs a command"}),
 		runtime.EvPermissionResolved: projectionEvent(t, runtime.EvPermissionResolved, runtime.PermissionResolvedData{
 			ToolCallID: "tc1", Decision: "approve"}),
-		runtime.EvSessionMeta:         projectionEvent(t, runtime.EvSessionMeta, runtime.SessionMetaData{Name: "alpha", Backend: "claude-acp"}),
-		runtime.EvTurnEnd:             projectionEvent(t, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn", ContextPct: 0.4}),
-		runtime.EvError:               projectionEvent(t, runtime.EvError, runtime.ErrorData{Scope: "protocol", Message: "handshake failed"}),
-		runtime.EvBackendSwitch:       projectionEvent(t, runtime.EvBackendSwitch, runtime.BackendSwitchData{From: "a", To: "b"}),
-		runtime.EvActivityStarted:     projectionEvent(t, runtime.EvActivityStarted, runtime.ActivityStartedData{Name: "researcher", Task: "find"}),
-		runtime.EvActivityState:       projectionEvent(t, runtime.EvActivityState, runtime.ActivityStateData{State: "completed"}),
-		runtime.EvBackgroundTaskState: projectionEvent(t, runtime.EvBackgroundTaskState, runtime.BackgroundTaskData{TaskID: "t1", Name: "npm run dev", State: "running"}),
-		runtime.EvForkBoundary:        projectionEvent(t, runtime.EvForkBoundary, runtime.ForkBoundaryData{ForkedFromAgentID: "a_src", ForkedFromSeq: 7}),
-		runtime.EvFileReport:          projectionEvent(t, runtime.EvFileReport, runtime.FileReportData{RequestID: "fcr-1", Status: "reported", Paths: []string{"/w/a.go"}}),
-		runtime.EvNotice:              projectionEvent(t, runtime.EvNotice, runtime.NoticeData{Severity: "warning", Title: "Quota low"}),
+		runtime.EvSessionMeta:          projectionEvent(t, runtime.EvSessionMeta, runtime.SessionMetaData{Name: "alpha", Backend: "claude-acp"}),
+		runtime.EvTurnEnd:              projectionEvent(t, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn", ContextPct: 0.4}),
+		runtime.EvError:                projectionEvent(t, runtime.EvError, runtime.ErrorData{Scope: "protocol", Message: "handshake failed"}),
+		runtime.EvBackendSwitch:        projectionEvent(t, runtime.EvBackendSwitch, runtime.BackendSwitchData{From: "a", To: "b"}),
+		runtime.EvActivityStarted:      projectionEvent(t, runtime.EvActivityStarted, runtime.ActivityStartedData{Name: "researcher", Task: "find"}),
+		runtime.EvActivityState:        projectionEvent(t, runtime.EvActivityState, runtime.ActivityStateData{State: "completed"}),
+		runtime.EvBackgroundTaskState:  projectionEvent(t, runtime.EvBackgroundTaskState, runtime.BackgroundTaskData{TaskID: "t1", Name: "npm run dev", State: "running"}),
+		runtime.EvForkBoundary:         projectionEvent(t, runtime.EvForkBoundary, runtime.ForkBoundaryData{ForkedFromAgentID: "a_src", ForkedFromSeq: 7}),
+		runtime.EvFileReport:           projectionEvent(t, runtime.EvFileReport, runtime.FileReportData{RequestID: "fcr-1", Status: "reported", Paths: []string{"/w/a.go"}}),
+		runtime.EvNotice:               projectionEvent(t, runtime.EvNotice, runtime.NoticeData{Severity: "warning", Title: "Quota low"}),
+		runtime.EvConversationRevision: projectionEvent(t, runtime.EvConversationRevision, runtime.ConversationRevisionData{RequestID: "r1", Revision: 1, ReplacesFromSeq: 7, ReplacesThroughSeq: 10}),
 		runtime.EvAnnotation: projectionEvent(t, runtime.EvAnnotation, runtime.AnnotationData{
 			Annotations:        []runtime.Annotation{{Seq: 3, Excerpt: "line", Instruction: "fix"}},
 			OverallInstruction: "tidy up"}),
@@ -76,14 +77,15 @@ func sampleEvents(t *testing.T) map[string]runtime.Event {
 func TestProjectEventCoversEveryType(t *testing.T) {
 	samples := sampleEvents(t)
 	metadataOnly := map[string]bool{
-		runtime.EvSessionMeta:         true,
-		runtime.EvBackendSwitch:       true,
-		runtime.EvActivityStarted:     true,
-		runtime.EvActivityState:       true,
-		runtime.EvBackgroundTaskState: true,
-		runtime.EvForkBoundary:        true,
-		runtime.EvFileReport:          true,
-		runtime.EvNotice:              true,
+		runtime.EvSessionMeta:          true,
+		runtime.EvBackendSwitch:        true,
+		runtime.EvActivityStarted:      true,
+		runtime.EvActivityState:        true,
+		runtime.EvBackgroundTaskState:  true,
+		runtime.EvForkBoundary:         true,
+		runtime.EvFileReport:           true,
+		runtime.EvNotice:               true,
+		runtime.EvConversationRevision: true,
 	}
 	for _, typ := range runtime.AllEventTypes {
 		ev, ok := samples[typ]

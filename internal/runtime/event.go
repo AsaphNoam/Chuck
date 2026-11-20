@@ -506,4 +506,5 @@ var AllEventTypes = []string{
 	EvForkBoundary,
 	EvFileReport,
 	EvNotice,
+	EvConversationRevision,
 }

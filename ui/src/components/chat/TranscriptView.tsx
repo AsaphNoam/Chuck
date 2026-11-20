@@ -465,7 +465,8 @@ function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpen
   }
   if (kind === "fork_boundary") return <ForkBoundary sourceId={String(event.forked_from_agent_id ?? "")} />;
   // permission_resolved is folded into its prompt by the store; nothing to render.
-  if (kind === "permission_resolved" || kind === "session_meta") return null;
+  // A conversation revision is metadata; its readers refetch active history (TS-03.R91).
+  if (kind === "permission_resolved" || kind === "session_meta" || kind === "conversation_revision") return null;
   return <pre className="tool-block">{JSON.stringify(event, null, 2)}</pre>;
 }
 

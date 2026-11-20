@@ -103,7 +103,7 @@ func (s *Server) recoverConversationAttachments(store *attachment.Store, id stri
 		return err
 	}
 	if err == nil {
-		err = transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{OnOversized: func(int64) error { return errors.New("cannot enumerate oversized attachment ownership record") }}, func(ev runtime.Event) error { return collect(ev.Data) })
+		err = transcript.ForEachFile(s.configStore.Home(), id, transcript.ReadOptions{Raw: true, OnOversized: func(int64) error { return errors.New("cannot enumerate oversized attachment ownership record") }}, func(ev runtime.Event) error { return collect(ev.Data) })
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
