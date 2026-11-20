@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { editLastMessage, getEditStatus, getTranscript, type EditResult } from "../../api/client";
-import type { TranscriptEvent } from "../../api/types";
+import { acknowledgeEdit, editLastMessage, getEditStatus, getTranscript, type EditResult } from "../../api/client";
+import type { AgentState, TranscriptEvent } from "../../api/types";
 import { useAgentStore } from "../../store/agentStore";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { AutoGrowTextarea, Button } from "../ui";
@@ -34,9 +34,19 @@ function errorText(err: unknown) {
 export function MessageEditor({ agentId, event }: { agentId: string; event: TranscriptEvent }) {
   const { close } = useContext(MessageEditContext);
   const seq = event.seq as number;
-  const [text, setText] = useState(String(event.text ?? ""));
+  // An earlier edit of this message that did not apply seeds the editor; the
+  // editor now holds its text, so the recovery offer ends (FS-01.R61).
+  const recovered = useAgentStore((state) => {
+    const offer = state.agents[agentId]?.edit_recovery;
+    return offer?.message_seq === seq ? offer : undefined;
+  });
+  const [text, setText] = useState(recovered?.text ?? String(event.text ?? ""));
   const [phase, setPhase] = useState<Phase>("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(recovered ? recovered.reason || "The earlier edit did not apply." : null);
+  const recoveredId = useRef(recovered?.request_id);
+  useEffect(() => {
+    if (recoveredId.current) void acknowledgeEdit(agentId, recoveredId.current).catch(() => undefined);
+  }, [agentId]);
   const [conflict, setConflict] = useState(false);
   const requestId = useRef<string | null>(null);
   const savedRevision = useRef(0);
@@ -51,6 +61,8 @@ export function MessageEditor({ agentId, event }: { agentId: string; event: Tran
   const apply = (result: EditResult) => {
     if (!alive.current) return;
     if (result.phase === "aborted") {
+      // The open editor keeps the text, so no reload offer is needed.
+      void acknowledgeEdit(agentId, result.request_id).catch(() => undefined);
       requestId.current = null;
       setPhase("idle");
       setError(result.reason || "The edit did not apply.");
@@ -165,5 +177,43 @@ export function MessageEditor({ agentId, event }: { agentId: string; event: Tran
         <Button type="button" disabled={working} onClick={close}>Cancel</Button>
       </div>
     </article>
+  );
+}
+
+/**
+ * EditRecoveryNotice offers back an edit that did not apply, from the agent
+ * snapshot rather than client memory, so it survives a reload (FS-01.R61).
+ * Edit again reopens the editor, which revalidates the selected message.
+ */
+export function EditRecoveryNotice({ agentId, recovery, canEdit, onEdit }: {
+  agentId: string;
+  recovery: NonNullable<AgentState["edit_recovery"]>;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const discard = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await acknowledgeEdit(agentId, recovery.request_id);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="transcript-held" data-ui="transcript" data-variant="held">
+      <p className="transcript-held-label">Your edit was not applied{recovery.reason ? `: ${recovery.reason}` : "."}</p>
+      {recovery.text && <p className="transcript-held-text">{recovery.text}</p>}
+      {!canEdit && <p className="transcript-held-label">This message can no longer be edited; copy the text if you still need it.</p>}
+      <div className="transcript-held-actions">
+        {canEdit && <button type="button" className="ad-button-primary" disabled={busy} onClick={onEdit}>Edit again</button>}
+        <button type="button" className="ad-button-secondary" disabled={busy} onClick={() => void discard()}>Discard</button>
+      </div>
+      {error && <p className="transcript-held-error" role="alert">{error}</p>}
+    </div>
   );
 }

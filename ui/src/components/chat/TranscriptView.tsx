@@ -8,8 +8,8 @@ import { claimWebLink } from "../../lib/linkActions";
 import { openFileInBrowser } from "../../api/client";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Button } from "../ui";
-import { messageActionsFor, type ForkAction } from "./forkActions";
-import { MessageEditContext, MessageEditor } from "./MessageEditor";
+import { editActionFor, messageActionsFor, type ForkAction } from "./forkActions";
+import { EditRecoveryNotice, MessageEditContext, MessageEditor } from "./MessageEditor";
 import { MessageActionRow } from "./MessageActionRow";
 import { ForkConfirmDialog } from "./ForkConfirmDialog";
 import { AssistantText } from "./renderers/AssistantText";
@@ -140,6 +140,10 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   useEffect(() => {
     if (editingSeq !== null && !events.some((event) => event.seq === editingSeq && !event.activity_id)) setEditingSeq(null);
   }, [events, editingSeq]);
+  // An edit that did not apply, offered back from the snapshot (FS-01.R61).
+  const editRecovery = forkActionsEnabled ? editAgent?.edit_recovery : undefined;
+  const editRecoveryEvent = editRecovery ? events.find((event) => event.seq === editRecovery.message_seq && !event.activity_id) : undefined;
+  const editRecoveryAction = editRecoveryEvent ? editActionFor(events, editRecoveryEvent, editAgent) : null;
   const renderActions = forkActionsEnabled ? (event: TranscriptEvent) => {
     const actions = messageActionsFor(events, event, cloneAffordance, editAgent);
     if (!actions || (actions.edit && actions.edit.seq === editingSeq)) return null;
@@ -273,6 +277,15 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           {busy && <WorkingIndicator tool={currentToolLabel(events)} />}
           {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
           <QueuedInput agentId={agentId} queued={queuedInput} />
+          {editRecovery && editingSeq === null && (
+            <EditRecoveryNotice
+              key={editRecovery.request_id}
+              agentId={agentId}
+              recovery={editRecovery}
+              canEdit={editRecoveryAction?.available === true}
+              onEdit={() => setEditingSeq(editRecovery.message_seq)}
+            />
+          )}
           {recovery && <RecoveryOffer key={recovery.request_id} agentId={agentId} recovery={recovery} />}
           {!recovery && recoveryUnread && (
             <div className="transcript-held" data-ui="transcript" data-variant="held">

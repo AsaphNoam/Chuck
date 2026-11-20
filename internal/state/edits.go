@@ -2,6 +2,7 @@ package state
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -55,6 +56,48 @@ type EditOperation struct {
 	RequestID string `json:"request_id"`
 	Phase     string `json:"phase"`
 	Reason    string `json:"reason,omitempty"`
+}
+
+// EditRecovery offers an aborted edit's replacement back after a reload, so
+// it never depends on a client remembering the request id (FS-01.R61).
+type EditRecovery struct {
+	RequestID  string `json:"request_id"`
+	MessageSeq int64  `json:"message_seq"`
+	Text       string `json:"text"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// EditRecovery returns the newest aborted, unacknowledged edit, nil if none.
+func (s *Store) EditRecovery(agentID string) (*EditRecovery, error) {
+	var r EditRecovery
+	var message string
+	err := s.db.QueryRow(`SELECT request_id, message_seq, message_json, reason FROM edit_transitions
+WHERE agent_id=? AND phase='aborted' AND acknowledged=0 ORDER BY updated_at DESC, rowid DESC LIMIT 1`, agentID).
+		Scan(&r.RequestID, &r.MessageSeq, &message, &r.Reason)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("state: read edit recovery: %w", err)
+	}
+	var m struct {
+		Text string `json:"text"`
+	}
+	_ = json.Unmarshal([]byte(message), &m)
+	r.Text = m.Text
+	return &r, nil
+}
+
+// AcknowledgeEdit ends an aborted edit's recovery offer; false when the
+// edit is not an aborted one of this agent.
+func (s *Store) AcknowledgeEdit(agentID, requestID string) (bool, error) {
+	res, err := s.db.Exec(`UPDATE edit_transitions SET acknowledged=1, updated_at=? WHERE agent_id=? AND request_id=? AND phase='aborted'`,
+		nowUTC(), agentID, requestID)
+	if err != nil {
+		return false, fmt.Errorf("state: acknowledge edit: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
 }
 
 // Edit gate reasons (FS-01.R61).

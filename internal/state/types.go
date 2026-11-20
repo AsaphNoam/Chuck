@@ -230,6 +230,9 @@ type AgentState struct {
 	HistoryRevision int64           `json:"history_revision"`
 	Edit            CloneAffordance `json:"edit"`
 	EditOperation   *EditOperation  `json:"edit_operation,omitempty"`
+	// EditRecovery is the newest aborted edit whose replacement the person
+	// has not acknowledged (FS-01.R61).
+	EditRecovery *EditRecovery `json:"edit_recovery,omitempty"`
 
 	State      string  `json:"state"`
 	Detail     string  `json:"detail"`

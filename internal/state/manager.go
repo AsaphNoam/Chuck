@@ -626,6 +626,9 @@ WHERE a.agent_id = ?`, agentID)
 		out.EditOperation = &EditOperation{RequestID: open.RequestID, Phase: open.Phase, Reason: open.Reason}
 	}
 	out.Edit = EditAvailability(out, nativeSession.String, out.EditOperation != nil)
+	if out.EditRecovery, err = m.store.EditRecovery(agentID); err != nil {
+		return AgentStateUpdate{}, err
+	}
 	return AgentStateUpdate{AgentState: out}, nil
 }
 

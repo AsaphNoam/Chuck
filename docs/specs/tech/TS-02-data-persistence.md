@@ -1053,7 +1053,8 @@ agent/request id. *As built 2026-11-20:* that record owns the replacement text a
 attachment descriptors until dispatch, when it hands them to an ordinary input receipt under the
 same request id; after that only the receipt decides delivery. Store the payload hash,
 expected active revision and source message, superseded sequence range, old and candidate native
-session selections, launch generation, phase, boundary-event identity, dispatch-started flag
+session selections, launch generation, phase, boundary-event identity, dispatch-started flag,
+an aborted edit's recovery acknowledgement (migration 82; earlier aborts read as acknowledged)
 and bounded result. Transition metadata is at most 8 KiB and never copies transcript content.
 Allow one nonterminal edit or committed undispatched replacement per agent.
 Phases are preparing, committing, committed and aborted;

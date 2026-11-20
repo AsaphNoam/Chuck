@@ -75,3 +75,40 @@ func TestEditAvailabilityWaitsForBackgroundWork(t *testing.T) {
 		t.Fatalf("background gate = %+v", gate)
 	}
 }
+
+// EDIT-REVIEW-8 (FS-01.R61, TS-02.R69): an edit that aborts before commit
+// stays discoverable from the agent's own state until acknowledged, with no
+// request id held by any client.
+func TestAbortedEditIsOfferedUntilAcknowledged(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const id = "a_edit"
+	if err := s.WriteAgent(Agent{AgentID: id, Name: "E", Project: "p", Role: "r", Backend: "b", Model: "m", Interface: "chat"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateEdit(EditTransition{AgentID: id, RequestID: "edit-1", PayloadHash: "h", MessageJSON: `{"text":"revised"}`, MessageSeq: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if offer, err := s.EditRecovery(id); err != nil || offer != nil {
+		t.Fatalf("preparing edit offered = %+v %v", offer, err)
+	}
+	if err := s.AbortEdit(id, "edit-1", "Nothing was changed: the fork failed."); err != nil {
+		t.Fatal(err)
+	}
+	offer, err := s.EditRecovery(id)
+	if err != nil || offer == nil || offer.RequestID != "edit-1" || offer.MessageSeq != 4 || offer.Text != "revised" || offer.Reason == "" {
+		t.Fatalf("offer = %+v %v", offer, err)
+	}
+	if ok, err := s.AcknowledgeEdit(id, "edit-1"); err != nil || !ok {
+		t.Fatalf("acknowledge = %v %v", ok, err)
+	}
+	if offer, _ := s.EditRecovery(id); offer != nil {
+		t.Fatalf("acknowledged edit still offered: %+v", offer)
+	}
+	if ok, _ := s.AcknowledgeEdit(id, "missing"); ok {
+		t.Fatal("acknowledged an unknown edit")
+	}
+}

@@ -63,6 +63,8 @@ export interface AgentState {
   edit?: { available: boolean; reason?: string };
   /** The edit in progress, if any. */
   edit_operation?: { request_id: string; phase: string; reason?: string };
+  /** The newest edit that did not apply and whose text was not yet taken back (FS-01.R61). */
+  edit_recovery?: { request_id: string; message_seq: number; text: string; reason?: string };
   interface: string;
   group?: string;
   created_at: string;

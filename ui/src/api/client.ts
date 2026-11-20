@@ -94,6 +94,12 @@ export function editLastMessage(agentId: string, body: { request_id: string; mes
   });
 }
 
+/** Ends an aborted edit's recovery offer once the person holds its text (FS-01.R61). */
+export async function acknowledgeEdit(agentId: string, requestId: string) {
+  const response = await fetch(`/api/sessions/${encodeURIComponent(agentId)}/edit-last/${encodeURIComponent(requestId)}/acknowledge`, { method: "POST" });
+  if (!response.ok && response.status !== 404) throw new Error(`Could not dismiss the edit: ${response.status}`);
+}
+
 export function getEditStatus(agentId: string, requestId: string) {
   return json<EditResult>(`/api/sessions/${encodeURIComponent(agentId)}/edit-last/${encodeURIComponent(requestId)}`);
 }

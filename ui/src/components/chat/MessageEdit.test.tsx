@@ -229,3 +229,31 @@ describe("inline editor (TS-08.R171)", () => {
     expect(screen.getByRole("textbox", { name: "Edit message" })).toHaveValue("better");
   });
 });
+
+describe("Edit recovery after a reload (FS-01.R61)", () => {
+  const offer = { request_id: "lost", message_seq: 4, text: "second, revised", reason: "Nothing was changed: the fork failed." };
+
+  it("offers the edit back from the snapshot alone and reopens it for revalidation", async () => {
+    const ack = vi.spyOn(client, "acknowledgeEdit").mockResolvedValue();
+    const { container } = renderChat(events, agent({ edit_recovery: offer }));
+    expect(screen.getByText(/Your edit was not applied: Nothing was changed: the fork failed\./)).toBeInTheDocument();
+    expect(screen.getByText("second, revised")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit again" }));
+    const editor = screen.getByRole("textbox", { name: "Edit message" }) as HTMLTextAreaElement;
+    expect(editor.value).toBe("second, revised");
+    expect(container.querySelector("[data-seq=\"4\"]")).not.toBeNull();
+    await waitFor(() => expect(ack).toHaveBeenCalledWith("a1", "lost"));
+    const post = vi.spyOn(client, "editLastMessage").mockReturnValue(new Promise(() => undefined));
+    fireEvent.click(screen.getByRole("button", { name: "Save and regenerate" }));
+    expect(post).toHaveBeenCalledWith("a1", expect.objectContaining({ message_seq: 4, expected_revision: 3, text: "second, revised" }));
+  });
+
+  it("discards the offer, and keeps the text visible when the message is no longer editable", async () => {
+    const ack = vi.spyOn(client, "acknowledgeEdit").mockResolvedValue();
+    renderChat([...events, { kind: "user_text", seq: 7, text: "later" }, { kind: "turn_end", seq: 8, fork: ok }], agent({ edit_recovery: offer }));
+    expect(screen.getByText("second, revised")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit again" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(ack).toHaveBeenCalledWith("a1", "lost"));
+  });
+});

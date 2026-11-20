@@ -1016,6 +1016,14 @@ CREATE UNIQUE INDEX idx_edit_transitions_open ON edit_transitions(agent_id)
 		version: 81,
 		sql:     `ALTER TABLE attachment_receipts ADD COLUMN claimed_task_id TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// An aborted edit's replacement stays offered for recovery until the
+		// person acknowledges it (FS-01.R61, EDIT-REVIEW-8). Existing aborted
+		// edits predate the offer and are treated as acknowledged.
+		version: 82,
+		sql: `ALTER TABLE edit_transitions ADD COLUMN acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged IN (0,1));
+UPDATE edit_transitions SET acknowledged = 1 WHERE phase = 'aborted';`,
+	},
 }
 
 func migrateTaskCommitment(tx *sql.Tx) error {

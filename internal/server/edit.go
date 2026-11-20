@@ -657,6 +657,24 @@ func (s *Server) dispatchEdit(ctx context.Context, id, requestID string, msg run
 	s.touchState(id)
 }
 
+// handleEditAcknowledge implements POST
+// /api/sessions/{id}/edit-last/{request_id}/acknowledge: the person has the
+// aborted edit's replacement, so its recovery offer ends (FS-01.R61).
+func (s *Server) handleEditAcknowledge(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	ok, err := s.stateStore.AcknowledgeEdit(id, r.PathValue("request_id"))
+	if err != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "cannot acknowledge edit"))
+		return
+	}
+	if !ok {
+		writeAPIError(w, apiError(runtime.CodeNotFound, "no such aborted edit"))
+		return
+	}
+	s.touchState(id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleEditStatus implements GET /api/sessions/{id}/edit-last/{request_id}.
 func (s *Server) handleEditStatus(w http.ResponseWriter, r *http.Request) {
 	rec, err := s.stateStore.ReadEdit(r.PathValue("id"), r.PathValue("request_id"))

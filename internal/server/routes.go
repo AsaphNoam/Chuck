@@ -169,6 +169,7 @@ func (s *Server) routeTable() []routeEntry {
 	// Last-message Edit (FS-01.R61, TS-03.R90): local operator only.
 	api("POST /api/sessions/{id}/edit-last", s.handleEditLast)
 	api("GET /api/sessions/{id}/edit-last/{request_id}", s.handleEditStatus)
+	api("POST /api/sessions/{id}/edit-last/{request_id}/acknowledge", s.handleEditAcknowledge)
 	api("POST /api/sessions/{id}/resume", s.handleResume)
 	api("POST /api/sessions/{id}/archive", s.handleArchiveAgentAction)
 	api("POST /api/sessions/{id}/restore", s.handleRestoreAgentAction)
