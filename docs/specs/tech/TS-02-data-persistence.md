@@ -1074,7 +1074,9 @@ decision, and restore committed delivery from its receipt. Never infer an abort 
 HTTP connection. Repeated recovery detects an already-complete boundary by request id and never
 appends another or reuses sequences. A missing or uncertain boundary holds admission with an
 actionable history error until ordinary journal repair proves its outcome.
-Before entering ordinary prompt admission, durably mark dispatch started. Recovery may submit a
+Before entering ordinary prompt admission, durably mark dispatch started in the same SQLite
+transaction that creates the ordinary receipt, so the replacement always has exactly one recovery
+owner: the undispatched edit before that transaction, the receipt after it. Recovery may submit a
 known undispatched replacement once, under the same receipt and reservation. Once dispatch
 started, the ordinary receipt determines submitted, released, failed or unknown; a surviving
 prepared receipt is unknown and cannot be automatically resent.

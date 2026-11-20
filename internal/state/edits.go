@@ -217,11 +217,39 @@ AND phase IN ('committing','committed')`, nowUTC(), agentID, requestID)
 	return tx.Commit()
 }
 
-// MarkEditDispatched records that the replacement entered ordinary prompt
-// admission; afterwards only its receipt decides delivery.
-func (s *Store) MarkEditDispatched(agentID, requestID string) error {
-	return s.editUpdate(`dispatched=1`, `phase='committed'`, agentID, requestID)
+// DispatchEdit hands a committed edit's replacement to its ordinary receipt
+// in one transaction: the edit is marked dispatched exactly when the receipt
+// exists, so a failure on either side leaves exactly one recovery owner —
+// the open edit before, the receipt after (TS-02.R69). delivery is
+// 'prepared' for admission or 'released' to offer it back for recovery.
+func (s *Store) DispatchEdit(r AttachmentReceipt, delivery string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("state: begin edit dispatch: %w", err)
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`UPDATE edit_transitions SET dispatched=1, updated_at=? WHERE agent_id=? AND request_id=? AND phase='committed' AND dispatched=0`,
+		nowUTC(), r.AgentID, r.RequestID)
+	if err != nil {
+		return fmt.Errorf("state: mark edit dispatched: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return ErrEditConflict
+	}
+	if editDispatchFault != nil {
+		if err := editDispatchFault(); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO attachment_receipts(agent_id,request_id,payload_hash,message_json,action,delivery,updated_at) VALUES(?,?,?,?,?,?,?)`,
+		r.AgentID, r.RequestID, r.PayloadHash, r.MessageJSON, r.Action, delivery, formatTime(time.Now().UTC())); err != nil {
+		return fmt.Errorf("state: create edit receipt: %w", err)
+	}
+	return tx.Commit()
 }
+
+// editDispatchFault is a test seam between the two writes of DispatchEdit.
+var editDispatchFault func() error
 
 // AbortEdit ends a preparing edit; the original conversation stays active.
 func (s *Store) AbortEdit(agentID, requestID, reason string) error {

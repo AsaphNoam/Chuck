@@ -625,17 +625,13 @@ func revisionRecorded(home, id, requestID string) (bool, error) {
 }
 
 // dispatchEdit hands the replacement to ordinary person-turn admission under
-// the edit's request id. Dispatch is marked before admission, so recovery never
-// resends; afterwards the ordinary receipt decides delivery (TS-02.R69).
+// the edit's request id. Dispatch and the prepared receipt are one write
+// before admission, so recovery never resends and never loses it; afterwards
+// the ordinary receipt decides delivery (TS-02.R69).
 func (s *Server) dispatchEdit(ctx context.Context, id, requestID string, msg runtime.Message) {
-	if err := s.stateStore.MarkEditDispatched(id, requestID); err != nil {
-		s.log.Error("mark edit dispatched", "agent", id, "request_id", requestID, "err", err)
-		return
-	}
-	data, _ := json.Marshal(msg)
-	if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: id, RequestID: requestID,
-		PayloadHash: messagePayloadHash("prompt", msg), MessageJSON: string(data), Action: "prompt"}); err != nil {
-		s.log.Error("create edit receipt", "agent", id, "request_id", requestID, "err", err)
+	if err := s.stateStore.DispatchEdit(editReceipt(id, requestID, msg), "prepared"); err != nil {
+		// The edit stays committed and undispatched; restart recovery releases it.
+		s.log.Error("dispatch edit", "agent", id, "request_id", requestID, "err", err)
 		return
 	}
 	held, err := s.registry.SendMessageOrHold(ctx, id, msg)
@@ -733,19 +729,15 @@ func (s *Server) releaseUndispatchedEdit(rec state.EditTransition) {
 		s.log.Error("decode undispatched edit", "agent", rec.AgentID, "err", err)
 		return
 	}
-	if err := s.stateStore.MarkEditDispatched(rec.AgentID, rec.RequestID); err != nil {
-		s.log.Error("mark undispatched edit", "agent", rec.AgentID, "err", err)
-		return
-	}
-	data, _ := json.Marshal(msg)
-	if err := s.stateStore.CreateAttachmentReceipt(state.AttachmentReceipt{AgentID: rec.AgentID, RequestID: rec.RequestID,
-		PayloadHash: messagePayloadHash("prompt", msg), MessageJSON: string(data), Action: "prompt"}); err != nil {
-		s.log.Error("create released edit receipt", "agent", rec.AgentID, "err", err)
-		return
-	}
-	if err := s.stateStore.SetAttachmentDelivery(rec.AgentID, rec.RequestID, "released"); err != nil {
+	if err := s.stateStore.DispatchEdit(editReceipt(rec.AgentID, rec.RequestID, msg), "released"); err != nil {
 		s.log.Error("release undispatched edit", "agent", rec.AgentID, "err", err)
 	}
+}
+
+func editReceipt(id, requestID string, msg runtime.Message) state.AttachmentReceipt {
+	data, _ := json.Marshal(msg)
+	return state.AttachmentReceipt{AgentID: id, RequestID: requestID,
+		PayloadHash: messagePayloadHash("prompt", msg), MessageJSON: string(data), Action: "prompt"}
 }
 
 // touchState republishes the agent's snapshot so every client sees the
