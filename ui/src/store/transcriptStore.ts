@@ -57,7 +57,7 @@ export function undeliveredQueued<T extends { request_id: string }>(queued: T[],
   if (!queued.length || !events?.length) return queued;
   const sent = new Set<string>();
   for (const event of events) {
-    if (kindOf(event) === "user_text" && event.seq != null && event.request_id) sent.add(event.request_id);
+    if (kindOf(event) === "user_text" && !event.steer_pending && event.seq != null && event.request_id) sent.add(event.request_id);
   }
   return queued.some((item) => sent.has(item.request_id)) ? queued.filter((item) => !sent.has(item.request_id)) : queued;
 }
@@ -74,7 +74,7 @@ function textOf(event: TranscriptEvent) {
 export function matchesPromptDelivery(
   event: TranscriptEvent, text: string, requestId: string | undefined, afterSeq = 0,
 ): boolean {
-  return kindOf(event) === "user_text" && event.seq != null &&
+  return kindOf(event) === "user_text" && !event.steer_pending && event.seq != null &&
     (event.request_id ? event.request_id === requestId : event.seq > afterSeq && textOf(event) === text);
 }
 
@@ -171,6 +171,21 @@ function suppressedAnnotationPrompt(events: TranscriptEvent[], event: Transcript
 }
 
 function appendRenderedEvent(events: TranscriptEvent[], event: TranscriptEvent) {
+  if (kindOf(event) === "steer_resolution") {
+    const index = events.findIndex((candidate) => candidate.seq === event.prompt_seq && candidate.steer_pending);
+    if (index >= 0 && event.outcome === "retracted") {
+      events.splice(index, 1);
+      const previous = events[index - 1];
+      const next = events[index];
+      if (previous && next && kindOf(previous) === "assistant_text" && kindOf(next) === "assistant_text") {
+        const replies = [previous];
+        appendRenderedEvent(replies, next);
+        events.splice(index - 1, 2, ...replies);
+      }
+    }
+    if (index >= 0 && event.outcome === "accepted") events[index] = { ...events[index], steer_pending: false };
+    return;
+  }
   if (kindOf(event) === "assistant_text" && event.seq != null && !event.search_sources) {
     event = { ...event, search_sources: [{ seq: event.seq, start: 0, end: String(textOf(event)).length }] };
   }
@@ -293,7 +308,7 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
       if (event.activity_id) return state;
       const kind = kindOf(event);
       // A runtime notice is advisory, not a reply, and must not split one (FS-03.R68).
-      if (kind === "notice") return state;
+      if (kind === "notice" || kind === "steer_resolution") return state;
       const nextKinds = { ...state.previewKindByAgent, [agentId]: kind };
       if (kind !== "assistant_text") return { previewKindByAgent: nextKinds };
       const delta = String(textOf(event));

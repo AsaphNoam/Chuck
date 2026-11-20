@@ -879,10 +879,6 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		as.turn.steerFallback.TurnID = turnID
 	}
 	as.mu.Unlock()
-	// The durable receipt, not the transcript, carries acceptance across the
-	// native call: the user row is written only once the adapter's answer says
-	// the agent may have it, so a refusal leaves no sent message behind
-	// (FS-03.R50, INV §19).
 	persisted := message.RequestID != "" || len(message.Attachments) > 0
 	// Reserve uncertainty durably before the native call. A failed receipt
 	// update after consumption must not leave a replay claiming confirmed success.
@@ -890,6 +886,28 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		as.resolveSteerFallback("", err, promoted)
 		if persisted {
 			return "", fmt.Errorf("%w: delivery receipt unavailable", ErrMessageAccepted)
+		}
+		return "", err
+	}
+
+	prompt := message.promptData()
+	prompt.SteerPending = true
+	recorded := c.emit(as, EvUserPrompt, prompt)
+	if recorded.Seq == 0 {
+		err := errors.New("runtime: could not record Steer before delivery")
+		nextMessage, nextTurnID := as.resolveSteerFallback("", err, promoted)
+		if !nextMessage.empty() {
+			_ = c.runMessageTurn(as, nextMessage, nextTurnID)
+		}
+		delivery := "released"
+		as.mu.Lock()
+		if promoted && as.turn.held.HeldID == message.HeldID && !as.stopping && !as.stopped {
+			delivery = "held"
+		}
+		as.mu.Unlock()
+		_ = c.messageTransitionReason(agentID, message.RequestID, delivery, "steer", "transcript_unavailable")
+		if persisted {
+			return "", errors.Join(ErrMessageAccepted, err)
 		}
 		return "", err
 	}
@@ -920,18 +938,21 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 			"request_id", boundedMessageIdentity(message.RequestID), "held_id", boundedMessageIdentity(message.HeldID),
 			"method", steeringMethod, "rpc_code", rpcErr.Code, "refused", refused)
 	}
-	if !refused && outcome != steerPromptRequired && (err == nil || persisted) {
-		// The agent received it — injected into the running turn or as the turn
-		// the adapter started — or may have (a lost answer), so it belongs in the
-		// durable transcript as an ordinary user message on the same path every
-		// other prompt takes (FS-03.R50/R100, INV §2). A refusal writes nothing,
-		// and a promptRequired fallback turn records the message itself. A failed
-		// append latches the journal's gap notice (FS-03.R99). It is written
-		// before the fallback settles, so a row for a turn this Steer claimed
-		// still carries that turn's ID.
-		if c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
-			slog.Error("runtime: steered message not recorded", "agent", as.agentID)
-		}
+	resolution := "unknown"
+	switch {
+	case refused || outcome == steerPromptRequired:
+		resolution = "retracted"
+	case err == nil:
+		resolution = "accepted"
+	}
+	settlement := SteerResolutionData{PromptSeq: recorded.Seq, Outcome: resolution}
+	if resolution == "accepted" {
+		prompt.SteerPending = false
+		settlement.Prompt = &prompt
+	}
+	_, settled := c.emitChecked(as, activityScope{TurnID: recorded.TurnID}, EvSteerResolution, settlement, true)
+	if !settled && resolution == "accepted" {
+		err = errors.New("runtime: Steer delivery could not be confirmed in history")
 	}
 	nextMessage, nextTurnID := as.resolveSteerFallback(outcome, err, restorePromoted)
 	if !nextMessage.empty() {
@@ -966,6 +987,8 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		reason := "provider_error"
 		if refused {
 			reason = "provider_refused"
+		} else if !settled && resolution == "accepted" {
+			reason = "transcript_unavailable"
 		}
 		_ = c.messageTransitionReason(agentID, message.RequestID, state, "steer", reason)
 		if persisted {

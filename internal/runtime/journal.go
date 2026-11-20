@@ -496,7 +496,7 @@ func (j *Journal) commitLocked(req CommitRequest) Observation {
 // synced. Streaming deltas are never fsynced individually (TS-01.R39).
 func requiresSync(typ string) bool {
 	switch typ {
-	case EvTurnEnd, EvError, EvAnnotation, EvNotice, EvUserPrompt, EvPermissionResolved:
+	case EvTurnEnd, EvError, EvAnnotation, EvNotice, EvUserPrompt, EvPermissionResolved, EvSteerResolution:
 		return true
 	}
 	return false

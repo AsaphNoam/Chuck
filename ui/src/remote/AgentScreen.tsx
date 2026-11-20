@@ -179,7 +179,7 @@ function PhoneAnnotationRow({ event }: { event: TranscriptEvent }) {
 function EventRow({ agentId, event, result, onAnnotate }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
   switch (event.kind) {
     case "user_text":
-      return <div className="phone-user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></div>;
+      return <div className="phone-user">{String(event.text ?? "")}<MessageAttachments agentId={agentId} attachments={event.attachments ?? []} />{event.steer_pending ? <small>Steer delivery unconfirmed</small> : null}</div>;
     case "assistant_text":
       return <AssistantText event={event} agentId={agentId} />;
     case "assistant_image":

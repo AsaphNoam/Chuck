@@ -36,7 +36,7 @@ func CloneCompletedPrefix(home, sourceAgentID string, throughSeq int64) ([]runti
 		// The read is already folded; a source revision record would name the
 		// source's sequence range and hide the clone's renumbered history
 		// (TS-02.R70).
-		if ev.Type == runtime.EvSessionMeta || ev.Type == runtime.EvAnnotation || ev.Type == runtime.EvConversationRevision {
+		if ev.Type == runtime.EvSessionMeta || ev.Type == runtime.EvAnnotation || ev.Type == runtime.EvConversationRevision || ev.Type == runtime.EvSteerResolution {
 			continue
 		}
 		prefix = append(prefix, ev)

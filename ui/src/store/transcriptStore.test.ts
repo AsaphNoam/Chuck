@@ -5,6 +5,25 @@ beforeEach(() => {
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, appliedSeq: {} });
 });
 
+it("settles a pending Steer at its original position in live and replay history", () => {
+  const pending = { kind: "user_text", seq: 1, text: "redirect", steer_pending: true };
+  const reply = { kind: "assistant_text", seq: 2, text: "working" };
+  const resolution = { kind: "steer_resolution", seq: 3, prompt_seq: 1 };
+  const store = useTranscriptStore.getState();
+  store.appendMessage("a", pending);
+  store.appendMessage("a", reply);
+  expect(useTranscriptStore.getState().byAgent.a[0]).toMatchObject({ steer_pending: true });
+  store.appendMessage("a", { ...resolution, outcome: "retracted" });
+  expect(useTranscriptStore.getState().byAgent.a.map((event) => event.seq)).toEqual([2]);
+  const confirmed = foldTranscript([pending, reply, { ...resolution, outcome: "accepted" }]);
+  expect(confirmed.map((event) => event.seq)).toEqual([1, 2]);
+  expect(confirmed[0]).toMatchObject({ steer_pending: false });
+  const before = { kind: "assistant_text", seq: 0, text: "still " };
+  const retracted = foldTranscript([before, pending, reply, { ...resolution, outcome: "retracted" }]);
+  expect(retracted).toHaveLength(1);
+  expect(retracted[0].text).toBe("still working");
+});
+
 describe("card preview clipping", () => {
   // FS-02.R9 / INV §2: the live preview and the server's reconcile sweep build
   // the same card artifact, so they must keep the same end of a long message.

@@ -431,3 +431,37 @@ func TestRefusedTypedSteerWritesNoTranscriptRow(t *testing.T) {
 		t.Fatalf("refused Steer reached the durable transcript: %s", transcript.Body)
 	}
 }
+
+func TestStoppedSteerRemainsInDurableTranscript(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "steers")
+	t.Setenv("FAKEACP_STEERING", "1")
+	t.Setenv("FAKEACP_STEER_LOG", logPath)
+	t.Setenv("FAKEACP_STEER_ACK_FILE", filepath.Join(dir, "unreleased"))
+	srv, handler, id, _ := busyAttachmentTestServer(t)
+	base := "/api/sessions/" + id
+	const requestID = "22222222-2222-4222-8222-222222222222"
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		postJSONHandler(t, handler, base+"/steer", map[string]string{"text": "redirect before Stop", "request_id": requestID})
+	}()
+	waitPrompts(t, logPath, 1)
+	assertPending := func() {
+		t.Helper()
+		response := serveLocal(t, handler, http.MethodGet, base+"/transcript", nil)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "redirect before Stop") || !strings.Contains(response.Body.String(), `"steer_pending":true`) {
+			t.Fatalf("transcript lacks the unconfirmed Steer: %d %s", response.Code, response.Body.String())
+		}
+	}
+	assertPending()
+	if err := srv.registry.Chat().Stop(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Steer still waiting for a reply after Stop")
+	}
+	assertPending()
+}

@@ -216,7 +216,8 @@ func TestStoppedOrCrashedInflightSteerIsNeverReleasedForRecovery(t *testing.T) {
 		t.Run(exit, func(t *testing.T) {
 			dir := t.TempDir()
 			log := filepath.Join(dir, "steer.log")
-			c, h, _, _, _ := busyAgent(t, "FAKEACP_STEERING=1", "FAKEACP_STEER_OUTCOME=promptRequired", "FAKEACP_STEER_LOG="+log, "FAKEACP_STEER_WAIT_FILE="+filepath.Join(dir, "never-release"))
+			var history func() []Event
+			c, h, _, _, _ := busyAgentRecording(t, &history, "FAKEACP_STEERING=1", "FAKEACP_STEER_LOG="+log, "FAKEACP_STEER_ACK_FILE="+filepath.Join(dir, "never-release"))
 			home := t.TempDir()
 			c.transcriptHome = home
 			d, err := attachment.New(home).Put(h.AgentID, "notes.txt", strings.NewReader("selected contents"))
@@ -239,6 +240,16 @@ func TestStoppedOrCrashedInflightSteerIsNeverReleasedForRecovery(t *testing.T) {
 				result <- err
 			}()
 			waitForPrompts(t, log, 1)
+			pending := false
+			for _, ev := range history() {
+				var prompt UserPromptData
+				if ev.Type == EvUserPrompt && json.Unmarshal(ev.Data, &prompt) == nil && prompt.RequestID == "in-flight" {
+					pending = prompt.SteerPending
+				}
+			}
+			if !pending {
+				t.Fatal("provider got Steer before its pending row was recorded")
+			}
 			if exit == "stop" {
 				if err := c.Stop(context.Background(), h.AgentID); err != nil {
 					t.Fatal(err)

@@ -65,6 +65,7 @@ func sampleEvents(t *testing.T) map[string]runtime.Event {
 		runtime.EvFileReport:           projectionEvent(t, runtime.EvFileReport, runtime.FileReportData{RequestID: "fcr-1", Status: "reported", Paths: []string{"/w/a.go"}}),
 		runtime.EvNotice:               projectionEvent(t, runtime.EvNotice, runtime.NoticeData{Severity: "warning", Title: "Quota low"}),
 		runtime.EvConversationRevision: projectionEvent(t, runtime.EvConversationRevision, runtime.ConversationRevisionData{RequestID: "r1", Revision: 1, ReplacesFromSeq: 7, ReplacesThroughSeq: 10}),
+		runtime.EvSteerResolution:      projectionEvent(t, runtime.EvSteerResolution, runtime.SteerResolutionData{PromptSeq: 1, Outcome: "accepted"}),
 		runtime.EvAnnotation: projectionEvent(t, runtime.EvAnnotation, runtime.AnnotationData{
 			Annotations:        []runtime.Annotation{{Seq: 3, Excerpt: "line", Instruction: "fix"}},
 			OverallInstruction: "tidy up"}),
@@ -86,6 +87,7 @@ func TestProjectEventCoversEveryType(t *testing.T) {
 		runtime.EvFileReport:           true,
 		runtime.EvNotice:               true,
 		runtime.EvConversationRevision: true,
+		runtime.EvSteerResolution:      true,
 	}
 	for _, typ := range runtime.AllEventTypes {
 		ev, ok := samples[typ]

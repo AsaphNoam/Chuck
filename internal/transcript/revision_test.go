@@ -3,6 +3,7 @@ package transcript
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"os"
 	"reflect"
@@ -10,6 +11,43 @@ import (
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 )
+
+func TestSteerSettlementFoldsBeforeSinceFilter(t *testing.T) {
+	home := t.TempDir()
+	w, err := Open(home, "a_test", &runtime.SessionMetaData{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	for _, ev := range []runtime.Event{
+		event(t, 1, runtime.EvUserPrompt, runtime.UserPromptData{Text: "refused", SteerPending: true}),
+		event(t, 2, runtime.EvUserPrompt, runtime.UserPromptData{Text: "confirmed", SteerPending: true}),
+		event(t, 3, runtime.EvUserPrompt, runtime.UserPromptData{Text: "interrupted", SteerPending: true}),
+		event(t, 4, runtime.EvSteerResolution, runtime.SteerResolutionData{PromptSeq: 1, Outcome: "retracted"}),
+		event(t, 5, runtime.EvSteerResolution, runtime.SteerResolutionData{PromptSeq: 2, Outcome: "accepted"}),
+	} {
+		if err := w.Append(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	events, err := ReadFile(home, "a_test", ReadOptions{})
+	if err != nil || len(events) != 5 {
+		t.Fatalf("active read: %v, %v", events, err)
+	}
+	if events[0].Type == runtime.EvUserPrompt || len(events[0].Data) != 0 {
+		t.Fatalf("refusal exposed prompt: %+v", events[0])
+	}
+	events, err = ReadFile(home, "a_test", ReadOptions{SinceSeq: 1})
+	if err != nil || len(events) != 4 {
+		t.Fatalf("incremental read: %v, %v", events, err)
+	}
+	for i, pending := range []bool{false, true} {
+		var prompt runtime.UserPromptData
+		if err := json.Unmarshal(events[i].Data, &prompt); err != nil || prompt.SteerPending != pending {
+			t.Fatalf("seq %d prompt: %+v, %v", events[i].Seq, prompt, err)
+		}
+	}
+}
 
 // revisedJournal writes three turns, then a revision replacing the third
 // turn (seq 7–10) and its replacement turn. An annotation recorded inside the

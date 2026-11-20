@@ -35,9 +35,11 @@ type ReadOptions struct {
 	Raw bool
 }
 
-// revisionRanges are the root sequence ranges committed conversation
-// revisions superseded (TS-02.R70).
-type revisionRanges [][2]int64
+// historyFold resolves controls against the same fixed prefix as the read.
+type historyFold struct {
+	revisions [][2]int64
+	steers    map[int64]string
+}
 
 // revisionKept are records a revision never hides: launch metadata, the
 // revision records themselves and durable control/audit markers unrelated to
@@ -50,11 +52,11 @@ var revisionKept = map[string]bool{
 	runtime.EvForkBoundary:         true,
 }
 
-func (r revisionRanges) hides(ev runtime.Event) bool {
+func (r historyFold) hides(ev runtime.Event) bool {
 	if revisionKept[ev.Type] {
 		return false
 	}
-	for _, span := range r {
+	for _, span := range r.revisions {
 		if ev.Seq >= span[0] && ev.Seq <= span[1] {
 			return true
 		}
@@ -64,12 +66,12 @@ func (r revisionRanges) hides(ev runtime.Event) bool {
 
 var revisionMarker = []byte(`"` + runtime.EvConversationRevision + `"`)
 
-// scanRevisions collects every committed revision boundary in rd, so the
+// scanHistoryFold collects committed revisions and Steer settlements in rd, so the
 // fold applies before any since-seq filter, including to a reader starting
 // after the boundary it needs. Only records naming the revision type are
 // decoded.
-func scanRevisions(rd io.Reader) (revisionRanges, error) {
-	var out revisionRanges
+func scanHistoryFold(rd io.Reader) (historyFold, error) {
+	out := historyFold{steers: make(map[int64]string)}
 	br := bufio.NewReaderSize(rd, 64*1024)
 	for {
 		line, oversized, err := readLine(br)
@@ -77,7 +79,15 @@ func scanRevisions(rd io.Reader) (revisionRanges, error) {
 			if ev, ok := decodeRecord(line); ok && ev.Type == runtime.EvConversationRevision {
 				var d runtime.ConversationRevisionData
 				if json.Unmarshal(ev.Data, &d) == nil && d.ReplacesFromSeq > 0 && d.ReplacesThroughSeq >= d.ReplacesFromSeq {
-					out = append(out, [2]int64{d.ReplacesFromSeq, d.ReplacesThroughSeq})
+					out.revisions = append(out.revisions, [2]int64{d.ReplacesFromSeq, d.ReplacesThroughSeq})
+				}
+			}
+		}
+		if !oversized && bytes.Contains(line, []byte(`"steer_resolution"`)) {
+			if ev, ok := decodeRecord(line); ok && ev.Type == runtime.EvSteerResolution {
+				var d runtime.SteerResolutionData
+				if json.Unmarshal(ev.Data, &d) == nil && d.PromptSeq > 0 && d.PromptSeq < ev.Seq {
+					out.steers[d.PromptSeq] = d.Outcome
 				}
 			}
 		}
@@ -85,7 +95,7 @@ func scanRevisions(rd io.Reader) (revisionRanges, error) {
 			return out, nil
 		}
 		if err != nil {
-			return nil, fmt.Errorf("transcript: scan revisions: %w", err)
+			return historyFold{}, fmt.Errorf("transcript: scan history controls: %w", err)
 		}
 	}
 }
@@ -95,9 +105,9 @@ func scanRevisions(rd io.Reader) (revisionRanges, error) {
 // cannot produce a mixed page.
 func forEachActive(f *os.File, limit int64, opts ReadOptions, visit func(runtime.Event) error) error {
 	if opts.Raw {
-		return forEachFrom(io.NewSectionReader(f, 0, limit), opts, nil, visit)
+		return forEachFrom(io.NewSectionReader(f, 0, limit), opts, historyFold{}, visit)
 	}
-	hidden, err := scanRevisions(io.NewSectionReader(f, 0, limit))
+	hidden, err := scanHistoryFold(io.NewSectionReader(f, 0, limit))
 	if err != nil {
 		return err
 	}
@@ -191,9 +201,9 @@ func ForEachFilePrefix(home, agentID string, limit int64, opts ReadOptions, visi
 	if last[0] != '\n' {
 		return ErrPrefixUnavailable
 	}
-	var hidden revisionRanges
+	var hidden historyFold
 	if !opts.Raw {
-		if hidden, err = scanRevisions(io.NewSectionReader(f, 0, limit)); err != nil {
+		if hidden, err = scanHistoryFold(io.NewSectionReader(f, 0, limit)); err != nil {
 			return err
 		}
 	}
@@ -241,7 +251,7 @@ func (r *Reader) ForEach(opts ReadOptions, visit func(runtime.Event) error) erro
 func readAll(rd io.Reader, opts ReadOptions) ([]runtime.Event, error) {
 	br := bufio.NewReaderSize(rd, 64*1024)
 	out := make([]runtime.Event, 0)
-	err := forEachBuffered(br, opts, nil, func(ev runtime.Event) error {
+	err := forEachBuffered(br, opts, historyFold{}, func(ev runtime.Event) error {
 		out = append(out, ev)
 		return nil
 	})
@@ -250,14 +260,14 @@ func readAll(rd io.Reader, opts ReadOptions) ([]runtime.Event, error) {
 
 // forEach is a raw single pass over rd, without the revision fold.
 func forEach(rd io.Reader, opts ReadOptions, visit func(runtime.Event) error) error {
-	return forEachFrom(rd, opts, nil, visit)
+	return forEachFrom(rd, opts, historyFold{}, visit)
 }
 
-func forEachFrom(rd io.Reader, opts ReadOptions, hidden revisionRanges, visit func(runtime.Event) error) error {
+func forEachFrom(rd io.Reader, opts ReadOptions, hidden historyFold, visit func(runtime.Event) error) error {
 	return forEachBuffered(bufio.NewReaderSize(rd, 64*1024), opts, hidden, visit)
 }
 
-func forEachBuffered(br *bufio.Reader, opts ReadOptions, hidden revisionRanges, visit func(runtime.Event) error) error {
+func forEachBuffered(br *bufio.Reader, opts ReadOptions, hidden historyFold, visit func(runtime.Event) error) error {
 	var lastSeq int64
 	for {
 		line, oversized, err := readLine(br)
@@ -283,6 +293,27 @@ func forEachBuffered(br *bufio.Reader, opts ReadOptions, hidden revisionRanges, 
 				}
 				if keep && hidden.hides(ev) {
 					keep = false
+				}
+				if keep && ev.Type == runtime.EvUserPrompt {
+					switch hidden.steers[ev.Seq] {
+					case "retracted":
+						// Keep sequence continuity for incremental readers without exposing the text.
+						ev.Type = runtime.EvSteerResolution
+						ev.Data = nil
+					case "accepted":
+						var prompt runtime.UserPromptData
+						if json.Unmarshal(ev.Data, &prompt) == nil {
+							prompt.SteerPending = false
+							ev.Data, _ = json.Marshal(prompt)
+						}
+					}
+				}
+				if keep && !opts.Raw && ev.Type == runtime.EvSteerResolution {
+					var resolution runtime.SteerResolutionData
+					if json.Unmarshal(ev.Data, &resolution) == nil && resolution.Prompt != nil {
+						resolution.Prompt = nil
+						ev.Data, _ = json.Marshal(resolution)
+					}
 				}
 				if keep {
 					if visitErr := visit(ev); visitErr != nil {

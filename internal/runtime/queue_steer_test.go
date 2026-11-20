@@ -414,6 +414,7 @@ func TestSteerPromptRequiredRunsAHostOwnedTurn(t *testing.T) {
 
 	events := history()
 	userCounts := map[string]int{}
+	var pendingSeq, retractedSeq int64
 	turnEnds := 0
 	for _, ev := range events {
 		switch ev.Type {
@@ -422,10 +423,22 @@ func TestSteerPromptRequiredRunsAHostOwnedTurn(t *testing.T) {
 			if err := json.Unmarshal(ev.Data, &prompt); err != nil {
 				t.Fatalf("decode user prompt: %v", err)
 			}
+			if prompt.SteerPending && prompt.Text == "late correction" {
+				pendingSeq = ev.Seq
+				continue
+			}
 			userCounts[prompt.Text]++
+		case EvSteerResolution:
+			var resolution SteerResolutionData
+			if json.Unmarshal(ev.Data, &resolution) == nil && resolution.Outcome == "retracted" {
+				retractedSeq = resolution.PromptSeq
+			}
 		case EvTurnEnd:
 			turnEnds++
 		}
+	}
+	if pendingSeq == 0 || pendingSeq != retractedSeq {
+		t.Fatalf("pending Steer seq = %d, retracted seq = %d", pendingSeq, retractedSeq)
 	}
 	if userCounts["late correction"] != 1 || userCounts["after fallback"] != 1 {
 		t.Fatalf("user prompt counts = %v, want each host-owned prompt once", userCounts)

@@ -87,9 +87,19 @@ type AssistantTextData struct {
 // request begins so replay, archive, and full-text search retain both sides of
 // every conversation.
 type UserPromptData struct {
-	Text        string                  `json:"text"`
-	Attachments []attachment.Descriptor `json:"attachments,omitempty"`
-	RequestID   string                  `json:"request_id,omitempty"`
+	SteerPending bool                    `json:"steer_pending,omitempty"`
+	Text         string                  `json:"text"`
+	Attachments  []attachment.Descriptor `json:"attachments,omitempty"`
+	RequestID    string                  `json:"request_id,omitempty"`
+}
+
+const EvSteerResolution = "steer_resolution"
+
+// SteerResolutionData settles the exact write-ahead prompt, even without a request ID.
+type SteerResolutionData struct {
+	PromptSeq int64           `json:"prompt_seq"`
+	Outcome   string          `json:"outcome"`
+	Prompt    *UserPromptData `json:"prompt,omitempty"`
 }
 
 type AssistantImageData struct {
@@ -507,4 +517,5 @@ var AllEventTypes = []string{
 	EvFileReport,
 	EvNotice,
 	EvConversationRevision,
+	EvSteerResolution,
 }

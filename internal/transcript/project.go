@@ -101,6 +101,10 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 			return Projection{}, err
 		}
 		p.Role = "user"
+		if d.SteerPending {
+			p.Parts = []Part{{Kind: PartPrompt, Text: "Steer delivery unconfirmed: " + d.Text}}
+			break
+		}
 		p.Parts = []Part{{Kind: PartPrompt, Text: d.Text, Indexed: true}}
 		for _, a := range d.Attachments {
 			p.Parts = append(p.Parts, Part{Kind: PartAttachmentName, Text: a.Name, Indexed: true})
@@ -214,7 +218,7 @@ func ProjectEvent(ev runtime.Event) (Projection, error) {
 			)
 		}
 		p.Parts = append(p.Parts, Part{Kind: PartAnnotationOverall, Text: d.OverallInstruction, Indexed: true})
-	case runtime.EvSessionMeta, runtime.EvBackendSwitch, runtime.EvActivityStarted, runtime.EvActivityState, runtime.EvBackgroundTaskState, runtime.EvForkBoundary, runtime.EvFileReport, runtime.EvNotice, runtime.EvConversationRevision:
+	case runtime.EvSessionMeta, runtime.EvBackendSwitch, runtime.EvActivityStarted, runtime.EvActivityState, runtime.EvBackgroundTaskState, runtime.EvForkBoundary, runtime.EvFileReport, runtime.EvNotice, runtime.EvConversationRevision, runtime.EvSteerResolution:
 		// Deliberately content-free: a launch/resume snapshot, a cross-backend
 		// hand-off marker and child lifecycle records describe the conversation
 		// rather than belonging to it (TS-02.R35). A runtime notice is advisory,

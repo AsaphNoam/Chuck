@@ -149,7 +149,11 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   turn immediately rather than holding it. The agent can act on it while it works — the point is
   redirecting an agent heading the wrong way, without discarding the turn as Cancel would. A steered
   message is not held: it reaches the agent at once and enters the transcript as an ordinary user
-  message inside the running turn, because the agent really did receive it there.
+  message inside the running turn. Chuck records Steer before calling the provider and shows
+  its delivery as unconfirmed until a response is recorded. Acceptance confirms the row,
+  explicit refusal retracts it, and interruption before settlement leaves delivery uncertain.
+  If the provider requests a separate prompt without consuming the Steer, the ordinary prompt
+  path records the fallback turn.
 
   Send and Steer are two deliberate choices with two meanings, not one control with a fallback. Send
   is the safe default and is always present; Steer is offered only where the runtime advertises the

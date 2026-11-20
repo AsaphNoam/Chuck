@@ -1104,6 +1104,14 @@ atomic snapshot/subscription ordering and applies any later invalidation.
 New excerpts bind to the revised active document digest; old search hits fail their existing
 digest check rather than silently moving.
 
+For FS-03.R50/R100, a Steer writes a synced `user_text` with `steer_pending` before
+calling the provider. A synced `steer_resolution` settles that exact prompt sequence.
+Acceptance confirms the original row. Explicit refusal or a no-consumption fallback
+removes its content from active history while preserving sequence continuity. Unknown
+delivery or a missing settlement leaves the original row visibly unconfirmed. Active
+search indexes the prompt only on confirmation. Clone prefixes omit settlement records
+because their target sequences belong to the source.
+
 Search text, span provenance, previews and rollups rebuild together from active history through
 the existing per-conversation repair/index builder. A committed revision whose index repair
 fails marks that conversation's search projection unavailable until repaired; stale text is

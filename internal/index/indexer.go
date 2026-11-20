@@ -193,12 +193,21 @@ func (ix *Indexer) OnEvent(agentID string, ev runtime.Event) error {
 }
 
 func (ix *Indexer) onEventLocked(agentID string, ev runtime.Event) error {
-	document, err := BuildSearchDocument([]runtime.Event{ev})
+	searchEvent := ev
+	if ev.Type == runtime.EvSteerResolution {
+		var resolution runtime.SteerResolutionData
+		if json.Unmarshal(ev.Data, &resolution) == nil && resolution.Outcome == "accepted" && resolution.Prompt != nil {
+			searchEvent.Seq = resolution.PromptSeq
+			searchEvent.Type = runtime.EvUserPrompt
+			searchEvent.Data, _ = json.Marshal(resolution.Prompt)
+		}
+	}
+	document, err := BuildSearchDocument([]runtime.Event{searchEvent})
 	if err != nil {
 		return err
 	}
 	if document.Content != "" {
-		ix.addDocumentLocked(agentID, ev.Seq, document)
+		ix.addDocumentLocked(agentID, searchEvent.Seq, document)
 	}
 	if err := ix.trackEvent(agentID, ev); err != nil {
 		return err
