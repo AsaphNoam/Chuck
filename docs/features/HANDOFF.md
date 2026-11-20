@@ -31,7 +31,17 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**[Browse project files](../ready-changes/browse-project-files.md)** — in progress (started
+2026-11-20). Slices, each committed when verified:
+
+1. Server catalog and file read routes over a descriptor-scoped root (TS-03.R93, TS-05.R30).
+2. Finder reveal routes for project and chat files plus the local capability (TS-03.R94, TS-05.R31).
+3. Shared CSV table/source in the file viewer (FS-03.R120, TS-08.R174).
+4. Files dialog: catalog, filters, preview, Back to files, Refresh (FS-11.R11–R15, TS-08.R172).
+5. Shared file menu: Copy path, Open in Finder (project and chat), HTML new-tab viewer page
+   (FS-11.R16, FS-03.R119, TS-08.R173); then closure and spec `(planned)` removal.
+
+Next: slice 1.
 
 ## Decisions needing input
 
@@ -41,7 +51,7 @@ None.
 
 - [Project Files](../ready-changes/browse-project-files.md) starts with all shared folders and
   offers a folder selector. HTML opens in a sandboxed viewer in a new browser tab. The shared
-  folder is desktop-only and symbolic links cannot be followed. The change is waiting to start.
+  folder is desktop-only and symbolic links cannot be followed. The change is in progress.
 - Message action design is ready in
   [message-hover-actions-and-current-conversation-edit.md](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
   (FS-01.R60–R62/A42–A44). The last sent message has Copy/Edit/Fork; other messages have

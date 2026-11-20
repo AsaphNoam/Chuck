@@ -1,6 +1,6 @@
 # Browse project files
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** The operator requested a **Files** button for the project’s agent-shared space and confirmed
 the newest-first table, folder scope, type badges, modal preview, HTML new-tab action, Finder and CSV.
 **Relevant requirements:** FS-11.R11–R16/A6–A10, FS-03.R119–R120/A94–A95, TS-02.R13,
