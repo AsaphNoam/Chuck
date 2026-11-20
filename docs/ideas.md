@@ -270,6 +270,32 @@ the relevant feature and technical specifications; it does not change product co
   request ID, which receipt state inserts, replaces or clears the echo and the tail on both
   surfaces across acknowledgment, delivery, refetch, reconnect and navigation. Coordinate the
   hold portion with INPUT-8's inventory.
+- **One transition table for a held message and a Steer.** From the STEER-HOLD review's
+  inventory (STEER-HOLD-6, 2026-11-20). STEER-HOLD-1/2/3/5 were patched: a refused promoted Steer
+  restores the original hold (same `held_id`), a refused Steer writes no `user_text`, outcome
+  notices are 3s toasts, and adapter refusals and `held_changed` are logged. Writers of
+  `turn.held`: `SendMessageOrHold` (replace), `resolveSteerFallback` (refused-promotion restore),
+  `restoreRefusedHeld` (history refusal), and clears in Withdraw, Steer promotion,
+  `reserveHeldSuccessorLocked`, Stop and `onTransportClosed`; `claimTurnOrHold` also writes it
+  with no `held_id` or receipt and appears to have no caller. Writers of `turn.steerFallback`:
+  `SteerMessage`, `resolveSteerFallback`, `reserveHeldSuccessorLocked`, Stop and
+  `onTransportClosed`. FS-03.R48–R50/R100, TS-03.R39 and INV §19 state outcomes but no transition
+  table. Missing or divergent rules (code-confirmed unless marked):
+  - Stop clears the hold and fallback before writing their receipts; Withdraw and transport close
+    write the receipt first;
+  - a refused Steer leaves `failed` when typed but `held` when promoted, and a promoted refusal
+    whose hold was replaced meanwhile sets the receipt back to `held` with no hold, so the
+    message is neither held nor offered for recovery;
+  - a held successor reserved at turn end keeps receipt `held` until `submitted`; a Stop in that
+    window has no owner for its receipt (suspected);
+  - a quota block leaves the hold with no receipt change and no stated release (suspected);
+  - a refused begin moves a held successor `submitted` → `released` → `failed`;
+  - an `unknown` receipt left pending across the native Steer call has no stated resolution after
+    a crash, and `held_id` minting and preservation are unspecified.
+  Define the legal moves for Send, Steer, Withdraw, turn end, Stop, crash, quota block and refused
+  begin, with the receipt and transcript write each makes and their order, including when a
+  Steer's `user_text` is written (open as STEER-HOLD-7). Coordinate with the entry above and the
+  QUEUED-TAIL review's inventory.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
