@@ -294,6 +294,9 @@ func (c *ChatRuntime) driveQuotaCheck(ctx context.Context, as *agentState, ad ba
 	probe.mu.Unlock()
 	launch := LaunchSpec{BackendType: spec.BackendType, ModelID: spec.ModelID, Effort: spec.Effort, Fast: spec.Fast}
 	launch.Agent.Interface = "chat"
+	// The probe is no agent; name it so its fast-mode diagnostics are not
+	// mistaken for an agent launch (INV §22).
+	launch.Agent.AgentID = "quota-check"
 	applied, err := applySessionConfig(ctx, as.transport, ad, launch, sess.SessionID, decodeSessionConfigOptions(newRes))
 	if err != nil || spec.Fast && !applied.Fast {
 		// A refused model/effort/tier would test another quota (TS-04.R97).

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -260,6 +261,9 @@ type agentState struct {
 	// current by every set_config_option response because a model change rebuilds
 	// it (TS-04.R46). Guarded by mu, like every other live session field.
 	configOptions sessionConfigAdvertisement
+	// fastSent is the fast-mode value last sent to this session ("on", "off",
+	// or "" for none), logged with each turn's start (INV §22). Guarded by mu.
+	fastSent string
 	// modes is the live permission-mode advertisement, guarded by modeMu
 	// rather than mu (see setModes).
 	modeMu       sync.Mutex
@@ -576,6 +580,9 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		return nil, err
 	}
 	spec.recordAppliedFast(applied.Fast)
+	as.mu.Lock()
+	as.fastSent = applied.FastSent
+	as.mu.Unlock()
 	nameCodexSession(ctx, as.transport, spec, sess.SessionID)
 	if err := c.openPersistence(as, spec, sess.SessionID); err != nil {
 		failForked()
@@ -1267,6 +1274,7 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 			}
 			return
 		}
+		as.logTurnFast(turnID)
 		params := map[string]any{"sessionId": as.sessionID, "prompt": prompt.content}
 		as.fileReportMeta(params)
 		res, err := as.transport.Call(as.ctx, "session/prompt", params)
@@ -1852,6 +1860,9 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		return nil, err
 	}
 	spec.recordAppliedFast(applied.Fast)
+	as.mu.Lock()
+	as.fastSent = applied.FastSent
+	as.mu.Unlock()
 
 	// Record whether this restore actually created a fresh context, including in replayable metadata.
 	spec.LastSessionID = sessionID
@@ -2089,13 +2100,21 @@ func (c *ChatRuntime) SetSessionConfig(ctx context.Context, agentID string, effo
 		// to explain why the toggle did not move, instead of inventing a third
 		// behavior for the live path (TS-03.R37).
 		change.Fast, change.FastApplied = false, true
+		logFastSetting(agentID, "live", "", options, fastID, nil)
 		return change, nil
 	}
 	value := "off"
 	if *fast {
 		value = "on"
 	}
-	if err := setConfigOption(ctx, transport, sessionID, fastID, value, options, false); err != nil {
+	err = setConfigOption(ctx, transport, sessionID, fastID, value, options, false)
+	logFastSetting(agentID, "live", value, options, fastID, err)
+	as.mu.Lock()
+	if !as.stopped && as.transport == transport {
+		as.fastSent = value
+	}
+	as.mu.Unlock()
+	if err != nil {
 		return change, err
 	}
 	change.Fast, change.FastApplied = *fast, true
@@ -3849,6 +3868,60 @@ type sessionConfigResult struct {
 	// model does not offer fast mode" instead of showing an ordinary off toggle
 	// that silently springs back (FS-03.R46).
 	FastAvailable bool
+	// FastSent is the fast-mode value Chuck sent this session: "on", or "" when
+	// it sent none.
+	FastSent string
+}
+
+// fastReadback is the adapter's own report of its fast-mode option as Chuck last
+// read it: "on" or "off"; "unreported" when the option carries no value;
+// "unrecognized" for any other value, which is never logged verbatim; or
+// "unadvertised" when the session does not offer the option. It is adapter
+// configuration evidence only, never proof of the tier the provider served
+// (TS-04.R54).
+func fastReadback(advertised sessionConfigAdvertisement, fastID string) string {
+	if !advertised.has(fastID) {
+		return "unadvertised"
+	}
+	switch value := advertised[fastID]; value {
+	case "on", "off":
+		return value
+	case "":
+		return "unreported"
+	default:
+		return "unrecognized"
+	}
+}
+
+// logTurnFast ties a turn to the fast mode Chuck last sent and the adapter's
+// readback at the moment the prompt goes out, so a slow turn can be matched to
+// the setting it ran under. Sessions that neither offer nor were sent fast mode
+// stay quiet.
+func (as *agentState) logTurnFast(turnID string) {
+	if as.adapter == nil {
+		return
+	}
+	_, _, fastID := as.adapter.SessionConfigIDs()
+	as.mu.Lock()
+	sent, readback := as.fastSent, fastReadback(as.configOptions, fastID)
+	as.mu.Unlock()
+	if sent == "" && readback == "unadvertised" {
+		return
+	}
+	slog.Info("runtime: turn fast mode", "agent", as.agentID, "generation", as.generation, "turn", turnID,
+		"sent", cmp.Or(sent, "none"), "adapter_readback", readback)
+}
+
+// logFastSetting records what Chuck sent for fast mode and what the adapter read
+// back, so a slow-turn report can tell an unsent setting, a silent adapter and a
+// contradicted value apart (INV §22). sent is "" when nothing was sent.
+func logFastSetting(agentID, path, sent string, advertised sessionConfigAdvertisement, fastID string, err error) {
+	attrs := []any{"agent", agentID, "path", path, "sent", cmp.Or(sent, "none"), "adapter_readback", fastReadback(advertised, fastID)}
+	if err != nil {
+		slog.Warn("runtime: fast mode not applied", append(attrs, "err", err)...)
+		return
+	}
+	slog.Info("runtime: fast mode setting", attrs...)
 }
 
 // recordAppliedFast stores the negotiated fast value on the agent and the
@@ -3885,17 +3958,18 @@ func applySessionConfig(ctx context.Context, transport *Transport, ad backend.Ba
 	// or removed fast mode entirely (INV §1).
 	out := sessionConfigResult{FastAvailable: advertised.has(fastID)}
 	if !spec.Fast || !out.FastAvailable {
+		if spec.Fast || out.FastAvailable {
+			logFastSetting(spec.Agent.AgentID, "session_start", "", advertised, fastID, nil)
+		}
 		return out, nil
 	}
 	// Fast mode is fail-open under FS-09.R55/TS-04.R45: an unavailable or refused
 	// speed boost leaves the agent cheaper and slower, which is not worth killing
 	// a working launch over. The agent records fast mode off and the header says why.
-	if err := setConfigOption(ctx, transport, sessionID, fastID, "on", advertised, false); err != nil {
-		slog.Warn("runtime: fast mode was requested but not applied; continuing at normal speed",
-			"agent", spec.Agent.AgentID, "err", err)
-		return out, nil
-	}
-	out.Fast = true
+	out.FastSent = "on"
+	err := setConfigOption(ctx, transport, sessionID, fastID, "on", advertised, false)
+	logFastSetting(spec.Agent.AgentID, "session_start", out.FastSent, advertised, fastID, err)
+	out.Fast = err == nil
 	return out, nil
 }
 

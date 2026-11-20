@@ -1485,6 +1485,88 @@ func TestFastModeAdvertisedIsAppliedAndRecordedAvailable(t *testing.T) {
 	}
 }
 
+// INV §22, TS-04.R54 (CODEX-FAST-1) — a slow-turn report must be able to tell
+// whether fast mode was sent and what the adapter read back for that turn: an
+// explicit match, a contradicting value, or no value at all. The readback is
+// adapter evidence only, so it is logged as such and never as the served tier.
+func TestTurnLogsFastModeSentAndAdapterReadback(t *testing.T) {
+	for _, tc := range []struct{ name, env, readback string }{
+		{"confirmed", "", "on"},
+		{"contradicted", "FAKEACP_IGNORE_OPTION=fast-mode", "off"},
+		{"unreported", "FAKEACP_UNREPORTED_OPTION=fast-mode", "unreported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+			t.Cleanup(func() { slog.SetDefault(prev) })
+
+			c, spec := newChatTest(t, "stream_text")
+			spec.BackendType = "codex-acp"
+			spec.ModelID = "gpt-5.4-mini"
+			spec.Fast = true
+			spec.Env = append(spec.Env, "FAKEACP_FAST_OPTION=fast-mode")
+			if tc.env != "" {
+				spec.Env = append(spec.Env, tc.env)
+			}
+			h, err := c.Start(context.Background(), spec)
+			if err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			t.Cleanup(func() { c.Stop(context.Background(), h.AgentID) })
+			ch, unsub, _ := c.Subscribe(h.AgentID)
+			defer unsub()
+			if err := c.SendPrompt(context.Background(), h.AgentID, "hello"); err != nil {
+				t.Fatalf("SendPrompt: %v", err)
+			}
+			waitForEvent(t, ch, EvTurnEnd)
+
+			out := logs.String()
+			want := "sent=on adapter_readback=" + tc.readback
+			for _, msg := range []string{"fast mode", "turn fast mode"} {
+				if !strings.Contains(out, `msg="runtime: `+msg) {
+					t.Fatalf("no %q log line in:\n%s", msg, out)
+				}
+			}
+			turnLine := ""
+			for _, line := range strings.Split(out, "\n") {
+				if strings.Contains(line, `msg="runtime: turn fast mode"`) {
+					turnLine = line
+				}
+			}
+			if !strings.Contains(turnLine, want) || !strings.Contains(turnLine, "turn=") {
+				t.Fatalf("turn line = %q, want it to carry the turn and %q", turnLine, want)
+			}
+			if !strings.Contains(out, "path=session_start "+want) {
+				t.Fatalf("session-start line does not carry %q:\n%s", want, out)
+			}
+
+			// The live toggle reports through the same line, with its own path.
+			fast := true
+			_, _ = c.SetSessionConfig(context.Background(), h.AgentID, nil, &fast)
+			if !strings.Contains(logs.String(), "path=live "+want) {
+				t.Fatalf("live toggle line does not carry %q:\n%s", want, logs.String())
+			}
+			if tc.name != "confirmed" {
+				return
+			}
+			// A live change to off is what the next turn reports as sent.
+			fast = false
+			if _, err := c.SetSessionConfig(context.Background(), h.AgentID, nil, &fast); err != nil {
+				t.Fatalf("SetSessionConfig off: %v", err)
+			}
+			logs.Reset()
+			if err := c.SendPrompt(context.Background(), h.AgentID, "again"); err != nil {
+				t.Fatalf("SendPrompt: %v", err)
+			}
+			waitForEvent(t, ch, EvTurnEnd)
+			if !strings.Contains(logs.String(), "sent=off adapter_readback=off") {
+				t.Fatalf("second turn does not report the live off:\n%s", logs.String())
+			}
+		})
+	}
+}
+
 // FS-03.A28/A30, INV §15 — a combined live change applies its settings one at a
 // time, so a fast-mode failure after a successful effort must still report the
 // effort that really applied. Reporting the whole request as a no-op left the

@@ -756,6 +756,11 @@ func fakeConfigOptions() []map[string]any {
 		option := map[string]any{
 			"id": id, "name": id, "type": "select", "currentValue": configValues[id], "options": rows,
 		}
+		// FAKEACP_UNREPORTED_OPTION advertises the option without a currentValue,
+		// as an adapter that reports no state back does.
+		if id == os.Getenv("FAKEACP_UNREPORTED_OPTION") {
+			delete(option, "currentValue")
+		}
 		if id == "mode" {
 			rows = nil
 			for _, mode := range fakeModes() {

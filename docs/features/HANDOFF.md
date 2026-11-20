@@ -190,41 +190,6 @@ desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheH
   Send/Steer/Withdraw/turn-end/stop entry point, the transcript and receipt writes each makes,
   and where the legal moves are specified.
 
-### CODEX-FAST — a slow turn with Fast enabled has no tier receipt (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-**Report (verbatim):** “codex seems to be running really slow even in fast mode, any chance that
-chuck isn't really using fast mode even if it's toggled on? Is there a way for me to verify?”
-No affected chat, turn time, field build, or log was supplied. Source inspected at `289bda92`.
-
-**Cause of the reported slowness: undetermined.** FS-03.R45–R46 and TS-04.R45–R47 distinguish the
-setting applied for the next turn from provider execution. Chuck sends `fast-mode=on` only when the
-live adapter advertises it and checks a contradictory `currentValue`. The installed adapter
-(codex-acp 1.1.2) passes Fast to the app-server at turn start. In an isolated GPT-6.1 Sol test with
-that adapter, Codex 0.161.0, and a dummy API key, the Fast-on turn emitted
-`service_tier: "priority"` to a synthetic loopback Responses endpoint; the Fast-off turn omitted
-the field, with the same model and effort.
-Changing effort after enabling Fast preserved the adapter's Fast readback. No live provider was
-contacted. The focused runtime and HTTP configuration tests passed. There is no failing
-reproduction to retain.
-
-**Separate local mismatch, confirmed:** the only Codex chat listed as running on the inspected
-dashboard had Fast off. The saved GPT-6.1 Sol model declares `fast: false` while the current Codex
-catalog advertises `fast`. Autosync intentionally leaves saved model entries alone (FS-09.R28/R53);
-Settings → Backends → Codex → GPT-6.1 Sol → Fast mode capability restores the option, and the chat's
-own toggle still needs enabling. This explains a missing switch, not a slow turn with it on.
-
-- **Worth fixing** — CODEX-FAST-1 (confirmed, observability; INV §20, §22; TS-04.R54).
-  A live toggle returns Chuck's recorded setting
-  (`internal/server/session_config.go:88–104`), and
-  `internal/runtime/chat.go:3796–3823` accepts an unreported setting as well as an explicit match.
-  The sampled Codex logs and turn metadata provided no tier receipt, and the reported turn was
-  not identified. Make the attempted value and adapter readback distinguishable on the live path
-  and launch/resume path, including an explicit unknown when there is no readback. Correlate
-  those facts with a turn and expose the tier sent or served only when supported by adapter or
-  provider evidence. Keep diagnostics to identifiers and validated tier values. Verify missing
-  and contradictory readback separately; verify request delivery against an independent capture
-  such as the loopback on/off comparison. Treat provider execution as unknown without a receipt.
-
 ### TAB-BLANK — Chrome displays only the theme background on tab return (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “sometimes the page just goes blank when I switch between tabs and go back,

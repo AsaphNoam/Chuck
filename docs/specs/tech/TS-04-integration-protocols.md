@@ -168,6 +168,15 @@ speed boost leaves the agent cheaper and slower rather than running at a setting
 never-retry-bare rule therefore does not apply: there is nothing to retry, the conservative
 resolution *is* the fallback.
 
+Every fast-mode application — session start (launch, resume, switch) and the live toggle — logs the
+value Chuck sent (`on`, `off` or `none`) beside the adapter's readback of the option: `on`, `off`,
+`unreported` when the option carries no value, `unrecognized` for any other value (never logged
+verbatim), or `unadvertised`. A rejected or contradicted application logs at warning level with its
+error. Each turn whose session offers or was sent fast mode logs the same pair with its agent,
+generation and turn identifiers when the prompt is sent. The readback is adapter configuration
+evidence under R54, never the tier the provider served; Chuck records no served tier without a
+provider receipt (INV §22).
+
 Resume and switch re-apply fast mode through the same mechanism and the same shared helper as
 launch, for R18's reason and INV §1: the adapter re-derives its own fast-mode default when a session
 is loaded, so an unapplied fast mode silently reverts a resumed agent. Because the option must be
