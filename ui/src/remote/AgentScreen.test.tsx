@@ -372,7 +372,7 @@ describe("AgentScreen", () => {
     let queued = [{ request_id: "q1", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] }];
     server.use(http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: "", after_seq: 0, queued })));
     renderScreen();
-    expect(await screen.findByText("Queued for this assignment — delivered with its next turn")).toBeInTheDocument();
+    expect(await screen.findByText("Queued for the assignment’s next turn")).toBeInTheDocument();
     const entry = screen.getByText("use opus for the fix");
     expect(entry.closest(".message, .phone-message, [data-ui='transcript']")).toBeNull();
     queued = [];

@@ -864,7 +864,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
               <div className="phone-actions phone-composer-actions">
                 <button type="button" disabled={offline || busy} onClick={() => attachmentPicker.current?.click()}>Attach</button>
                 {isBusy && <button type="button" aria-label="Cancel turn" disabled={offline || busy} onClick={() => void act(() => cancelTurn(agentId, { target: "turn" }))}>Cancel</button>}
-                {agent.steering_available && isBusy && (
+                {agent.steering_available && isBusy && (!queuedInput.length || text.trim() || attachments.length > 0) && (
                   <button type="button" disabled={!attachmentsReady || offline || busy || releaseBlocked || (!text.trim() && attachments.length === 0) || attachments.some((file) => isPreviewImage(file) ? agent.attachment_capabilities?.image_input === false : agent.attachment_capabilities?.files === false)} onClick={() => sendPhoneMessage(true)}>
                     Steer
                   </button>

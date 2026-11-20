@@ -116,7 +116,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 
   A message to an agent whose assigned work is **waiting** (for child work, or to resume) is
   accepted rather than refused (FS-14.R100): it is retained across restart and the composer clears
-  with “Queued — it will be delivered when the agent's assignment continues.” The assignment's own
+  with “Queued — it will be delivered when the agent's assignment continues.” Until it is delivered
+  it shows at the end of the transcript, like a held message, labelled “Queued for the
+  assignment’s next turn”; it is never shown under the composer. The assignment's own
   continuation delivers it, and only then does it enter the transcript. If that work ends first, the
   message is offered back through the ordinary not-delivered recovery rather than sent elsewhere.
 - **R49.** The held message resolves on exactly three events. On **turn
@@ -155,6 +157,9 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   explicit-capability rule). With the composer empty and a message already held, Steer delivers that
   held message immediately instead, so a person who queued and then changed their mind about waiting
   is not made to retype it.
+
+  If assignment-queued input is the only pending input, the empty composer hides Steer. A new
+  draft or a steerable runtime hold can still be steered under the rules above.
 
   Steering is best-effort by nature and says so: a turn can end between the click and the delivery.
   When that happens the message is delivered as its own next turn rather than lost, and the person is

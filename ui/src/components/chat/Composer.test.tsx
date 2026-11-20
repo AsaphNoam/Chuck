@@ -51,7 +51,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   clearAttachmentDraftCacheForTests();
-  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
+  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {}, heldIdByAgent: {}, requestIdByAgent: {}, holdRevisionByAgent: {}, queuedByAgent: {} });
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, appliedSeq: {} });
   server.resetHandlers();
   promptBodies = [];
@@ -565,22 +565,26 @@ describe("Composer queued follow-up and steering", () => {
     expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
   });
 
-  it("keeps queued assignment input visible from the prompt read, never in the transcript, until the read drops it (GOAL-LED-11)", async () => {
+  it("keeps queued assignment input from the prompt read, out of the transcript and the composer, until the read drops it (GOAL-LED-11)", async () => {
     let queued: unknown[] = [];
     server.use(
       http.post("/api/sessions/:id/prompt", () => HttpResponse.json({ accepted: true, agent_id: "a_1", delivery: "queued", after_seq: 0, request_id: "req-q" }, { status: 202 })),
       http.get("/api/sessions/:id/prompt", () => HttpResponse.json({ agent_id: "a_1", text: "", after_seq: 0, queued })));
-    render(<Composer agentId="a_1" busy={false} />);
+    render(<Composer agentId="a_1" busy steerable />);
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
     queued = [{ request_id: "req-q", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] }];
     type(ta, "use opus for the fix");
     fireEvent.keyDown(ta, { key: "Enter" });
-    expect(await screen.findByText("Queued for this assignment — delivered with its next turn")).toBeTruthy();
-    expect(await screen.findByText("use opus for the fix")).toBeTruthy();
+    await waitFor(() => expect(useHeldStore.getState().queuedByAgent.a_1).toHaveLength(1));
+    // The transcript's end shows it (FS-03.R48); the composer does not.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Steer" })).toBeNull());
+    expect(screen.queryByText("Queued for the assignment’s next turn")).toBeNull();
+    type(ta, "a new correction");
+    expect(screen.getByRole("button", { name: "Steer" })).toBeInTheDocument();
     expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
     queued = [];
     await readHeldRecovery("a_1");
-    await waitFor(() => expect(screen.queryByText("use opus for the fix")).toBeNull());
+    await waitFor(() => expect(useHeldStore.getState().queuedByAgent.a_1).toHaveLength(0));
   });
 
   it("sends ordinary text with the stable draft request ID and uses the accepted ID in history", async () => {

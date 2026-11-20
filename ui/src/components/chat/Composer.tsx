@@ -4,7 +4,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { cancelTurn } from "../../api/client";
 import { invalidateHeldReads, readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
-import { QueuedInput } from "./QueuedInput";
 import { RunningTasks } from "./RunningTasks";
 import { matchesPromptDelivery, useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
@@ -268,7 +267,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         <RunningTasks key={agentId} agentId={agentId} />
         <button type="button" className="ad-button-secondary composer-attach" aria-label="Attach files" title="Attach files" disabled={sending} onClick={() => pickerRef.current?.click()}>Attach</button>
         <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={!filesReady || sending || (!text.trim() && files.length === 0) || !!capabilityError || (matchingRetry(text, files)?.retryable === false)}>{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
-        {busy && steerable && (
+        {busy && steerable && (!queuedInput.length || heldId || text.trim() || files.length > 0) && (
           <button type="button" className="ad-button-secondary" title={sending ? "Wait for the current send to finish." : undefined} disabled={sending || !!capabilityError || (matchingRetry(text, files)?.retryable === false)} onClick={() => void steer()}>Steer</button>
         )}
         {held && (
@@ -296,7 +295,6 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       {draggingFiles && <p className="composer-drop-hint" aria-live="polite">Drop files to attach</p>}
       {attachmentError && <p className="composer-error" role="alert">{attachmentError}</p>}
       {notice && <p className="composer-notice" role="status">{notice}</p>}
-      <QueuedInput agentId={agentId} queued={queuedInput} />
       {(error || capabilityError) && <p className="composer-error">{error || capabilityError}</p>}
     </form>
   );

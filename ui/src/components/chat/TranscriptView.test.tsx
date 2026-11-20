@@ -25,7 +25,7 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges();
   useAnnotationStore.setState({ bySource: {}, overallBySource: {}, editedAt: {}, collapsedBySource: {} });
   useTranscriptStore.setState({ byAgent: {}, rawByAgent: {}, pending: {}, settled: {}, appliedSeq: {} });
-  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {} });
+  useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {}, queuedByAgent: {} });
   useAgentStore.setState({ agents: {} });
   mswServer.resetHandlers();
 });
@@ -386,6 +386,20 @@ describe("TranscriptView pending follow-up", () => {
     // It is beside the list, not an item in it — a live render and a reload
     // cannot disagree about something the fold never sees.
     expect(document.querySelector('[data-variant="held"]')?.closest(".transcript-item")).toBeNull();
+    expect(useTranscriptStore.getState().byAgent.a1).toBeUndefined();
+  });
+
+  // FS-03.R48 (WITHDRAW-SEND-3): input queued for the assignment shows at the
+  // transcript's end like a held message, never as a transcript row.
+  it("shows assignment-queued input at the transcript's end, outside the event list", () => {
+    useHeldStore.getState().setQueued("a1", [{ request_id: "req-q", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] }]);
+    renderTranscript(true, events, true);
+
+    expect(screen.getByText("Queued for the assignment’s next turn")).toBeInTheDocument();
+    const queued = document.querySelector('[data-variant="queued"]');
+    expect(queued?.textContent).toContain("use opus for the fix");
+    expect(queued?.closest(".transcript-view")).not.toBeNull();
+    expect(queued?.closest(".transcript-item")).toBeNull();
     expect(useTranscriptStore.getState().byAgent.a1).toBeUndefined();
   });
 

@@ -305,6 +305,7 @@
         "annotation",
         "notice",
         "held",
+        "queued",
         "thinking",
         "unknown"
       ]

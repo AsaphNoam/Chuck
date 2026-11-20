@@ -41,6 +41,9 @@ import { readWithdrawnRecovery, withdrawHeldMessage } from "../../lib/heldMessag
 import { WorkingIndicator } from "./WorkingIndicator";
 import { useUiStore } from "../../store/uiStore";
 import { RecoveryOffer } from "./RecoveryOffer";
+import { QueuedInput } from "./QueuedInput";
+
+const NO_QUEUED: never[] = [];
 
 // fileTabs/onOpenFile are per-surface, exactly as annotationsEnabled already is
 // (TS-08.R57). The agent and archived-agent screens pass their route's saved file
@@ -80,6 +83,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   // server sends no event for a message it has not delivered (TS-08.R56).
   const held = useHeldStore((state) => state.byAgent[agentId]);
   const heldAttachments = useHeldStore((state) => state.attachmentsByAgent[agentId] ?? []);
+  const queuedInput = useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED;
   const recovery = useHeldStore((state) => state.recoveryByAgent[agentId]);
   const recoveryUnread = useHeldStore((state) => state.recoveryUnreadByAgent[agentId]);
   const reasoning = useReasoningStore((state) => state.byAgent[agentId]?.spans);
@@ -238,6 +242,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           )}
           {busy && <WorkingIndicator tool={currentToolLabel(events)} />}
           {held !== undefined && <HeldMessage agentId={agentId} text={held} attachments={heldAttachments} />}
+          <QueuedInput agentId={agentId} queued={queuedInput} />
           {recovery && <RecoveryOffer key={recovery.request_id} agentId={agentId} recovery={recovery} />}
           {!recovery && recoveryUnread && (
             <div className="transcript-held" data-ui="transcript" data-variant="held">

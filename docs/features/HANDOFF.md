@@ -52,9 +52,9 @@ None.
   available. The current launch path discards that distinction before the UI sees it, so the
   display change is deferred. The operator approved using existing evidence only.
 - WITHDRAW-SEND-3 and STEER-HOLD-4: show assignment-queued input once, labelled as queued for
-  the assignment's next turn. The in-progress FS-03.R48 change puts it at the transcript tail.
-  The empty composer hides Steer when only assignment-queued input is pending. Runtime-held
-  input keeps its Withdraw action.
+  the assignment's next turn. Implemented under FS-03.R48 (2026-11-20): it sits at the
+  transcript tail, the empty composer hides Steer when only assignment-queued input is pending,
+  and runtime-held input keeps its Withdraw action.
 - EXEC-6c: TS-01.R50 permits the 11 existing test-only store writers under the shrink-only
   `fixtureOnlyWriters` list. The archived architecture receipt records closure at `596821bf`.
 - AUTH-TRUST-1: keep the existing authority boundary. First reproduce the original failure
@@ -89,6 +89,12 @@ waiting change [`give-agent-execution-one-owner.md`](../ready-changes/give-agent
 (TS-01.R48, R49 and R50), together with the findings of the 2026-11-14 adversarial assessment.
 They are not queued for `/fix`. The recorded text is in
 [`CR-A10-findings.md`](../archive/reviews/adversarial-2026-11-14/CR-A10-findings.md).
+
+- **Assignment-queued input at the transcript tail** (WITHDRAW-SEND-3/STEER-HOLD-4; FS-03.R48):
+  waiting to start review. One commit titled “Show assignment-queued input at the transcript
+  tail”. UI-only; desktop moves `QueuedInput` from the composer into `TranscriptView`, phone keeps
+  its card with the new label, and both surfaces hide an empty-composer Steer when only queued
+  input is pending.
 
 ## Investigations awaiting evidence
 
