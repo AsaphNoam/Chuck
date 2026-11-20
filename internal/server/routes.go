@@ -83,6 +83,7 @@ func (s *Server) routeTable() []routeEntry {
 	// Project file browser (FS-11.R11–R16, TS-03.R93); desktop only.
 	api("GET /api/projects/{project}/resource-files", s.handleProjectResourceFiles)
 	api("GET /api/projects/{project}/resource-file", s.handleProjectResourceFile)
+	api("POST /api/projects/{project}/resource-file/reveal-in-finder", s.handleProjectResourceReveal)
 
 	// Native sequential pipeline templates and durable runs (FS-14 / TS-09).
 	api("GET /api/pipelines", s.handlePipelineTemplates)
@@ -186,6 +187,7 @@ func (s *Server) routeTable() []routeEntry {
 	api("GET /api/sessions/{id}/file", s.handleFileRead)
 	api("PUT /api/sessions/{id}/file", s.handleFileRead)
 	api("POST /api/sessions/{id}/file/open-browser", s.handleFileOpenBrowser)
+	api("POST /api/sessions/{id}/file/reveal-in-finder", s.handleChatFileReveal)
 	api("GET /api/sessions/{id}/attachments/{attachment_id}", s.handleAttachmentRead)
 	api("GET /api/sessions/{id}/image", s.handleImageRead)
 	api("GET /api/sessions/{id}/available-commands", s.handleAvailableCommands)

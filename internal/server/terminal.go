@@ -58,8 +58,12 @@ func terminalDriverReason(caps terminal.Capabilities, driver string) string {
 // terminal drivers this host can use. The xterm default is always available, so
 // the terminal interface is never globally disabled; tmux/iTerm2 are reported
 // per-host so the UI can disable unavailable optional drivers.
+// It also reports the local Finder reveal host action (TS-03.R94).
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, terminal.Probe())
+	writeJSON(w, http.StatusOK, struct {
+		terminal.Capabilities
+		RevealInFinder bool `json:"reveal_in_finder"`
+	}{terminal.Probe(), revealSupported})
 }
 
 // handleTerminalWS implements GET /api/sessions/{id}/terminal/ws (techspec

@@ -1533,8 +1533,9 @@ attest to what Chrome painted (INV §22).
 `GET /api/projects/{id}/resource-files` returns an on-demand metadata catalog with an optional
 root-relative `folder` scope. Its `entries` array carries `path`, `name`, `kind` (`file`,
 `directory`, `symlink`, or `special`), and `mod_time` (UTC RFC 3339 or null if unavailable).
-Paths preserve the original spelling. Return an explicit `partial` flag and reason for skipped
-unreadable entries or a reached limit. A missing legacy resource root returns a complete empty
+Paths are root-relative with `/` separators and preserve the original spelling. The catalog also
+carries `project_id` and the requested `folder`. Return an explicit `partial` flag and
+`partial_reason` (`unreadable` for skipped entries, `limit` for a reached limit, which wins). A missing legacy resource root returns a complete empty
 catalog for the default scope. An invalid project, unusable root, or missing selected folder uses
 the existing typed errors. The request changes no filesystem state. Sort file rows by modification
 time descending, then name and path ascending. Provide a null-safe client schema and use
@@ -1543,14 +1544,14 @@ time descending, then name and path ascending. Provide a null-safe client schema
 Bound one catalog request to 20,000 visited entries, 8 MiB encoded response, 64 directory levels
 and five seconds of traversal. Apply limits while walking and collecting, release opened
 descriptors on exit, and stop taking work after cancellation. Admit at most four concurrent
-catalog scans per process with no server-side queue. Report admission refusal as retryable. An
+catalog scans per process with no server-side queue. Report admission refusal as retryable 429 `resource_scan_busy`. An
 incomplete scan is identified as such even when its returned entries are empty. Allow a new scan
 scoped to a known subfolder after a broad scan hits a limit. Catalog construction reads metadata
 only and retains no server cache or index. No scanning on dashboard hydration or agent activity.
 
 `GET /api/projects/{id}/resource-file?path=…` loads one root-relative file through TS-05.R30 and
-the existing bounded UTF-8/image snapshot logic, using a project-qualified response identity and
-no editable revision. Serve JSON only. Reuse the existing read-limit, truncation, and format
+the existing bounded UTF-8/image snapshot logic, using a project-qualified response identity
+(`project_id`) and no editable revision (`edit_refusal: project_read_only`). Serve JSON only. Reuse the existing read-limit, truncation, and format
 refusals. Browser loader schemas and server responses ship together. No project edit, native
 HTML launch, CLI, MCP, SSE, or paired-phone equivalent is introduced (INV §2/§7/§10/§11/§14/§16).
 
@@ -1559,8 +1560,8 @@ FS-11.R16, add `POST /api/projects/{id}/resource-file/reveal-in-finder` and
 `POST /api/sessions/{id}/file/reveal-in-finder`. Both take a bounded JSON `{path}` and return 204
 when the macOS reveal command accepts the request. Use the originating read authority in
 TS-05.R30/R31. Surface unknown, invalid, unreadable, unsupported, or failed actions through the
-existing typed envelope. Expose host support through the existing local capabilities response so
-only supported desktop clients present the action. Existing HTML **Open in browser** behavior in
+existing typed envelope; an unsupported host returns `not_implemented`. Expose host support as
+`reveal_in_finder` in `GET /api/capabilities` so only supported desktop clients present the action. Existing HTML **Open in browser** behavior in
 chat is preserved. Both routes are explicitly denied by the remote route inventory.
 
 ## 4. Invariants

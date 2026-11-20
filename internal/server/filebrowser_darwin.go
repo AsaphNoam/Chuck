@@ -34,3 +34,12 @@ func openHTMLWithDefaultBrowser(ctx context.Context, path string, run func(*exec
 	}
 	return nil
 }
+
+// revealSupported reports the Finder reveal capability (TS-03.R94).
+const revealSupported = true
+
+func revealInFinder(path string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return revealWithRunner(ctx, path, func(cmd *exec.Cmd) ([]byte, error) { return cmd.Output() })
+}

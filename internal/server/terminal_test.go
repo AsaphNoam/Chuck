@@ -26,6 +26,12 @@ func TestCapabilitiesEndpoint(t *testing.T) {
 	if caps.Terminal.DefaultDriver != "xterm" {
 		t.Fatalf("default_driver = %q, want xterm", caps.Terminal.DefaultDriver)
 	}
+	var host struct {
+		RevealInFinder *bool `json:"reveal_in_finder"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &host); err != nil || host.RevealInFinder == nil || *host.RevealInFinder != revealSupported {
+		t.Fatalf("reveal_in_finder = %v, want %v (%v)", host.RevealInFinder, revealSupported, err)
+	}
 }
 
 // The terminal WS route is mounted and rejects an unknown agent with 404 JSON

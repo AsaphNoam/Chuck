@@ -211,6 +211,8 @@ type Server struct {
 
 	// openBrowserFile lets route tests observe launches without opening native apps.
 	openBrowserFile func(string) error
+	// revealFile lets route tests observe Finder reveals without opening Finder.
+	revealFile func(string) error
 
 	// primerSummarizer is the one-shot target-backend summary seam for backend
 	// switches. The default implementation is gated until live CLI invocation is

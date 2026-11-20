@@ -2,43 +2,23 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
-	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 // These handlers are deliberately absent from the remote route allowlist: only
 // an explicit action in the local UI may launch an application on the Mac.
 func (s *Server) handleFileOpenBrowser(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	agent, err := s.stateStore.ReadAgent(id)
-	if err != nil {
-		code := runtime.CodeInternal
-		if errors.Is(err, state.ErrNotFound) {
-			code = runtime.CodeNotFound
-		}
-		writeAPIError(w, apiError(code, err.Error()))
+	cwd, apiErr := s.chatSessionCwd(r.PathValue("id"))
+	if apiErr != nil {
+		writeAPIError(w, apiErr)
 		return
 	}
-	if agent.Interface != "chat" {
-		writeAPIError(w, apiError(runtime.CodeConflict, "browser opening is only available for chat agents"))
-		return
-	}
-	snap, err := s.stateStore.ReadSession(id)
-	if err != nil {
-		code := runtime.CodeInternal
-		if errors.Is(err, state.ErrNotFound) {
-			code = runtime.CodeNotFound
-		}
-		writeAPIError(w, apiError(code, err.Error()))
-		return
-	}
-	s.openHTMLFile(w, r, snap.Cwd)
+	s.openHTMLFile(w, r, cwd)
 }
 
 func (s *Server) handleThinkTankSourceOpenBrowser(w http.ResponseWriter, r *http.Request) {

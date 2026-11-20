@@ -9,3 +9,9 @@ import "github.com/pkg/browser"
 func openHTMLInBrowser(path string) error {
 	return browser.OpenURL(htmlFileURL(path))
 }
+
+// revealSupported reports the Finder reveal capability (TS-03.R94); only the
+// supported macOS host reveals files.
+const revealSupported = false
+
+func revealInFinder(string) error { return errRevealUnsupported }

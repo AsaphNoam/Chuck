@@ -44,7 +44,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 Done: slice 1 (`internal/server/project_files.go`; tests `TestProjectResource*`) and slice 3
 (`ui/src/lib/csv.ts`, `CsvTable.tsx`; tests `csv.test.ts`, `FileViewer.csv.test.tsx`).
 Project reads return `project_id` and `edit_refusal: project_read_only`; busy scans return
-429 `resource_scan_busy`. Next: slice 2. Spec `(planned)` markers stay until closure.
+429 `resource_scan_busy`. Slice 2 done (`internal/server/filereveal.go`; `reveal_in_finder`
+in `GET /api/capabilities`; tests `*Reveal*`). Next: slice 4 (UI dialog in
+`features/dashboard/ScopedProjectDashboard`, project loader via `useFileReader({load})`).
+Spec `(planned)` markers stay until closure.
 
 ## Decisions needing input
 
