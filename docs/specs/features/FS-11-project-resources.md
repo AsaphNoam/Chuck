@@ -1,6 +1,6 @@
 # FS-11 — Project shared resources
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/config/`, `internal/server/launch.go`, `internal/runtime/`, `ui/src/features/settings/` · **Journeys:** —
 **Absorbed:** —
 
@@ -56,6 +56,42 @@ repository change or commit.
   exists. Agents remain responsible for any secrets they choose to place there under the ordinary
   local-machine trust boundary.
 
+### Project file browser
+
+- **R11 (planned) — Open shared files from the project dashboard.** A visible **Files** button
+  opens a modal from a scoped desktop project dashboard, including before its first agent starts.
+  The modal identifies the project and starts at its shared-resources root (R1). It lists contents
+  on demand, independent of agent status or file-tracking history. The checkout, other additional
+  directories, and other projects are outside the browser's scope. This adds an explicit read to
+  R2/R10 while preserving resource location, agent access, and retention (R1–R7).
+- **R12 (planned) — Browse folders and search the project.** A compact list places folders first and
+  sorts each group alphabetically by name. Selecting a folder opens it. A breadcrumb shows the
+  relative location and lets the user return to any ancestor. A persistent **Search files** field
+  matches file and folder names and relative paths case-insensitively across the shared root,
+  including hidden and nested entries. Search results show the parent path alongside the name so
+  identical filenames remain distinguishable. Selecting a matching folder opens that folder in
+  browse mode. Clearing the query restores the folder shown before the search. Search excludes
+  file contents and distinguishes matches, no matches, and incomplete results.
+- **R13 (planned) — Preview in place and return to the same list.** Selecting a regular file shows
+  the existing viewer in the same modal, with its relative path and supported read-only previews
+  and refusals (FS-03.R52, R55 and the viewer's current format support). Close and Escape dismiss
+  the modal. **Back to files** restores the prior folder, query, scroll position, and focus to the
+  selected row when it still exists. If it has disappeared, focus returns to **Search files**.
+  Opening Files focuses search, keyboard users can activate rows, and dismissing the modal restores
+  focus to **Files**. This entry grants preview access only. It adds no editing, file management,
+  paired-phone access, or new agent command.
+- **R14 (planned) — Reflect changes and distinguish errors.** Opening the browser reads the current
+  directory. **Refresh** updates the active folder or search without clearing its context. Show
+  loading, an empty folder, no matches, and a failed read with Retry as distinct states. A legacy
+  project whose shared folder has yet to be created shows an empty root without creating it. If a
+  folder disappears, explain what happened and offer a return to the root. If a file disappears or
+  cannot be previewed, show the reason in the viewer and keep **Back to files** available.
+- **R15 (planned) — Preserve the shared-root boundary.** List symbolic links as unavailable entries
+  without traversing them or disclosing their targets. Special filesystem entries are also
+  unavailable to preview. Directory navigation, search, file opening and links inside a preview
+  cannot disclose contents beyond the selected project's shared root. Browsing adds no persistent
+  search index, copied file, or change to resource retention.
+
 ## 5. Acceptance criteria
 
 - **A1** — Creating a project produces an owner-only empty directory under a test
@@ -72,6 +108,24 @@ repository change or commit.
   path/mode and server-response tests.
 - **A5** — Settings displays and copies the project resource path but offers no mutable
   location field. *Verified by:* Settings UI tests and a usability journey.
+- **A6 (planned)** — From a project with no running agents, open **Files**, navigate into a nested
+  folder, and search for a mixed-case name shared by two files in different folders. Distinguish
+  the results by path, locate a hidden entry, and clear search to return to the original folder.
+  A file existing only in another project or the checkout never appears. *Verify:* project resource
+  integration tests and a rendered desktop journey.
+- **A7 (planned)** — Open a result in the modal viewer with the keyboard and inspect a rendered
+  preview or its Source. Use **Back to files** to return to the same query, row, and scroll position,
+  then close the modal and continue from **Files**. Long names and parent paths remain distinguishable
+  at the supported desktop width. *Verify:* rendered desktop journey including keyboard and narrow
+  desktop checks.
+- **A8 (planned)** — Distinguish an empty root, an empty nested folder, no search matches, and an
+  unreadable directory. Create a nested file externally and find it after Refresh. Remove a file
+  after listing it and verify the viewer explains the failed read and still returns to the list.
+  *Verify:* filesystem integration tests and a rendered recovery journey.
+- **A9 (planned)** — Place links to another project and back into the same directory tree, plus an
+  unsupported file. Browse and search without following links or exposing targets, and see the
+  viewer's refusal for the unsupported file. Attempts to read outside the root and from a paired
+  phone are refused. *Verify:* server boundary tests and a rendered preview refusal check.
 
 ## 6. Deviations & open decisions
 
@@ -81,9 +135,10 @@ repository change or commit.
 - Retention after project deletion is intentional: project resources can contain useful work and
   are not safe to erase as a side effect of removing configuration. A future explicit cleanup tool
   may be designed separately.
-- Repository-resident directories (including hidden or ignored directories), cloud synchronization,
-  content browsing/search, access control beyond the current same-user model, and configurable
-  locations are out of scope.
+- Repository-resident directories, cloud synchronization, full-text search, access control beyond
+  the current same-user model, and configurable locations are out of scope.
+- R11–R15/A6–A9 are a feature draft pending confirmation of name/path search, desktop preview-only
+  scope, and excluded symbolic-link traversal. Technical design and implementation are pending.
 
 ## 7. Traceability
 
