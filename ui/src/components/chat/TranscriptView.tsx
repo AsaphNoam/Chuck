@@ -8,7 +8,8 @@ import { claimWebLink } from "../../lib/linkActions";
 import { openFileInBrowser } from "../../api/client";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Button } from "../ui";
-import { forkActionFor, type ForkAction } from "./forkActions";
+import { messageActionsFor, type ForkAction } from "./forkActions";
+import { MessageActionRow } from "./MessageActionRow";
 import { ForkConfirmDialog } from "./ForkConfirmDialog";
 import { AssistantText } from "./renderers/AssistantText";
 import { AssistantImageRow, MessageAttachments } from "./AttachmentView";
@@ -92,9 +93,10 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   // highlighted text when there is a selection inside that event, otherwise the whole event.
   const openMenu = (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => {
     const annotatable = annotationsEnabled && canAnnotate(event);
-    // Edit / Fork from here belong to the desktop chat only (FS-01.R58).
-    const fork = forkActionsEnabled ? forkActionFor(events, event, cloneAffordance) : null;
-    if (!annotatable && !fork) return;
+    // Message actions belong to the desktop chat only; the menu and the hover
+    // row share one descriptor (FS-01.R60, TS-08.R171).
+    const actions = forkActionsEnabled ? messageActionsFor(events, event, cloneAffordance) : null;
+    if (!annotatable && !actions) return;
     const selected = selectionWithin(mouse.currentTarget);
     mouse.preventDefault();
     const draft = eventDraft(event, selected);
@@ -106,16 +108,23 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       annotate: annotatable ? () => addAnnotation(agentId, draft) : undefined,
       link: claimWebLink(mouse),
       onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
-      fork: fork ? [{
-        label: fork.label,
-        disabled: !fork.available,
-        description: fork.available ? undefined : fork.reason,
-        select: () => { if (fork.available) setForkConfirm(fork); },
-      }] : undefined,
+      fork: actions ? [
+        { label: "Copy message", select: () => { void copyText(actions.copy, pushError); } },
+        ...[actions.fork, actions.edit].filter((item): item is ForkAction => item !== null).map((item) => ({
+          label: item.label,
+          disabled: !item.available,
+          description: item.available ? undefined : item.reason,
+          select: () => { if (item.available) setForkConfirm(item); },
+        })),
+      ] : undefined,
     });
   };
   const [forkConfirm, setForkConfirm] = useState<ForkAction | null>(null);
   const cloneAffordance = useAgentStore((state) => state.agents[agentId]?.clone);
+  const renderActions = forkActionsEnabled ? (event: TranscriptEvent) => {
+    const actions = messageActionsFor(events, event, cloneAffordance);
+    return actions ? <MessageActionRow actions={actions} onFork={setForkConfirm} /> : null;
+  } : undefined;
 
   // Only a move toward older content leaves the bottom. A row whose height
   // settles after render (a diagram, an image) grows the list, and the browser's
@@ -161,6 +170,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     onContextMenu: openMenu,
     onOpenFile,
     onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
+    renderActions,
   });
   const choices = useTurnChoices(agentId);
   const [taskReveal, setTaskReveal] = useState<{ seq: number }>();
@@ -276,7 +286,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
 // eventRenderer is the one row renderer for the root list and every nested
 // child (TS-08.R59). A Think Tank room reuses it for each attempt's retained
 // activity, scoped to that attempt's source agent (TS-14.R15).
-export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onOpenFile, onOpenInBrowser }: {
+export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onOpenFile, onOpenInBrowser, renderActions }: {
   agentId: string;
   // Every tool result in the rendered transcript (resultsByCall), so a call in
   // one turn part reads a result recorded in another (TS-08.R147).
@@ -285,8 +295,10 @@ export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onO
   onContextMenu: (mouse: MouseEvent<HTMLDivElement>, event: TranscriptEvent) => void;
   onOpenFile?: (link: FileLink | null) => void;
   onOpenInBrowser?: (path: string) => Promise<unknown>;
+  // The desktop chat's message action row for a row's event (FS-01.R60).
+  renderActions?: (event: TranscriptEvent) => ReactNode;
 }) {
-  const renderEvents = (list: TranscriptEvent[], ancestry: string[], depth: number): ReactNode =>
+  const renderEvents =(list: TranscriptEvent[], ancestry: string[], depth: number): ReactNode =>
     groupTranscriptRows(list, results).map((row, index) => {
       if (row.kind === "tool-run") {
         return (
@@ -322,6 +334,7 @@ export function eventRenderer({ agentId, results, onAnnotate, onContextMenu, onO
           onContextMenu={onContextMenu}
           onOpenFile={onOpenFile}
           onOpenInBrowser={onOpenInBrowser}
+          actions={renderActions?.(row.event)}
         />
       );
     });
@@ -355,8 +368,9 @@ function HeldMessage({ agentId, text, attachments }: { agentId: string; text: st
   );
 }
 
-function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMenu, onOpenFile, onOpenInBrowser, className = "transcript-item" }: {
+function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMenu, onOpenFile, onOpenInBrowser, actions, className = "transcript-item" }: {
   agentId: string;
+  actions?: ReactNode;
   event: TranscriptEvent;
   result?: TranscriptEvent;
   onAnnotate: (draft: AnnotationDraft) => void;
@@ -381,6 +395,7 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
       data-variant={variantOf(event)}
       data-seq={event.seq ?? undefined}
       data-search-event={matched ? "true" : undefined}
+      data-actions={actions ? "true" : undefined}
       onContextMenu={(mouse) => onContextMenu(mouse, event)}
     >
       <SearchEventContext.Provider value={event}><ErrorBoundary
@@ -390,6 +405,7 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
         <TranscriptItem agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} onOpenFile={onOpenFile} onOpenInBrowser={onOpenInBrowser} />
         {suppressedMatches.map((text,index) => <p key={index} data-search-passage="true" data-search-excerpt="true">Matched source: {text}</p>)}
       </ErrorBoundary></SearchEventContext.Provider>
+      {actions}
     </div>
   );
 }

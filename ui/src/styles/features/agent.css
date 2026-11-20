@@ -1043,6 +1043,96 @@ a.agent-mini-card:focus-visible {
   position: relative;
 }
 
+/* Desktop message actions: a quiet icon row at the message's top right,
+   revealed on hover or focus within. Its strip is reserved above the message
+   so it never covers the first line or shifts the transcript (FS-01.R60,
+   TS-08.R171). */
+.transcript-item[data-actions] {
+  padding-top: var(--ad-space-6);
+}
+
+.chat-panel .transcript-item[data-actions] {
+  margin-top: calc(-1 * var(--ad-space-3));
+}
+
+.message-actions {
+  display: flex;
+  gap: var(--ad-space-1);
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transition: opacity 120ms ease;
+}
+
+.transcript-item:is(:hover, :focus-within) > .message-actions {
+  opacity: 1;
+}
+
+.message-action-slot {
+  position: relative;
+}
+
+.message-action {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ad-radius-small);
+  color: var(--ad-text-muted);
+  display: inline-flex;
+  height: var(--ad-space-6);
+  justify-content: center;
+  min-height: var(--ad-space-6);
+  min-width: var(--ad-space-6);
+  padding: 0;
+  width: var(--ad-space-6);
+}
+
+.message-action .ad-icon {
+  height: 14px;
+  width: 14px;
+}
+
+.message-action:is(:hover, :focus-visible):not([aria-disabled="true"]) {
+  background: var(--ad-surface-subtle);
+  color: var(--ad-text-primary);
+}
+
+.message-action[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.message-action-tip {
+  background: var(--ad-surface-raised);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-small);
+  box-shadow: var(--ad-shadow-keyline);
+  color: var(--ad-text-secondary);
+  display: none;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  max-width: 18rem;
+  padding: var(--ad-space-1) var(--ad-space-2);
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--ad-space-1));
+  white-space: normal;
+  width: max-content;
+  z-index: 2;
+}
+
+.message-action:is(:hover, :focus-visible) + .message-action-tip {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-actions {
+    transition: none;
+  }
+}
+
 /* The global ::selection highlight uses Core's highlight, which is also Core's user
    message background — selecting your own message would be invisible. Give the
    user bubble a contrasting selection colour so the highlight actually shows. */

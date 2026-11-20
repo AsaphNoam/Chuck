@@ -58,6 +58,18 @@ export function CloseIcon() {
   return <Icon><path d="m4.5 4.5 7 7m0-7-7 7" /></Icon>;
 }
 
+export function CopyIcon() {
+  return <Icon><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" /><path d="M10.5 3.5v-.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h.5" /></Icon>;
+}
+
+export function CheckIcon() {
+  return <Icon><path d="m3.5 8.5 3 3 6-7" /></Icon>;
+}
+
+export function ForkIcon() {
+  return <Icon><circle cx="4.5" cy="3.5" r="1.5" /><circle cx="11.5" cy="3.5" r="1.5" /><circle cx="4.5" cy="12.5" r="1.5" /><path d="M4.5 5v6M11.5 5v1a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 0 4.5 11" /></Icon>;
+}
+
 export function MoveLeftIcon() {
   return <Icon><path d="M10 4 6 8l4 4" /></Icon>;
 }

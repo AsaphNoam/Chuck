@@ -171,7 +171,7 @@ orphaned processes.
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
   offer these actions. *R60–R61 plan replacement of message-action placement and Edit behavior.*
 
-- **R60 (planned) — Message actions at the top right on hover.** On the agent page and in
+- **R60 (Copy and Fork implemented 2026-11-20; Edit planned with R61) — Message actions at the top right on hover.** On the agent page and in
   the dashboard chat pane, hovering a user or assistant text message reveals a compact action
   row at its top right. Every message offers **Copy** (R62) and **Fork from here**.
   The last sent message additionally offers **Edit**.
@@ -219,7 +219,7 @@ orphaned processes.
   unknown explains that uncertainty and requires explicit recovery before another submission.
   Repeating a submission or reconnecting cannot create a second replacement or a duplicate turn.
 
-- **R62 (planned) — Copy a message from its hover actions.** Copy writes the selected message's
+- **R62 (implemented 2026-11-20) — Copy a message from its hover actions.** Copy writes the selected message's
   full text to the clipboard, including Markdown source when present. On success the icon
   briefly shows a copied state, also announced accessibly. Clipboard failure reports an
   actionable error. Copy remains available independently of Edit or Fork availability.
@@ -870,7 +870,7 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   recorded no-snapshot results. *Verify by* runtime/server recovery tests sharing A31–A34's
   fixtures, serialized projections, restart/cancel races and the existing quota banner journey.
 
-- **A42 (planned)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
+- **A42 (Copy and Fork verified 2026-11-20 by ui/scripts/message-actions-render.mjs; Edit planned)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
   message and an assistant reply to reveal their action icons at the top right. Verify only
   the last sent message offers Copy, Edit and Fork, and every other message offers Copy and Fork.
   Inspect muted, borderless icons and their tooltips in each supported appearance.
@@ -896,7 +896,7 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   migration, runtime/API and receipt fault-injection checks, rendered desktop journeys, and
   bounded packaged Claude/Codex receipts proving both retained context and excluded old reply.
 
-- **A44 (planned)** (R62) — Copy a user message and a Markdown assistant message by pointer
+- **A44 (implemented 2026-11-20)** (R62) — Copy a user message and a Markdown assistant message by pointer
   and keyboard. Independently read the clipboard and compare the complete source text,
   including line breaks. Observe copied feedback. Deny clipboard access and verify a visible
   error, then copy from a message whose Edit or Fork action is unavailable. *Verify by*

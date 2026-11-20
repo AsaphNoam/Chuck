@@ -2296,7 +2296,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   FS-14.A72/A74 through serialized requests and rendered authoring, validation, and launch journeys
   on the affected desktop and phone surfaces (INV §2/§3/§5/§8/§11/§13/§17/§20).
 
-- **R171 (planned) — Desktop message icons share actions with the existing context menu.**
+- **R171 (hover row, Copy and Fork implemented 2026-11-20; inline Edit planned) — Desktop message icons share actions with the existing context menu.**
   For FS-01.R60–R62, TranscriptView's root user/assistant text-message composition renders Copy
   and Fork icons, plus Edit only on the latest sent message, using TS-03.R91's affordances.
   The same action descriptors drive its hover row and existing right-click menu. Reuse the

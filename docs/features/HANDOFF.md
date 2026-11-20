@@ -31,11 +31,29 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+[Message hover actions and current-conversation Edit](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
+— in progress since 2026-11-20.
+
+- **Done (slice 1):** desktop hover/focus row with Copy and Fork on every root text message,
+  shared descriptors with the right-click menu (`ui/src/components/chat/forkActions.ts`
+  `messageActionsFor`, `MessageActionRow.tsx`). Fork locates the containing turn's server
+  `turn_end.fork` marker; no server change. Shipped R58 clone-based Edit stays menu-only until
+  R61 replaces it. Rendered check: `node ui/scripts/message-actions-render.mjs`.
+- **Reviewer note:** TS-03.R91's per-message `message_actions` field is not added; fork
+  eligibility is still the server's turn-end marker. Add the field with the Edit affordance
+  (slice 3) or amend R91 if the turn-end marker suffices.
+- **Next slices:** (2) TS-02.R69–R70 append-only revision journal fold, receipt edit intent and
+  retained raw history, with migration tests; (3) TS-01.R51 edit transition + TS-03.R90/R91
+  `edit-last` API, snapshot/revision events and per-message affordances, with fault injection;
+  (4) TS-04.R113 complete-turn fork-patch proof and adapter contract tests; (5) inline editor
+  UI (TS-08.R171), phone/operator readers, FS-22.R13 CLI; (6) closure matrix, `make embed`,
+  packaged Claude/Codex receipts.
 
 ## Decisions needing input
 
-None.
+- **Project Files:** Confirm desktop preview-only access, name/path search, and listing symbolic links
+  without following them. [FS-11.R11–R15/A6–A9](../specs/features/FS-11-project-resources.md#project-file-browser)
+  is drafted. Technical design follows confirmation.
 
 ## Resolved decisions
 

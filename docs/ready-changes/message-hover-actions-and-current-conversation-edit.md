@@ -1,6 +1,6 @@
 # Message hover actions and Edit in the current conversation
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** The operator requested visible message actions, corrected Edit to act on the current
 conversation, limited it to the latest sent message, requested Copy and Fork on every message,
 and approved completing the design on 2026-11-20.

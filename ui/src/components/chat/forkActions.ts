@@ -48,14 +48,44 @@ export function forkActionFor(events: TranscriptEvent[], event: TranscriptEvent,
     return gate({ label: "Edit", available: false, throughSeq: previous.seq, composeFromSeq: seq }, previous);
   }
   if (kind(event) !== "assistant_text") return null;
-  // The reply is the turn's last: nothing but more of its text follows before
-  // that turn's end.
-  for (const item of events) {
-    if (!isRoot(item) || typeof item.seq !== "number" || item.seq <= seq) continue;
-    const next = kind(item);
-    if (next === "assistant_text") continue;
-    if (next !== "turn_end") return null;
-    return gate({ label: "Fork from here", available: false, throughSeq: item.seq }, item);
-  }
-  return null;
+  return forkThroughTurn(events, event, clone);
+}
+
+const UNFINISHED_TURN = "This turn is still running; Fork is available once it completes.";
+
+/**
+ * forkThroughTurn resolves Fork from here for any root text message: the
+ * clone ends at the completed root turn containing it (FS-01.R60). The
+ * server's turn-end `fork` marker and the agent's clone affordance decide
+ * availability (TS-03.R86); the client only locates the turn.
+ */
+export function forkThroughTurn(events: TranscriptEvent[], event: TranscriptEvent, clone?: ForkAffordance): ForkAction | null {
+  if (!isRoot(event) || typeof event.seq !== "number") return null;
+  const seq = event.seq;
+  const turnEnd = events.find((item) => isRoot(item) && kind(item) === "turn_end" && typeof item.seq === "number" && item.seq > seq);
+  const action: ForkAction = { label: "Fork from here", available: false, throughSeq: turnEnd?.seq as number | undefined };
+  if (!turnEnd) return { ...action, reason: UNFINISHED_TURN };
+  if (clone && !clone.available) return { ...action, reason: clone.reason };
+  const fork = turnEnd.fork as ForkAffordance | undefined;
+  if (!fork) return { ...action, reason: "This turn has no fork information yet." };
+  return fork.available ? { ...action, available: true } : { ...action, reason: fork.reason };
+}
+
+/** One shared message action, driving both the hover row and the context menu (TS-08.R171). */
+export type MessageActions = { copy: string; fork: ForkAction | null; edit: ForkAction | null };
+
+/**
+ * messageActionsFor gives a root person or assistant text message its Copy
+ * and Fork from here actions (FS-01.R60, R62). `edit` is the shipped
+ * clone-based Edit (FS-01.R58), offered only in the context menu until the
+ * current-conversation Edit (FS-01.R61) replaces it.
+ */
+export function messageActionsFor(events: TranscriptEvent[], event: TranscriptEvent, clone?: ForkAffordance): MessageActions | null {
+  const k = kind(event);
+  if (!isRoot(event) || typeof event.seq !== "number" || (k !== "user_text" && k !== "assistant_text")) return null;
+  return {
+    copy: String(event.text ?? event.delta ?? ""),
+    fork: forkThroughTurn(events, event, clone),
+    edit: k === "user_text" ? forkActionFor(events, event, clone) : null,
+  };
 }
