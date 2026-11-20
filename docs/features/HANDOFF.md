@@ -93,18 +93,10 @@ They are not queued for `/fix`. The recorded text is in
 [`CR-A10-findings.md`](../archive/reviews/adversarial-2026-11-14/CR-A10-findings.md).
 
 - **Message hover actions and current-conversation Edit** (FS-01.R60–R62, FS-22.R13,
-  TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): waiting to start review.
-  Commits from “Show Copy and Fork icons on hovered desktop messages” through the Edit closure
-  commit. Hot spots: `internal/server/edit.go` (transition, abort, recovery),
-  `internal/runtime/edit_reservation.go` and its four admission checks in `chat.go`, the in-place
-  fork branch of `ChatRuntime.Resume`, the revision fold in `internal/transcript/reader.go`, and
-  the two complete-turn adapter patches. Review notes: the fold keeps session_meta, the revision
-  record, annotation, backend_switch and fork_boundary inside a superseded range; each folded read
-  pre-scans its prefix for revision records; contextref pinned references read folded; restart
-  releases an undispatched replacement to explicit recovery instead of resending it.
-  EDIT-1…4 were repaired before review (Stop/Cancel edit control, staged candidate start,
-  attachment validation, search withdrawal on failed reindex); EDIT-EDGE below remains open.
-  Packaged live receipts are owed in ACCEPTANCE-GATES.
+  TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): reviewed at
+  `b2986ebf` for `99e4672b`, `1bfa4d28`, `b16c722f` and `b2986ebf`; open
+  EDIT-REVIEW findings below. Reconcile with the previously recorded EDIT-EDGE work before repair.
+  Packaged live provider receipts remain owed in ACCEPTANCE-GATES.
 - **Assignment-queued input at the transcript tail** (WITHDRAW-SEND-3/STEER-HOLD-4; FS-03.R48):
   reviewed at `b16c722f` for implementation `c02083df`; open findings QUEUED-TAIL-1–4 below.
 
@@ -211,11 +203,95 @@ specs, live user state or unrelated dirty files changed.
   only. A `usage_update` still republishes live context through `republishLive`
   (`internal/runtime/chat.go`), and a SessionStart hook still applies its status. Either can write
   candidate usage onto the source's stopped status row, and the values can survive an aborted edit.
-- **Worth fixing** — EDIT-EDGE-3 (TS-01.R51). Only the Stop route and turn Cancel reach a running
+- **Worth fixing** — EDIT-EDGE-3 (TS-01.R51, INV §5/§10). Only the Stop route and turn Cancel reach a running
   edit. Group release (`groups.go`) and peer stop (`peer_stop.go`) take the lifecycle claim directly
   and still get a conflict for up to the 3-minute preparation bound. So does a Stop in the instant
   between edit acceptance and control registration. No test covers Stop or Cancel after the
   decision.
+
+### EDIT-REVIEW — Message hover actions and current-conversation Edit (2026-11-20) — **Fix model:** difficult — Codex Sol.
+
+- **Must fix** — EDIT-REVIEW-1 (difficult, FS-01.A43, TS-04.R113, INV §1/§20). A successful
+  later-message Edit changes the native session but keeps the previous turn's fork point bound
+  to the original session. The next Edit of the replacement consults that point and refuses it
+  as belonging to an earlier runtime (`internal/server/edit.go:307–315`,
+  `internal/server/fork_point.go:26–35`). A three-turn fake-provider run reproduced the
+  disabled Edit in Chromium after reload and the matching HTTP 422 through the built CLI.
+  Preserve immutable provenance and prove that the retained boundary is usable for repeated
+  same-conversation edits. Verify two successive edits of the last message with both adapters.
+- **Must fix** — EDIT-REVIEW-2 (medium, TS-02.R69, INV §15/§19). Dispatch and restart/Stop
+  release mark the edit dispatched before creating the ordinary receipt
+  (`internal/server/edit.go:537–546,632–649`). If the process exits or the insert fails between
+  those steps, the revised conversation has no replacement prompt and neither recovery path
+  owns it. A controlled store test confirmed it disappeared from both open edits and
+  receipt recovery. Transfer ownership and record the recovery disposition in one transaction
+  and test failures on both sides of that transaction.
+- **Must fix** — EDIT-REVIEW-3 (difficult, FS-01.R61, TS-01.R51, INV §5/§19). The shared
+  Edit gate accepts an idle chat with `BackgroundRunning=1` in a store-backed probe, and
+  preparation stops the runtime that owns that work (`internal/state/edits.go:73–90`,
+  `internal/server/edit.go:239,412`). Separately, the reservation uses a map and mutex outside
+  the actual turn claim (`internal/runtime/edit_reservation.go`, `chat.go:672–683,2032–2082`).
+  An activation can pass the map check, pause, then claim a turn after Edit has validated
+  idle and accepted. Use the runtime's existing turn admission owner for exclusion and include
+  background work, pending input, and task and room ownership in the gate inventory.
+- **Must fix** — EDIT-REVIEW-4 (difficult, TS-01.R51, TS-02.R69–R70, TS-03.R91, INV §1/§15/§18).
+  The journal appends and publishes the revision before candidate selection commits, and the
+  transcript handler samples native session, revision, and history separately
+  (`internal/server/edit.go:477–508`, `internal/server/sessions.go:743–782`). A SQLite
+  fault at `FinishEdit` made the ordinary API return revision 1 with the old turn hidden
+  while the durable native selection still named the original. Status asked the operator to
+  Resume, which returned “agent is already running.” Exercise read, stream and resume on both
+  sides of the decision, including after repair. The change must keep context, history and
+  search consistent and admit no ordinary work while they disagree.
+- **Must fix** — EDIT-REVIEW-5 (trivial/easy, FS-01.R60, TS-02.R70, INV §1/§11).
+  Clone copies source revision metadata into its already folded prefix
+  (`internal/transcript/clone.go:34–39`, `internal/runtime/fork.go:207–219`). The clone gets
+  new sequence IDs, so the source's superseded range can hide the clone's active messages.
+  An isolated test lost the entire edited third turn after copying it. Exclude source revision
+  records when writing the folded prefix and verify the next message in the new agent stays visible.
+- **Must fix** — EDIT-REVIEW-6 (trivial/easy, FS-15.R2, TS-02.R70, INV §1/§11). An existing
+  immutable transcript link resolves through the active fold (`internal/contextref/service.go:468–469`).
+  In a real store/journal test, sharing a turn and then editing it made the saved link return
+  `context_source_unavailable` although its bytes remained retained. Read retained bytes for
+  the exact already-authorized span and keep new selection and unpinned reads on active history.
+- **Must fix** — EDIT-REVIEW-7 (medium, FS-22.R13, TS-03.R91, INV §1/§11). Follow checks
+  step-by-step continuity before looking for a revision later in the same folded response
+  (`internal/cli/operator_follow.go:446–470,508–520`). A retained annotation in the superseded
+  range stopped catch-up before the revision. After a live Edit, the built CLI also emitted
+  earlier sequence IDs twice and delivered the revision record only after that replay
+  (`internal/cli/operator_edit.go:100–127`). Give the consumer a reset boundary before the
+  refreshed view and verify live, reconnect and initial reads with a retained control record.
+- **Must fix** — EDIT-REVIEW-8 (medium, FS-01.R61, TS-02.R69, TS-03.R90, INV §10/§18/§19).
+  The only UI handle for a failed precommit Edit is a component-local request ID
+  (`ui/src/components/chat/MessageEditor.tsx:41–45`). On reload the snapshot lists only open
+  edits and the prompt recovery endpoint reads only ordinary receipts
+  (`internal/state/manager.go`, `internal/server/sessions.go:93–107`). An induced precommit
+  failure left the replacement retrievable by its known ID but undiscoverable in either
+  endpoint. Expose and acknowledge an Edit recovery successor that revalidates the intended
+  message, with a reload test that starts without the ID in memory.
+- **Worth fixing** — EDIT-REVIEW-9 (trivial/easy, FS-12.R24, TS-08.R171, INV §8/§13).
+  Opening Edit on a long message scrolls the pane off the tail and leaves Jump to latest
+  over the editor or explanation (`ui/src/components/chat/TranscriptView.tsx:285–288`,
+  `ui/src/styles/features/agent.css:1692,2697`). Chromium showed the overlap at 1024px on
+  the agent page and at 1440px in a three-column dashboard pane in Boring Night. Keep the
+  editor and its controls clear while it has focus, including during scroll and focus return.
+- **Worth fixing** — EDIT-REVIEW-10 (medium, workflow §7, INV §1/§5/§15/§19). Commit
+  `b2986ebf` already repaired Edit interruption and staged lifecycle findings, and the
+  underlying turn owner had repairs in `bb903498` and `4c896077`. Inventory the start, stop,
+  and turn-admission entry points, the writers of candidate selection, revision visibility,
+  and replacement receipt, and each legal transition. Include restart, failed publication,
+  application-initiated turns, and readers that need active versus retained history.
+- **Must fix** — EDIT-REVIEW-11 (medium, FS-01.R61, TS-01.R51, INV §8/§19). The route
+  accepts the last person message whenever any turn end follows it, then supersedes from
+  that message through the current tail (`internal/server/edit.go:250–306`).
+  In a server test, an autonomous waking-mail turn completed after the last person turn.
+  Edit accepted, committed and hid the later turn's end. It must refuse because the selected
+  message did not start the latest turn, and the desktop gate must explain the same restriction.
+  Assert the later reply and its turn remain visible after refusal.
+- **Worth fixing** — EDIT-REVIEW-12 (trivial/easy, FS-01.R58/R60–R62, INV §10). The
+  feature spec's deviations section still says clone-based Edit is shipped
+  (`docs/specs/features/FS-01-agent-lifecycle.md:907–911`). Reconcile that historical
+  behavior with the implemented current-conversation editor and retained legacy API.
 
 ### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
 
