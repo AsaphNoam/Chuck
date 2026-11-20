@@ -148,16 +148,27 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpe
       );
     },
   }), []);
+  // A settled message is not parsed again when a streamed delta elsewhere in the
+  // transcript re-renders it: the element is reused until its own text or search
+  // ranges change. Click handlers are read through refs; the values the build
+  // itself reads (source path, agent, whether a viewer exists) are dependencies
+  // (FS-03.R12, INV §16). Ranges are rebuilt on every render, so their content
+  // is the dependency.
+  const hasViewer = Boolean(onOpenFile);
+  const rangesKey = JSON.stringify(ranges);
+  const markdown = useMemo(() => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA], searchPlugin]}
+      urlTransform={transformUrl}
+      components={components}
+    >
+      {text}
+    </ReactMarkdown>
+  ), [text, rangesKey, sourcePath, agentId, hasViewer, searchPlugin, components]);
   return (
     <>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA], searchPlugin]}
-        urlTransform={transformUrl}
-        components={components}
-      >
-        {text}
-      </ReactMarkdown>
+      {markdown}
       <PointerContextMenu menu={menu} onClose={() => setMenu(null)} />
     </>
   );

@@ -58,6 +58,7 @@ type Server struct {
 	terminal             *terminal.Runtime
 	cfg                  config.Config
 	log                  *slog.Logger
+	browserDiag          browserDiagLimiter
 	knowledge            agentknowledge.Installation
 	permissionMu         sync.Mutex
 	permissionTools      map[string]string

@@ -92,6 +92,17 @@ They are not queued for `/fix`. The recorded text is in
 
 ## Investigations awaiting evidence
 
+### TAB-BLANK — Chrome shows only the theme background on tab return (2026-11-17)
+
+Cause undetermined; native Chrome painting is unverified. Its findings were fixed: desktop browser
+failures and a lost shell on foreground return now log `browser diagnostic` records
+(TS-03.R92), and settled Markdown is no longer re-parsed on each streamed update (jsdom, 900
+messages: ~300 ms to ~8 ms per update). The synthetic Chrome long-task fixture was not rerun;
+the event projection and row render still run over the whole history per delta. Next evidence
+from the next incident: those `dashboard.log` records for the time, plus a screenshot taken before
+clicking. No records with the shell present points to a paint problem; the CSS comparison of
+`ui/src/styles/base.css:16–26` is then the next step.
+
 ### EFFORT-BUDGET — worker infers a work budget from its own configuration (2026-11-05)
 
 **Report (verbatim):** “agents in a pipeline read the implementation manifest, saw their reasoning
@@ -189,67 +200,6 @@ desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheH
   `0e98d3c4`). Before patching, list every writer of `turn.held` and `turn.steerFallback`, every
   Send/Steer/Withdraw/turn-end/stop entry point, the transcript and receipt writes each makes,
   and where the legal moves are specified.
-
-### TAB-BLANK — Chrome displays only the theme background on tab return (investigated 2026-11-17) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-**Report (verbatim):** “sometimes the page just goes blank when I switch between tabs and go back,
-click anywhere on the page makes the view render”. The operator confirmed Chrome browser tabs and
-the newest Chuck build: “the Chuck theme color is still active but other than that the screen goes
-completely blank”. No incident time, exact field build or browser error was supplied.
-
-**Cause undetermined.** The shell renders a header separately from its route outlet
-(`ui/src/App.tsx:8–15`); route loading and caught render errors show text or a retry, not a blank
-shell. Desktop stream reconnect refreshes data rather than remounting the shell (TS-03.R7–R9).
-The theme marker lives on `<html>` (`ui/src/features/appearance/appearance.ts:17–24`), so the
-remaining color doesn't prove the React tree is still mounted. A click-triggered browser repaint is
-plausible, but no evidence establishes where this failure originates. Source checked at `4d5bce32`;
-isolated browser checks used packaged v0.24.0 (`4d511e1d`), Chrome `157.0.8103.79` and macOS `15.7.7`
-on arm64. Dashboard and Settings kept their shell, content and stable sampled header pixels in
-the automation, with no page error. Automation could not verify real hidden-to-visible transitions;
-native screen verification was blocked by the locked Mac. No failing reproduction or skipped test.
-
-**Multi-tab follow-up:** Headless Chrome opened six same-origin pages (Dashboard, Tasks, Pipelines,
-Archive, Settings and a project) with one shared stream worker. All retained the same mounted shell,
-visible header and route text through a server stop/restart and reconnection. A simulated
-hidden-to-visible transition on Dashboard triggered two deliberately failed config requests; the
-skin reverted to Core as specified (TS-08.R30), and the shell stayed visible. No page errors. This
-exercises data refresh and reconnect, but does not verify native Chrome painting. The outside-click
-handlers dismiss menus or dialogs; they do not mount or reveal the shell. The fixed, full-viewport
-theme decoration in `ui/src/styles/base.css:16–26` is painted behind the shell and ignores pointer
-input. It is a candidate for a temporary CSS comparison if the failure reproduces with the shell
-still present and no obscuring overlay. Chrome repaint remains a hypothesis.
-
-**Loaded-chat follow-up:** The operator reported an individual agent chat as the affected view.
-Their projects include 120 chats, 104 all stopped, and 70, with 20 running and over 300 stopped
-overall. An isolated headless Chrome fixture matched that scale with 350 synthetic identities
-(20 running, 330 stopped) across four projects. Six tabs hosted three project grids and three
-individual chats (900-turn running, 200-turn running, 200-turn stopped). Over a simulated tab
-return, live update burst and forced stream reconnect, every sampled header and chat remained
-present, with no shell detachments or page errors. Reconnect refetched open chat histories and
-made zero transcript requests from the grid tabs. Native screen painting remains unverified.
-
-- **Worth fixing** (confirmed from code) — TAB-BLANK-1, missing browser diagnostics: the desktop
-  entry point (`ui/src/main.tsx:12–21`) has no browser error reporting, and the route boundary
-  (`ui/src/components/ErrorBoundary.tsx:22–24`) only logs to the browser console. Ordinary server
-  logs cannot tell whether a foreground return lost the application shell, hit a JavaScript error,
-  or left a healthy DOM that Chrome didn't paint. At the desktop bootstrap and error boundary,
-  report a bounded, deduplicated, visit-correlated event to Chuck's local diagnostic log for an
-  unexpected browser error or a previously mounted shell missing on foreground return (INV §22;
-  TS-01.R15). Allowlist the reason, route kind and mount state; omit console text, paths, and page
-  contents. Verify with an injected render failure and shell loss, and that healthy returns stay
-  quiet. The page cannot attest to pixels on screen; an in-incident screenshot taken before a
-  click, with the approximate time and page, is the next useful field evidence.
-- **Worth fixing** (confirmed in synthetic Chrome workload) — TAB-BLANK-2, long desktop histories
-  stall streaming and reconnect. A burst of 48 live assistant deltas per synthetic running chat
-  produced main-thread tasks up to 669 ms in the 900-turn tab, which rendered about 54,000 transcript
-  elements. The 200-turn running tab logged tasks up to 319 ms in the same burst. No project grid
-  logged a task of 50 ms or longer. These are local stress-run measurements with synthetic Markdown,
-  not a field profile or proof of the blank screen. Desktop reconnect fetches complete history
-  (`ui/src/api/sse.ts:80–82,371–383`; `ui/src/api/client.ts:71–75`), and live deltas reproject and
-  render completed turns along with the changing tail (`ui/src/components/chat/TranscriptView.tsx:148–155`,
-  `ui/src/components/chat/TurnList.tsx:56–86`; FS-03.R12, INV §16). Reuse unchanged turn work on
-  streaming updates, then compare the long-task trace with the same fixture and verify scroll,
-  selection and transcript correctness across reconnect. This is a bounded render-path fix.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

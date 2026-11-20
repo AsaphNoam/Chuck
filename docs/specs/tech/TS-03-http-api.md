@@ -34,7 +34,7 @@ delta; clients must not assume every existing endpoint already uses R3.
 
 | Family | Routes |
 |---|---|
-| Health/live state | `GET /api/health`, `GET /api/sessions`, `GET /api/sessions/{id}`, `GET /api/events`, `GET /api/capabilities` |
+| Health/live state | `GET /api/health`, `GET /api/sessions`, `GET /api/sessions/{id}`, `GET /api/events`, `GET /api/capabilities`, `POST /api/diagnostics/browser` (R92) |
 | Lifecycle/chat | `POST /api/sessions`, `prompt`, `cancel`, `stop`, `archive`, `restore`, `rename`, `identity`, `permission`, `background-task-stop`, `clone`, `resume`, `switch-runtime`, `annotations`; transcript read |
 | Config | role/project CRUD and project `archive`/`restore`; `GET/PUT /api/backends`, `/api/config`, `/api/layout`; `POST /api/directory-picker` |
 | Archive/tracking | `GET /api/archive`, `GET /api/archive/projects/{project}`, session files/commands/messages |
@@ -1503,6 +1503,19 @@ Readers unable to consume the revision event fail visibly and refetch rather tha
 dropping it. Keep raw audit bytes in retained storage and explicit immutable references under
 TS-02.R70. No revision event exposes native session ids or replays control effects. Update
 Go/TypeScript payloads, clients and the event registry together (INV §1/§10/§11/§15/§19).
+
+**R92 — Desktop browser failures reach the dashboard log.** `POST /api/diagnostics/browser`
+takes `{reason, route_kind, mount_state, visit_id}` and answers 204, writing one Warn record to the
+TS-01.R15 log. Every field is allowlisted: reason is `error`, `unhandled_rejection`,
+`render_error` or `shell_missing`; route kind is the first path segment's page kind (`dashboard`,
+`project`, `agent`, `think_tank`, `archive`, `pipelines`, `tasks`, `settings`, else `other`);
+mount state is `mounted` or `missing`; visit id is a per-page-load random token. Anything else is
+400 and unlogged; unknown fields are ignored. The server writes at most 30 records a minute. The
+desktop bootstrap reports uncaught errors and rejections, route error-boundary catches, and a
+foreground return that finds a previously mounted application shell gone, once per reason and route
+kind per visit; a healthy return sends nothing. Console text, paths, stacks and page content never
+leave the browser. The route is desktop-only and denied to the phone (TS-13). The page cannot
+attest to what Chrome painted (INV §22).
 
 ## 4. Invariants
 

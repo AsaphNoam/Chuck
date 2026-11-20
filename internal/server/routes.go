@@ -44,6 +44,7 @@ func (s *Server) routeTable() []routeEntry {
 	}
 
 	api("GET /api/health", s.handleHealth)
+	api("POST /api/diagnostics/browser", s.handleBrowserDiagnostic)
 	api("GET /api/sessions", s.handleSessions)
 	api("GET /api/roles", s.handleRoles)
 	api("POST /api/roles", s.handlePostRole)

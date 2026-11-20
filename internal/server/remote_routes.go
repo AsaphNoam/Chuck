@@ -110,7 +110,7 @@ var remoteDenied = map[string]bool{
 	"POST /api/remote/pairings/{id}/decline": true, "GET /api/remote/devices": true,
 	"PATCH /api/remote/devices/{id}": true, "DELETE /api/remote/devices/{id}": true,
 	"GET /api/layout": true, "PUT /api/layout": true,
-	"POST /api/directory-picker": true, "POST /api/hook": true,
+	"POST /api/directory-picker": true, "POST /api/hook": true, "POST /api/diagnostics/browser": true,
 	"GET /api/archive": true, "GET /api/archive/projects/{project}": true,
 	"GET /api/sessions/{id}/search-match":  true,
 	"POST /api/projects/{project}/archive": true, "POST /api/projects/{project}/restore": true,
