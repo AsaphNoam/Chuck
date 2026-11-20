@@ -14,6 +14,9 @@ interface TranscriptStoreState {
   /** Highest sequence already applied per agent, so a streamed event the
    *  transcript read already included is not applied twice (TS-01.R39). */
   appliedSeq: Record<string, number>;
+  /** Latest conversation revision whose full transcript has been read back (FS-01.R61). */
+  revisionRead: Record<string, number>;
+  markRevisionRead: (agentId: string, revision: number) => void;
   settle:(agentId: string) => void;
   appendMessage: (agentId: string, event: TranscriptEvent) => void;
   updatePreview: (agentId: string, event: TranscriptEvent) => void;
@@ -226,6 +229,8 @@ export const useTranscriptStore = create<TranscriptStoreState>((set) => ({
   previewKindByAgent: {},
   settled: {},
   appliedSeq: {},
+  revisionRead: {},
+  markRevisionRead: (agentId, revision) => set((state) => ({ revisionRead: { ...state.revisionRead, [agentId]: Math.max(revision, state.revisionRead[agentId] ?? 0) } })),
   settle: (agentId) => set((state) => (state.settled[agentId] ? state : { settled: { ...state.settled, [agentId]: true } })),
   appendMessage: (agentId, raw) =>
     set((state) => {

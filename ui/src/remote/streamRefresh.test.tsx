@@ -108,4 +108,27 @@ describe("phone streamed transcript refresh", () => {
     expect(transcriptReads).toBe(beforeSettlement);
     queryClient.clear();
   });
+
+  it("drops the replaced window and rereads the transcript from the start on a conversation revision (FS-01.R61)", async () => {
+    start();
+    await waitFor(() => expect(FakeEventSource.current).toBeDefined());
+    const stream = FakeEventSource.current!;
+    await act(async () => {
+      stream.onopen?.();
+      stream.emit("state_update", { data: agent });
+      stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    render(<QueryClientProvider client={queryClient}><AgentScreen agentId="a1" /></QueryClientProvider>);
+    expect(await screen.findByText("Initial reply")).toBeInTheDocument();
+    const reads = transcriptReads;
+    latestText = "Revised reply";
+    await act(async () => {
+      stream.emit("new_message", { agent_id: "a1", data: { type: "conversation_revision", seq: 9, data: { revision: 1 } } });
+    });
+    expect(await screen.findByText("Revised reply")).toBeInTheDocument();
+    expect(screen.queryByText("Initial reply")).not.toBeInTheDocument();
+    expect(transcriptReads).toBe(reads + 1);
+    queryClient.clear();
+  });
 });

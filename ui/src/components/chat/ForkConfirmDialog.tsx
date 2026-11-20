@@ -3,25 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { cloneAgentAt } from "../../api/client";
 import { useUiStore } from "../../store/uiStore";
 import { ConfirmDialog } from "../ui";
-import { setChatDraft } from "./drafts";
 import type { ForkAction } from "./forkActions";
 
 /**
- * Confirms Edit / Fork from here, calls the clone route once and follows
- * Clone's navigation; Edit's text waits unsent in the new composer
- * (FS-01.R58, TS-08.R162).
+ * Confirms Fork from here and calls the clone route once, following Clone's
+ * navigation (FS-01.R58, TS-08.R162).
  */
 export function ForkConfirmDialog({ agentId, action, onClose }: { agentId: string; action: ForkAction | null; onClose: () => void }) {
   const [pending, setPending] = useState(false);
   const navigate = useNavigate();
   const pushError = useUiStore((state) => state.pushError);
-  const edit = action?.label === "Edit";
   const confirm = () => {
     if (!action?.throughSeq || pending) return;
     setPending(true);
-    cloneAgentAt(agentId, { through_seq: action.throughSeq, compose_from_seq: action.composeFromSeq })
+    cloneAgentAt(agentId, { through_seq: action.throughSeq })
       .then((result) => {
-        if (result.compose_text) setChatDraft(result.agent.agent_id, result.compose_text);
         onClose();
         navigate(`/agent/${result.agent.agent_id}`);
       })
@@ -31,8 +27,8 @@ export function ForkConfirmDialog({ agentId, action, onClose }: { agentId: strin
   return (
     <ConfirmDialog
       open={action !== null}
-      title={edit ? "Edit in a new agent?" : "Fork from here?"}
-      confirmLabel={edit ? "Create agent and edit" : "Create agent"}
+      title="Fork from here?"
+      confirmLabel="Create agent"
       pending={pending}
       onCancel={onClose}
       onConfirm={confirm}

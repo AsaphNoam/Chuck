@@ -243,6 +243,21 @@ func handle(msg *rpcMessage) {
 			meta["chuck"] = map[string]any{"quotaRead": map[string]any{"version": 1}}
 			res["_meta"] = meta
 		}
+		// FAKEACP_COMPLETE_TURN advertises the packaged adapters' private
+		// complete-turn fork proof (TS-04.R113).
+		if os.Getenv("FAKEACP_COMPLETE_TURN") != "" {
+			meta, _ := res["_meta"].(map[string]any)
+			if meta == nil {
+				meta = map[string]any{}
+			}
+			chuck, _ := meta["chuck"].(map[string]any)
+			if chuck == nil {
+				chuck = map[string]any{}
+			}
+			chuck["completeTurnForkVersion"] = 1
+			meta["chuck"] = chuck
+			res["_meta"] = meta
+		}
 		respond(*msg.ID, res)
 	case "_chuck/quota/read":
 		// One line per read in FAKEACP_QUOTA_LOG; a missing or invalid result
@@ -453,7 +468,17 @@ func handle(msg *rpcMessage) {
 			forked = ""
 		}
 		activeSession.Store(forked)
-		respond(*msg.ID, map[string]any{"sessionId": forked, "configOptions": fakeConfigOptions()})
+		forkRes := map[string]any{"sessionId": forked, "configOptions": fakeConfigOptions()}
+		// The complete-turn proof names the requested message (TS-04.R113);
+		// FAKEACP_COMPLETE_TURN_WRONG attests a different one.
+		if os.Getenv("FAKEACP_COMPLETE_TURN") != "" && forkCut.Load() > 0 {
+			source := "msg-" + strconv.FormatInt(forkCut.Load(), 10)
+			if os.Getenv("FAKEACP_COMPLETE_TURN_WRONG") != "" {
+				source = "msg-0"
+			}
+			forkRes["_meta"] = map[string]any{"chuck": map[string]any{"completeTurn": map[string]any{"version": 1, "sourceMessageId": source, "complete": true}}}
+		}
+		respond(*msg.ID, forkRes)
 	case "session/delete":
 		if logPath := os.Getenv("FAKEACP_DELETE_LOG"); logPath != "" {
 			_ = os.WriteFile(logPath, msg.Params, 0o600)

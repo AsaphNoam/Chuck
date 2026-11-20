@@ -135,7 +135,15 @@ type ForkPlan struct {
 	// ForkPoint ends the fork at a chosen turn (TS-04.R110); nil forks at the
 	// source's latest turn, as plain Clone does.
 	ForkPoint *ForkPoint
+	// InPlace prepares last-message Edit's replacement session for the same
+	// agent (TS-04.R113): no transcript prefix or lineage is written, a failure
+	// never discards the agent's existing transcript, and a fork point also
+	// requires the adapter's complete-turn proof.
+	InPlace bool
 }
+
+// isClone reports a fork that creates a new agent's conversation.
+func (s LaunchSpec) isClone() bool { return s.Fork != nil && !s.Fork.InPlace }
 
 // StartSystemPrompt is the system prompt handed to the backend process for this
 // launch: RuntimeSystemPrompt when set, otherwise the frozen SystemPrompt,

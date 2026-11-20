@@ -1796,7 +1796,7 @@ R72's 60 seconds. Key it to the catalog revision and resolved executable identit
 results against config change, removal or executable replacement. Retry rechecks the affected
 target even after a failed observation. There is no periodic provider probe or credential cache.
 
-**R113 (planned) — Edit prepares an isolated replacement context before changing selection.**
+**R113 (implemented 2026-11-20; packaged live receipts owed) — Edit prepares an isolated replacement context before changing selection.**
 For FS-01.R61, extend the native fork/start seam to prepare an unsent candidate for the same
 Chuck agent. For a later user turn, resolve its preceding active completed root turn and use
 R65/R110's native fork with the frozen source session and execution contract. Prove the

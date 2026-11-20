@@ -1,18 +1,18 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { copyText } from "../../lib/copyText";
 import { useUiStore } from "../../store/uiStore";
-import { CheckIcon, CopyIcon, ForkIcon } from "../ui/icons";
-import type { ForkAction, MessageActions } from "./forkActions";
+import { CheckIcon, CopyIcon, ForkIcon, PencilIcon } from "../ui/icons";
+import type { EditAction, ForkAction, MessageActions } from "./forkActions";
 
 const COPIED_MS = 1500;
 
 /**
- * MessageActionRow is the desktop message's top-right Copy and Fork icons,
+ * MessageActionRow is the desktop message's top-right Copy, Edit and Fork icons,
  * revealed on hover or focus within the message (FS-01.R60, R62, TS-08.R171).
  * An unavailable action stays focusable and shows its reason on hover or
  * focus without opening confirmation.
  */
-export function MessageActionRow({ actions, onFork }: { actions: MessageActions; onFork: (action: ForkAction) => void }) {
+export function MessageActionRow({ actions, onFork, onEdit }: { actions: MessageActions; onFork: (action: ForkAction) => void; onEdit: (action: EditAction) => void }) {
   const pushError = useUiStore((state) => state.pushError);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -21,6 +21,7 @@ export function MessageActionRow({ actions, onFork }: { actions: MessageActions;
     return () => window.clearTimeout(timer);
   }, [copied]);
   const fork = actions.fork;
+  const edit = actions.edit;
   return (
     <div className="message-actions">
       <MessageAction
@@ -29,6 +30,7 @@ export function MessageActionRow({ actions, onFork }: { actions: MessageActions;
         onSelect={() => { void copyText(actions.copy, pushError).then((ok) => setCopied(ok)); }}
       />
       {fork && <MessageAction label="Fork from here" icon={<ForkIcon />} reason={fork.available ? undefined : fork.reason} onSelect={() => onFork(fork)} />}
+      {edit && <MessageAction label="Edit" icon={<PencilIcon />} reason={edit.available ? undefined : edit.reason} onSelect={() => onEdit(edit)} />}
       <span className="ad-visually-hidden" aria-live="polite">{copied ? "Copied to clipboard" : ""}</span>
     </div>
   );

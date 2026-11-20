@@ -15,6 +15,11 @@ gate; remove an entry when its receipt exists. A gate that was run and failed is
   without real pairing. After QUOTA-FORK-7 the phone summary measured 390×44 in Chromium
   (isolated markup with the real stylesheets, not the full phone page). The Claude adapter now
   forwards only window members; the `model_scoped` decode is fixture-verified only.
+- **Edit the last message (FS-01.A43, TS-04.R113, FS-22.A10):** on the assembled `+chuck.3`
+  packaged Claude and Codex, edit the third message of a three-turn chat and ask the provider for
+  the revised message and an earlier fact (retained context, omitted old reply), including a kept
+  turn that ended in a tool result; first-message Edit from fresh context; the rendered desktop
+  editor journey. Fake-provider, adapter-contract and component evidence only so far.
 - **Fork from a message (FS-01.A40):** one bounded credentialed fork each on packaged Claude and
   Codex proving the new provider context ends at the chosen turn; Codex must also accept the
   proof-only `session/load` of its fork. Rendered 2026-11-12 in the same run at 1280px in Core:

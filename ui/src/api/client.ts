@@ -72,7 +72,30 @@ export function getTranscript(agentId: string, includeMeta = false) {
   const suffix = includeMeta ? "?include_meta=true" : "";
   // unretained_permissions are live requests whose record did not commit; they
   // are approvable but never history (TS-03.R73).
-  return json<{ agent_id: string; events: TranscriptEvent[]; unretained_permissions?: TranscriptEvent[] }>(`/api/sessions/${agentId}/transcript${suffix}`);
+  return json<{ agent_id: string; events: TranscriptEvent[]; unretained_permissions?: TranscriptEvent[]; history_revision?: number }>(`/api/sessions/${agentId}/transcript${suffix}`);
+}
+
+/** The edit-last operation's state (FS-01.R61). `text` returns for recovery. */
+export interface EditResult {
+  agent_id: string;
+  request_id: string;
+  phase: "preparing" | "committing" | "committed" | "aborted";
+  revision: number;
+  delivery: "pending" | "sent" | "held" | "released" | "failed" | "unknown";
+  active: "original" | "revised";
+  reason?: string;
+  text?: string;
+}
+
+/** Replaces the last sent message in this conversation (202 → EditResult). */
+export function editLastMessage(agentId: string, body: { request_id: string; message_seq: number; expected_revision: number; text: string }) {
+  return json<EditResult>(`/api/sessions/${encodeURIComponent(agentId)}/edit-last`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+}
+
+export function getEditStatus(agentId: string, requestId: string) {
+  return json<EditResult>(`/api/sessions/${encodeURIComponent(agentId)}/edit-last/${encodeURIComponent(requestId)}`);
 }
 
 /** A bounded transcript window (FS-20.R13); the pending permission and latest

@@ -213,6 +213,11 @@ func operatorFollow(cmd *cobra.Command, client *operatorClient, agentID string, 
 					return nil
 				}
 				err := operatorFollowFrame(cmd, f, agentID, &last)
+				if operatorIsRevised(err) {
+					readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+					defer cancel()
+					return operatorFollowRefetch(readCtx, client, cmd, agentID, &last)
+				}
 				if operatorIsGap(err) {
 					operatorFollowProgress(cmd, fmt.Sprintf("history gap after sequence %d; catching up", last))
 					if err := catchup(); err != nil {
@@ -457,6 +462,9 @@ func operatorFollowCatchup(ctx context.Context, client *operatorClient, cmd *cob
 			return ctx.Err()
 		}
 		if err := operatorFollowEvent(cmd, raw, last); err != nil {
+			if operatorIsRevised(err) {
+				return operatorFollowRefetch(ctx, client, cmd, id, last)
+			}
 			return err
 		}
 	}
@@ -501,6 +509,9 @@ func operatorFollowEvent(cmd *cobra.Command, raw json.RawMessage, last *int64) e
 	}
 	if e.Seq <= *last {
 		return nil
+	}
+	if e.Type == runtime.EvConversationRevision {
+		return errOperatorRevised
 	}
 	if e.Seq != *last+1 {
 		return operatorGap(*last, "missing durable sequence")

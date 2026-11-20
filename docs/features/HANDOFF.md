@@ -31,34 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-[Message hover actions and current-conversation Edit](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
-— in progress since 2026-11-20.
-
-- **Done (slice 1):** desktop hover/focus row with Copy and Fork on every root text message,
-  shared descriptors with the right-click menu (`ui/src/components/chat/forkActions.ts`
-  `messageActionsFor`, `MessageActionRow.tsx`). Fork locates the containing turn's server
-  `turn_end.fork` marker; no server change. Shipped R58 clone-based Edit stays menu-only until
-  R61 replaces it. Rendered check: `node ui/scripts/message-actions-render.mjs`.
-- **Reviewer note:** TS-03.R91's per-message `message_actions` field is not added; fork
-  eligibility is still the server's turn-end marker. Add the field with the Edit affordance
-  (slice 3) or amend R91 if the turn-end marker suffices.
-- **Done (slice 2a):** `conversation_revision` event (`internal/runtime/revision.go`) and the
-  one revision fold in `internal/transcript/reader.go`: every file read returns active history
-  over one captured prefix, before since-seq filtering; `ReadOptions.Raw` keeps retained bytes
-  for attachment ownership, annotation and quota-notice dedupe. Reindex, search, primer, clone
-  prefix, context and HTTP reads inherit it. No producer exists yet.
-- **Reviewer notes (2a):** the fold keeps session_meta, the revision record, annotation,
-  backend_switch and fork_boundary inside a superseded range as "unrelated control/audit
-  records"; everything else in the range is hidden. Each folded read pre-scans the prefix for
-  revision records (bytes match before decode) — a second sequential pass per read.
-  Contextref pinned (immutable) references still read folded; switch them to `Raw` when slice 3
-  defines pinned-reference resolution.
-- **Next slices:** (2b) TS-02.R69 receipt edit action, edit-transition record and additive
-  migration, with populated-store upgrade tests under both SQLite variants; (3) TS-01.R51 edit transition + TS-03.R90/R91
-  `edit-last` API, snapshot/revision events and per-message affordances, with fault injection;
-  (4) TS-04.R113 complete-turn fork-patch proof and adapter contract tests; (5) inline editor
-  UI (TS-08.R171), phone/operator readers, FS-22.R13 CLI; (6) closure matrix, `make embed`,
-  packaged Claude/Codex receipts.
+None.
 
 ## Decisions needing input
 
@@ -119,6 +92,17 @@ waiting change [`give-agent-execution-one-owner.md`](../ready-changes/give-agent
 They are not queued for `/fix`. The recorded text is in
 [`CR-A10-findings.md`](../archive/reviews/adversarial-2026-11-14/CR-A10-findings.md).
 
+- **Message hover actions and current-conversation Edit** (FS-01.R60–R62, FS-22.R13,
+  TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): waiting to start review.
+  Commits from “Show Copy and Fork icons on hovered desktop messages” through the Edit closure
+  commit. Hot spots: `internal/server/edit.go` (transition, abort, recovery),
+  `internal/runtime/edit_reservation.go` and its four admission checks in `chat.go`, the in-place
+  fork branch of `ChatRuntime.Resume`, the revision fold in `internal/transcript/reader.go`, and
+  the two complete-turn adapter patches. Review notes: the fold keeps session_meta, the revision
+  record, annotation, backend_switch and fork_boundary inside a superseded range; each folded read
+  pre-scans its prefix for revision records; contextref pinned references read folded; restart
+  releases an undispatched replacement to explicit recovery instead of resending it.
+  Open findings EDIT-1…EDIT-4 below. Packaged live receipts are owed in ACCEPTANCE-GATES.
 - **Assignment-queued input at the transcript tail** (WITHDRAW-SEND-3/STEER-HOLD-4; FS-03.R48):
   waiting to start review. One commit titled “Show assignment-queued input at the transcript
   tail”. UI-only; desktop moves `QueuedInput` from the composer into `TranscriptView`, phone keeps
@@ -181,6 +165,26 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### EDIT — known gaps in current-conversation Edit as built (2026-11-20) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+Recorded by the implementing session; each is a stated requirement the first build does not yet
+meet, kept open rather than narrowed (workflow §3).
+
+- **Must fix** — EDIT-1 (TS-01.R51, INV §18). While an edit prepares it holds the lifecycle
+  claim, so Stop and turn Cancel are refused with `transition_in_progress` instead of aborting
+  preparation and restoring the source's running/stopped condition. The wait is bounded by
+  `editStartTimeout` (3 min); after dispatch Stop and Cancel act normally.
+- **Must fix** — EDIT-2 (TS-01.R51, INV §1/§15). The candidate start is not staged: it writes
+  the session snapshot, `session_meta` and running status before the commit decision. Abort
+  restores the snapshot and appends a restored `session_meta` (the switch-runtime pattern), so a
+  reader can briefly see the candidate selection beside the original history.
+- **Must fix** — EDIT-3 (TS-03.R90). Original attachment bytes are not validated before
+  acceptance; a missing attachment surfaces only when the committed replacement is sent, which
+  releases it to explicit recovery.
+- **Must fix** — EDIT-4 (TS-02.R70). A failed post-commit reindex is logged, not projected:
+  search is not marked unavailable for that conversation, so stale search text can remain until
+  the next reindex.
 
 ### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
 

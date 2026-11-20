@@ -422,6 +422,15 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 		}
 		return
 	}
+	// An edit owns this conversation's input until its replacement is
+	// dispatched; refuse before anything is accepted (TS-01.R51).
+	if _, err := s.stateStore.OpenEdit(id); err == nil {
+		writeAPIError(w, sessionOpError(runtime.ErrEditInProgress))
+		return
+	} else if !errors.Is(err, state.ErrNotFound) {
+		writeAPIError(w, apiError(runtime.CodeInternal, "cannot read conversation"))
+		return
+	}
 	if agent.Interface != "chat" && isMultipartMessageRoute(r) {
 		writeAPIError(w, apiError(runtime.CodeConflict, "attachments and prompts require a chat agent"))
 		return

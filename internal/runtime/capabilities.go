@@ -74,6 +74,9 @@ func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabi
 					Capabilities json.RawMessage `json:"capabilities"`
 				} `json:"air"`
 			} `json:"jetbrains"`
+			Chuck struct {
+				CompleteTurnForkVersion int `json:"completeTurnForkVersion"`
+			} `json:"chuck"`
 		} `json:"_meta"`
 	}
 	if json.Unmarshal(initRes, &body) != nil {
@@ -91,6 +94,8 @@ func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabi
 		BackgroundTaskStop: asyncTasks,
 		FileChangeReports:  o.FileChangeReports && air[airFileChangeReports],
 		SessionFailure:     o.SessionFailure && air[airSessionFailure],
+		// The packaged adapter's private complete-turn proof (TS-04.R113).
+		CompleteTurnFork: isObject(session["fork"]) && body.Meta.Chuck.CompleteTurnForkVersion == completeTurnVersion,
 	}
 }
 

@@ -171,7 +171,7 @@ orphaned processes.
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
   offer these actions. *R60–R61 plan replacement of message-action placement and Edit behavior.*
 
-- **R60 (Copy and Fork implemented 2026-11-20; Edit planned with R61) — Message actions at the top right on hover.** On the agent page and in
+- **R60 (implemented 2026-11-20) — Message actions at the top right on hover.** On the agent page and in
   the dashboard chat pane, hovering a user or assistant text message reveals a compact action
   row at its top right. Every message offers **Copy** (R62) and **Fork from here**.
   The last sent message additionally offers **Edit**.
@@ -188,7 +188,7 @@ orphaned processes.
   Fork opens R58's existing confirmation. Dismissing an action returns focus to its opener when
   that opener is still present.
 
-- **R61 (planned) — Edit the last sent message in the current conversation.**
+- **R61 (implemented 2026-11-20; packaged live receipts owed) — Edit the last sent message in the current conversation.**
   Replaces R58's Edit behavior when implemented. Edit is offered only on the last sent message;
   Fork remains available on that message through R60. Edit opens that last message for
   editing within the current conversation, retaining its agent identity and current chat route.
@@ -870,7 +870,7 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   recorded no-snapshot results. *Verify by* runtime/server recovery tests sharing A31–A34's
   fixtures, serialized projections, restart/cancel races and the existing quota banner journey.
 
-- **A42 (Copy and Fork verified 2026-11-20 by ui/scripts/message-actions-render.mjs; Edit planned)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
+- **A42 (implemented 2026-11-20; Copy/Fork rendered by ui/scripts/message-actions-render.mjs)** (R60) — On the rendered agent page and dashboard chat pane, hover a sent
   message and an assistant reply to reveal their action icons at the top right. Verify only
   the last sent message offers Copy, Edit and Fork, and every other message offers Copy and Fork.
   Inspect muted, borderless icons and their tooltips in each supported appearance.
@@ -882,7 +882,7 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   visibility, and message association. *Verify by* transcript component tests and rendered
   desktop checks with deterministic data.
 
-- **A43 (planned)** (R61) — In a three-turn chat, edit the latest sent message after its reply
+- **A43 (fake-provider evidence 2026-11-20; packaged Claude/Codex receipts owed)** (R61) — In a three-turn chat, edit the latest sent message after its reply
   and verify the same agent identity, name, settings and route, retained first two turns,
   revised third message and newly generated reply. Ask the provider to identify the revised
   message and an earlier fact to prove both the cut and kept context. Check first-message edit,

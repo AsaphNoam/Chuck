@@ -265,16 +265,19 @@ Lockfile, assembly constants, `install.sh`, manifest expectations, wrapper/archi
 release documentation move together. R26's assembly proofs carry forward against 2.1.1: one
 installed Codex package whose version satisfies the adapter's declared range, a hashed unpatched
 adapter bundle, the version-named steering patch applied with zero fuzz, a hashed patched output,
-the `2.1.1+chuck.2` component report and the source comparison proving the patch is still needed.
+the `2.1.1+chuck.3` component report and the source comparison proving the patch is still needed.
 Claude's R86 background-quota repair likewise uses a version-named zero-fuzz patch against
 the complete hashed `dist/acp-agent.js`, verifies the complete patched output, and reports
-`0.85.1+chuck.2`. Run `scripts/release/test-claude-quota-patch.mjs` against the staged runtime
+`0.85.1+chuck.3`. Run `scripts/release/test-claude-quota-patch.mjs` against the staged runtime
 before packaging; its focused adapter-branch regression complements the isolated native replay
 and does not replace credentialed provider acceptance.
 TS-04.R109's quota-read patches apply next, one per adapter, each against the previous patch's
 pinned output, with the same zero-fuzz and complete-output checks. Their contract tests,
-`test-claude-quota-read-patch.mjs` and `test-codex-quota-read-patch.mjs`, run against the final
-bundle. Both components then report `+chuck.2`, and `internal/backend.CodexACPPatchedSHA256`
+`test-claude-quota-read-patch.mjs` and `test-codex-quota-read-patch.mjs`, run against that patched
+output. TS-04.R113's complete-turn fork patches apply last, each with the same checks and its
+contract test (`test-claude-complete-turn-patch.mjs`, `test-codex-complete-turn-patch.mjs`); the
+quota-read tests run before them because they pin that patch's exact `_meta`. Both components then
+report `+chuck.3`, and `internal/backend.CodexACPPatchedSHA256`
 tracks the final Codex output.
 The fake ACP runtime adds the reviewed 2.1.1 AIR tool-call shapes, Claude notices and the Claude
 steer-backgrounds-tool marker from the inspected dists, not Chuck's mapper. Real-provider evidence

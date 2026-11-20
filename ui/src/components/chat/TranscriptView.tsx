@@ -9,6 +9,7 @@ import { openFileInBrowser } from "../../api/client";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { Button } from "../ui";
 import { messageActionsFor, type ForkAction } from "./forkActions";
+import { MessageEditContext, MessageEditor } from "./MessageEditor";
 import { MessageActionRow } from "./MessageActionRow";
 import { ForkConfirmDialog } from "./ForkConfirmDialog";
 import { AssistantText } from "./renderers/AssistantText";
@@ -95,7 +96,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     const annotatable = annotationsEnabled && canAnnotate(event);
     // Message actions belong to the desktop chat only; the menu and the hover
     // row share one descriptor (FS-01.R60, TS-08.R171).
-    const actions = forkActionsEnabled ? messageActionsFor(events, event, cloneAffordance) : null;
+    const actions = forkActionsEnabled ? messageActionsFor(events, event, cloneAffordance, editAgent) : null;
     if (!annotatable && !actions) return;
     const selected = selectionWithin(mouse.currentTarget);
     mouse.preventDefault();
@@ -110,20 +111,39 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
       fork: actions ? [
         { label: "Copy message", select: () => { void copyText(actions.copy, pushError); } },
-        ...[actions.fork, actions.edit].filter((item): item is ForkAction => item !== null).map((item) => ({
+        ...[actions.fork].filter((item): item is ForkAction => item !== null).map((item) => ({
           label: item.label,
           disabled: !item.available,
           description: item.available ? undefined : item.reason,
           select: () => { if (item.available) setForkConfirm(item); },
         })),
+        ...(actions.edit ? [{
+          label: "Edit",
+          disabled: !actions.edit.available,
+          description: actions.edit.available ? undefined : actions.edit.reason,
+          select: () => { if (actions.edit?.available) setEditingSeq(actions.edit.seq); },
+        }] : []),
       ] : undefined,
     });
   };
   const [forkConfirm, setForkConfirm] = useState<ForkAction | null>(null);
   const cloneAffordance = useAgentStore((state) => state.agents[agentId]?.clone);
+  const editAgent = useAgentStore((state) => state.agents[agentId]);
+  // The message open for Edit (FS-01.R61); it closes when its row is replaced.
+  const [editingSeq, setEditingSeq] = useState<number | null>(null);
+  const closeEdit = () => {
+    const seq = editingSeq;
+    setEditingSeq(null);
+    if (seq === null) return;
+    requestAnimationFrame(() => scrollRef.current?.querySelector<HTMLElement>(`[data-seq="${seq}"] button[aria-label="Edit"]`)?.focus());
+  };
+  useEffect(() => {
+    if (editingSeq !== null && !events.some((event) => event.seq === editingSeq && !event.activity_id)) setEditingSeq(null);
+  }, [events, editingSeq]);
   const renderActions = forkActionsEnabled ? (event: TranscriptEvent) => {
-    const actions = messageActionsFor(events, event, cloneAffordance);
-    return actions ? <MessageActionRow actions={actions} onFork={setForkConfirm} /> : null;
+    const actions = messageActionsFor(events, event, cloneAffordance, editAgent);
+    if (!actions || (actions.edit && actions.edit.seq === editingSeq)) return null;
+    return <MessageActionRow actions={actions} onFork={setForkConfirm} onEdit={(edit) => setEditingSeq(edit.seq)} />;
   } : undefined;
 
   // Only a move toward older content leaves the bottom. A row whose height
@@ -240,7 +260,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   };
 
   return (
-    <SearchPassageContext.Provider value={searchReveal}><div className="transcript-wrap" data-ui="transcript">
+    <SearchPassageContext.Provider value={searchReveal}><MessageEditContext.Provider value={{ seq: editingSeq, close: closeEdit }}><div className="transcript-wrap" data-ui="transcript">
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
         <div ref={contentRef}>
           <RevealTaskContext.Provider value={taskReveal}><TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} /></RevealTaskContext.Provider>
@@ -278,7 +298,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
       />
       <AnnotationContextMenu menu={menu} onClose={() => setMenu(null)} />
       {forkActionsEnabled && <ForkConfirmDialog agentId={agentId} action={forkConfirm} onClose={() => setForkConfirm(null)} />}
-    </div></SearchPassageContext.Provider>
+    </div></MessageEditContext.Provider></SearchPassageContext.Provider>
   );
 }
 
@@ -445,6 +465,8 @@ function AnnotationRow({ event }: { event: TranscriptEvent }) {
 
 function TranscriptItem({ agentId, event, result, onAnnotate, onOpenFile, onOpenInBrowser }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void; onOpenFile?: (link: FileLink | null) => void; onOpenInBrowser?: (path: string) => Promise<unknown> }) {
   const kind = String(event.kind ?? event.type ?? "");
+  const edit = useContext(MessageEditContext);
+  if (kind === "user_text" && edit.seq !== null && edit.seq === event.seq && !event.activity_id) return <MessageEditor agentId={agentId} event={event} />;
   if (kind === "assistant_text") return <AssistantText event={event} onOpenFile={onOpenFile} agentId={agentId} onOpenInBrowser={onOpenInBrowser} />;
   if (kind === "user_text")
     return <article className="message user-message" data-ui="transcript" data-variant="user"><MarkedSourceText text={String(event.text ?? "")} /><MessageAttachments agentId={agentId} attachments={event.attachments ?? []} /></article>;

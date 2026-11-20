@@ -1,6 +1,6 @@
 # FS-22 — Operator CLI
 
-**Status:** Partial
+**Status:** Current
 **Code:** `internal/cli/`, `cmd/chuck/`, `internal/server/` · **Journeys:** —
 **Absorbed:** —
 
@@ -143,7 +143,7 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
   excluded. Existing API authorization and phone allowlists are unchanged; CLI uses local operator
   authority under TS-05.R2–R3, not agent-token or paired-phone authority.
 
-- **R13 (planned) — Last-message Edit has operator command parity.** agent edit-last exposes
+- **R13 (implemented 2026-11-20) — Last-message Edit has operator command parity.** agent edit-last exposes
   FS-01.R61 through TS-03.R90 with explicit request id, message sequence, expected revision
   and R3's replacement text input. Its request-file form preserves the exact body. Report the
   accepted operation and query its status through agent edit-last-status; reuse the same id
@@ -197,7 +197,7 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
   explicit. *Verify:* isolated-home real-server administration fixtures; existing live tailnet/
   provider gates remain separate.
 
-- **A10 (planned)** (R13) — Against the isolated service, edit the latest message, query its
+- **A10 (CLI fixtures 2026-11-20; built-client run against the isolated service owed)** (R13) — Against the isolated service, edit the latest message, query its
   result, retry the same request, reject stale revision and conflicting payload, and follow
   the revised transcript across reconnect. Verify one replacement and one turn through the
   normal receipt. *Verify:* focused built-client API/CLI fixtures reusing FS-01.A43 evidence.

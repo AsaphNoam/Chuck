@@ -1043,10 +1043,11 @@ search stays within a small multiple of its idle time; the store's write paths s
 second writer. Check the separation by holding the history connection for the entire point
 read and write, then verify that the history handle rejects writes.
 
-**R69 (planned) — Edit retains an immutable history and one recoverable commit decision.**
-For FS-01.R61 and TS-01.R51, extend the existing input receipt with an edit action and store its
-bounded transition metadata in a related record keyed by the same agent/request id. The receipt
-remains the sole owner of replacement text and attachment descriptors. Store the payload hash,
+**R69 (implemented 2026-11-20) — Edit retains an immutable history and one recoverable commit decision.**
+For FS-01.R61 and TS-01.R51, store the edit in one `edit_transitions` record keyed by
+agent/request id. *As built 2026-11-20:* that record owns the replacement text and original
+attachment descriptors until dispatch, when it hands them to an ordinary input receipt under the
+same request id; after that only the receipt decides delivery. Store the payload hash,
 expected active revision and source message, superseded sequence range, old and candidate native
 session selections, launch generation, phase, boundary-event identity, dispatch-started flag
 and bounded result. Transition metadata is at most 8 KiB and never copies transcript content.
@@ -1079,7 +1080,7 @@ After commit, recovery hands replacement input to the already-revised conversati
 creates another revision of the superseded source message. Unknown delivery keeps the existing
 explicit-recovery acknowledgement and warning.
 
-**R70 (journal fold implemented 2026-11-20; revision producer, index-unavailable marking and live invalidation planned) — Active history is a shared projection of retained revisions.** The journal
+**R70 (implemented 2026-11-20) — Active history is a shared projection of retained revisions.** The journal
 keeps original bytes and monotonically increasing sequence ids. A conversation_revision hides
 the selected user message and its turn's events through the captured source tail from the
 active view, while keeping revision metadata and unrelated durable control/audit records.

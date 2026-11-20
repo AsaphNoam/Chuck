@@ -45,6 +45,7 @@ const defaultStartupCallTimeout = 30 * time.Second
 // status writes.
 type ChatRuntime struct {
 	messageMu      sync.RWMutex
+	edits          editReservations
 	messageOutcome func(string, string, string) error
 	store          *state.Store
 	messageBudget  func() int
@@ -563,6 +564,8 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 	failForked := func() {
 		if spec.Fork != nil {
 			c.deleteForkedSession(as, sess.SessionID)
+		}
+		if spec.isClone() {
 			c.discardForkPersistence(as)
 		}
 		as.shutdown()
@@ -588,7 +591,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		failForked()
 		return nil, err
 	}
-	if spec.Fork != nil {
+	if spec.isClone() {
 		if err := c.writeForkPrefix(as, spec.Fork); err != nil {
 			failForked()
 			return nil, err
@@ -663,6 +666,9 @@ func (c *ChatRuntime) SendMessageOrHold(ctx context.Context, agentID string, mes
 	}
 	// Refuse before holding too: a refused Send keeps the person's draft,
 	// while a held message would later fail out of sight (FS-03.R99).
+	if err := c.admitAgainstEdit(agentID, message.RequestID); err != nil {
+		return false, err
+	}
 	if err := as.journal.Admit(); err != nil {
 		return false, err
 	}
@@ -777,6 +783,9 @@ func (c *ChatRuntime) Steer(ctx context.Context, agentID, text string) (SteerOut
 func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message Message) (SteerOutcome, error) {
 	as, err := c.lookup(agentID)
 	if err != nil {
+		return "", err
+	}
+	if err := c.admitAgainstEdit(agentID, ""); err != nil {
 		return "", err
 	}
 	if err := as.journal.Admit(); err != nil {
@@ -1126,7 +1135,11 @@ func (c *ChatRuntime) runMessageTurnFrom(as *agentState, message Message, turnID
 
 func (c *ChatRuntime) prepareMessageTurn(as *agentState, message Message, turnID string, origin state.TurnOrigin) (turnPrompt, error) {
 	// No turn — manual, held successor or dispatched — starts while its
-	// history cannot be recorded (FS-03.R99).
+	// history cannot be recorded (FS-03.R99), or while an edit owns the
+	// conversation's idle turn (TS-01.R51).
+	if err := c.admitAgainstEdit(as.agentID, message.RequestID); err != nil {
+		return turnPrompt{}, err
+	}
 	if err := as.journal.Admit(); err != nil {
 		return turnPrompt{}, err
 	}
@@ -1780,7 +1793,25 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 	resolvedSessionID := ""
 	loaded := false
 	configOptions := sessionConfigAdvertisement{}
-	if sessionID != "" {
+	if spec.Fork != nil && spec.Fork.InPlace {
+		// Last-message Edit replaces this agent's provider session with a
+		// proven fork ending at the kept turn (TS-04.R113). The source session
+		// stays retained; a refused or failed fork leaves nothing behind.
+		sid, res, err := c.openFork(ctx, as, spec)
+		var refusal *ForkRefusal
+		if errors.Is(err, ErrForkUnavailable) || errors.As(err, &refusal) {
+			as.shutdown()
+			return nil, err
+		}
+		if err != nil {
+			return nil, c.startupFailure(as, spec.BackendType, "session/fork", err)
+		}
+		loaded, resolvedSessionID = true, sid
+		configOptions.replace(decodeSessionConfigOptions(res))
+		if modes, ok := decodeSessionModes(res); ok {
+			as.setModes(modes)
+		}
+	} else if sessionID != "" {
 		loadRes, loadErr := c.startupCall(ctx, as.transport, "session/load", sessionLoadParams(spec, sessionID))
 		switch {
 		case loadErr == nil:
@@ -1931,7 +1962,11 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 	if err != nil {
 		return false, err
 	}
-	// An automatic activation never starts on unrecorded history (FS-03.R99).
+	// An automatic activation never starts on unrecorded history (FS-03.R99)
+	// or while an edit owns the conversation (TS-01.R51).
+	if err := c.admitAgainstEdit(agentID, ""); err != nil {
+		return false, err
+	}
 	if err := as.journal.Admit(); err != nil {
 		return false, err
 	}
@@ -2680,7 +2715,7 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 	meta.ExecutionManifest = executionManifest(spec, as.adapterInfo)
 	caps := as.capabilities()
 	meta.RuntimeCapabilities = &caps
-	if spec.Fork != nil {
+	if spec.isClone() {
 		meta.ForkedFromAgentID, meta.ForkedFromSeq = spec.Fork.SourceAgentID, spec.Fork.SourceSeq
 	}
 	attachment, w, err := as.journal.Open(func() (TranscriptWriter, error) {
@@ -2699,11 +2734,11 @@ func (c *ChatRuntime) openPersistence(as *agentState, spec LaunchSpec, sessionID
 	}
 	as.mu.Unlock()
 	if closed {
-		_ = as.journal.Close(attachment, spec.Fork != nil)
+		_ = as.journal.Close(attachment, spec.isClone())
 		return errors.New("runtime: agent exited while opening its transcript")
 	}
 	if err := ix.UpsertSessionMeta(spec.Agent.AgentID, meta); err != nil {
-		as.closeJournal(spec.Fork != nil) // a failed clone leaves no transcript (INV §15)
+		as.closeJournal(spec.isClone()) // a failed clone leaves no transcript (INV §15)
 		return fmt.Errorf("runtime: index session meta: %w", err)
 	}
 	return nil

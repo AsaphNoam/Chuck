@@ -108,6 +108,42 @@ describe("SseClient watchdog reconnect", () => {
     expect(second.closed).toBe(false);
   });
 
+  // FS-01.R61 — a conversation revision discards the view and reads the whole transcript again.
+  it("discards and fully refetches an open agent's transcript on a conversation revision", async () => {
+    const { sseClient } = await import("./sse");
+    const client = await import("./client");
+    const { useTranscriptStore } = await import("../store/transcriptStore");
+    sseClient.connect();
+    const es = FakeEventSource.instances[0];
+    sseClient.registerOpenAgent("a_open");
+    useTranscriptStore.getState().setTranscript("a_open", [{ kind: "user_text", seq: 1, text: "old" }]);
+    (client.getTranscript as ReturnType<typeof vi.fn>).mockClear();
+    (client.getTranscript as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ agent_id: "a_open", events: [{ type: "user_text", seq: 5, ts: "t", data: { text: "new" } }] });
+    es.emit("new_message", JSON.stringify({
+      type: "new_message", agent_id: "a_open", ts: 1,
+      data: { type: "conversation_revision", seq: 4, ts: "t", data: { request_id: "r", revision: 1, replaces_from_seq: 1, replaces_through_seq: 3 } },
+    }));
+    expect(useTranscriptStore.getState().byAgent["a_open"]).toBeUndefined();
+    expect(client.getTranscript).toHaveBeenCalledTimes(1);
+    expect(client.getTranscript).toHaveBeenCalledWith("a_open");
+    await vi.waitFor(() => expect(useTranscriptStore.getState().revisionRead["a_open"]).toBe(1));
+    expect(useTranscriptStore.getState().byAgent["a_open"]?.map((event) => event.text)).toEqual(["new"]);
+  });
+
+  it("reports a failed refetch after a conversation revision", async () => {
+    const { sseClient } = await import("./sse");
+    const client = await import("./client");
+    const { useUiStore } = await import("../store/uiStore");
+    const pushError = vi.fn();
+    useUiStore.setState({ pushError } as never);
+    sseClient.connect();
+    const es = FakeEventSource.instances[0];
+    sseClient.registerOpenAgent("a_open");
+    (client.getTranscript as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("offline"));
+    es.emit("new_message", JSON.stringify({ type: "new_message", agent_id: "a_open", ts: 1, data: { type: "conversation_revision", seq: 4, data: { revision: 1 } } }));
+    await vi.waitFor(() => expect(pushError).toHaveBeenCalledWith("Could not reload the edited conversation", "offline"));
+  });
+
   // FS-03.A23 — a sequence gap for one pane refetches only that pane's transcript.
   it("only refetches on a seq gap for a registered agent", async () => {
     const { sseClient } = await import("./sse");

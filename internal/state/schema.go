@@ -983,6 +983,32 @@ CREATE INDEX idx_annotation_receipts_effect ON annotation_receipts(effect_id)
 		sql: `ALTER TABLE attachment_receipts ADD COLUMN recovery_attempt_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE attachment_receipts ADD COLUMN recovery_attempt_hash TEXT NOT NULL DEFAULT ''`,
 	},
+	{
+		// Last-message Edit transitions (TS-02.R69): additive; existing
+		// conversations have no row and read as revision zero.
+		version: 80,
+		sql: `CREATE TABLE edit_transitions (
+ agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+ request_id TEXT NOT NULL,
+ payload_hash TEXT NOT NULL,
+ message_json TEXT NOT NULL CHECK(length(CAST(message_json AS BLOB)) <= 65536),
+ message_seq INTEGER NOT NULL,
+ expected_revision INTEGER NOT NULL,
+ revision INTEGER NOT NULL DEFAULT 0,
+ replaces_from INTEGER NOT NULL DEFAULT 0,
+ replaces_through INTEGER NOT NULL DEFAULT 0,
+ old_session TEXT NOT NULL DEFAULT '',
+ candidate_session TEXT NOT NULL DEFAULT '',
+ phase TEXT NOT NULL CHECK(phase IN ('preparing','committing','committed','aborted')),
+ dispatched INTEGER NOT NULL DEFAULT 0 CHECK(dispatched IN (0,1)),
+ reason TEXT NOT NULL DEFAULT '' CHECK(length(reason) <= 1024),
+ created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY(agent_id,request_id)
+);
+CREATE UNIQUE INDEX idx_edit_transitions_open ON edit_transitions(agent_id)
+ WHERE phase IN ('preparing','committing') OR (phase = 'committed' AND dispatched = 0);`,
+	},
 }
 
 func migrateTaskCommitment(tx *sql.Tx) error {

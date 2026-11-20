@@ -309,3 +309,15 @@ type retainedSession struct {
 	effort   string
 	fast     bool
 }
+
+// ReindexAgent rebuilds one conversation's search text, provenance, previews
+// and rollups from its active history after a committed conversation revision
+// (TS-02.R70). Live accumulators for the agent are reset first so superseded
+// text cannot be flushed afterwards.
+func (ix *Indexer) ReindexAgent(home, agentID string) error {
+	ix.mu.Lock()
+	defer ix.mu.Unlock()
+	delete(ix.content, agentID)
+	delete(ix.fileCalls, agentID)
+	return reindexAgent(ix.db, home, agentID)
+}

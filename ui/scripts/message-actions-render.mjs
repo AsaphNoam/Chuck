@@ -36,6 +36,7 @@ const AGENT = {
   agent_id: "a1", name: "Message actions", role: "implementer", project: "demo", backend: "claude", model: "m",
   fast: false, fast_available: false, steering_available: true, interface: "chat", created_at: AT, running: true,
   state: "idle", detail: "", context_pct: 0, updated_at: 0, archived: false, clone: { available: true },
+  history_revision: 0, edit: { available: true }, runtime_capabilities: { fork: true, complete_turn_fork: true },
 };
 
 const checks = [];
@@ -44,7 +45,7 @@ function record(name, pass, detail) {
   console.log(`${pass ? "PASS" : "FAIL"} ${name}${detail !== undefined ? ` — ${detail}` : ""}`);
 }
 
-function api(skin) {
+function api(skin, transcript = TRANSCRIPT) {
   return (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -54,14 +55,14 @@ function api(skin) {
     if (path === "/api/layout") return route.fulfill({ json: { order: [], density: { perRow: 3, gap: 16 }, expanded: ["a1"] } });
     if (path === "/api/tasks") return route.fulfill({ json: { tasks: [] } });
     if (path === "/api/think-tanks") return route.fulfill({ json: { rooms: [], clipped: false } });
-    if (path === "/api/sessions/a1/transcript") return route.fulfill({ json: { agent_id: "a1", has_more: false, events: TRANSCRIPT } });
+    if (path === "/api/sessions/a1/transcript") return route.fulfill({ json: { agent_id: "a1", has_more: false, events: transcript } });
     if (path === "/api/sessions/a1/prompt") return route.fulfill({ status: 404, json: { error: { code: "not_found", message: "none" } } });
     if (path === "/api/sessions/a1/available-commands") return route.fulfill({ json: { commands: [] } });
     return route.fulfill({ json: {} });
   };
 }
 
-async function open(browser, skin, width, path) {
+async function open(browser, skin, width, path, transcript = TRANSCRIPT) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
   await context.addInitScript((hydrated) => {
@@ -77,7 +78,7 @@ async function open(browser, skin, width, path) {
       close() {}
     };
   }, [{ agent_id: "a1", data: AGENT }, { agent_id: "__hydrated__", data: { hydrated: true } }]);
-  await context.route((u) => u.pathname.startsWith("/api/"), api(skin));
+  await context.route((u) => u.pathname.startsWith("/api/"), api(skin, transcript));
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
@@ -121,6 +122,9 @@ async function checkSurface(page, label, root) {
     await fork.hover();
     record(`${label} #${seq}: stays visible over its controls`, (await geometry(item)).opacity === 1);
   }
+  // Edit sits only on the latest sent message (FS-01.R60).
+  const editCounts = await Promise.all([1, 2, 4, 5].map((seq) => root.locator(`[data-seq="${seq}"]`).getByRole("button", { name: "Edit" }).count()));
+  record(`${label}: Edit only on the latest sent message`, JSON.stringify(editCounts) === JSON.stringify([0, 0, 1, 0]), JSON.stringify(editCounts));
   // Unavailable reason by pointer, then by keyboard.
   const first = root.locator('[data-seq="2"]');
   const unavailable = first.getByRole("button", { name: "Fork from here" });
@@ -158,6 +162,21 @@ try {
       await page.screenshot({ path: join(outDir, `agent-${name}-${width}.png`) });
       record(`${label}: no page errors`, errors.length === 0, errors.join(" | "));
       await context.close();
+      // The inline editor opens in place with the message text and its
+      // explanation when the previous turn is forkable.
+      const editable = TRANSCRIPT.map((ev) => (ev.seq === 3 ? { ...ev, fork: { available: true } } : ev));
+      const edit = await open(browser, skin, width, "/agent/a1", editable);
+      const opener = edit.page.locator('[data-seq="4"]').getByRole("button", { name: "Edit" });
+      await edit.page.locator('[data-seq="4"]').hover();
+      await opener.click();
+      const editor = edit.page.getByRole("textbox", { name: "Edit message" });
+      record(`${label}: inline editor seeded with the message`, (await editor.inputValue()) === LONG);
+      record(`${label}: editor explains the effect`, await edit.page.getByText("Saving replaces this message and its reply.", { exact: false }).isVisible());
+      await edit.page.screenshot({ path: join(outDir, `editor-${name}-${width}.png`) });
+      await edit.page.keyboard.press("Escape");
+      record(`${label}: Escape closes the editor`, (await edit.page.getByRole("textbox", { name: "Edit message" }).count()) === 0);
+      record(`${label}: editor page errors`, edit.errors.length === 0, edit.errors.join(" | "));
+      await edit.context.close();
     }
     const { context, page, errors } = await open(browser, skin, 1440, "/project/demo");
     const label = `${name} dashboard pane`;

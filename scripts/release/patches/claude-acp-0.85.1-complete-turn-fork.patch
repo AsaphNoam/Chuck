@@ -1,0 +1,137 @@
+--- a/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js
++++ b/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js
+@@ -1395,7 +1395,7 @@
+                 steering: {
+                     supported: true,
+                 },
+-                chuck: { quotaRead: { version: 1 } },
++                chuck: { quotaRead: { version: 1 }, completeTurnForkVersion: 1 },
+             },
+         };
+     }
+--- a/node_modules/@agentclientprotocol/claude-agent-acp/dist/fork-session.js
++++ b/node_modules/@agentclientprotocol/claude-agent-acp/dist/fork-session.js
+@@ -134,10 +134,121 @@
+     if (!messageUuid && !fullHistoryUuid) {
+         throw RequestError.invalidParams({ messageId: point.messageId }, `Fork point message ${point.messageId} was not found in session ${params.sessionId}`);
+     }
++    const resolvedUuid = messageUuid ?? fullHistoryUuid;
++    // Chuck (TS-04.R113): cut at the turn's last transcript entry only when the whole turn is provable.
++    const turnEnd = chuckCompleteTurnEnd(await loadFullSessionHistory(params.sessionId, params.cwd), resolvedUuid, candidateIds, dependencies.messageIdForGrouping);
++    timing.phase("chuck-turn-end", ` complete=${turnEnd !== undefined}`);
+     const forked = await forkClaudeSession(params.sessionId, {
+         dir: params.cwd,
+-        upToMessageId: messageUuid ?? fullHistoryUuid,
++        upToMessageId: turnEnd ?? resolvedUuid,
+     });
+     timing.phase("sdk-fork");
+-    return { sessionId: forked.sessionId };
++    if (turnEnd === undefined)
++        return { sessionId: forked.sessionId };
++    return {
++        sessionId: forked.sessionId,
++        _meta: { chuck: { completeTurn: { version: 1, sourceMessageId: point.messageId, complete: true } } },
++    };
+ }
++// Chuck: attachment types the pinned Claude Code (2.1.286) --resume-drops-turn validator attributes to a turn.
++const CHUCK_TURN_FURNITURE = new Set([
++    "agent_listing_delta", "agent_mention", "at_mention_reference", "peer_mention", "already_read_file", "async_hook_response_batch",
++    "attention_budget", "auto_mode", "auto_mode_exit", "budget_usd", "command_permissions", "compact_file_reference",
++    "context_efficiency", "cowork_memory_context", "account_memory_recall", "critical_system_reminder", "date_change", "thread_state",
++    "prefix_delta", "deferred_tools_delta", "diagnostics", "directory", "dynamic_skill", "edited_image_file",
++    "edited_text_file", "file", "goal_status", "hook_additional_context", "hook_blocking_error", "hook_cancelled",
++    "hook_deferred_tool", "hook_error_during_execution", "hook_non_blocking_error", "hook_permission_decision", "hook_plugin_listing", "hook_stopped_continuation",
++    "hook_success", "hook_system_message", "invoked_skills", "max_turns_reached", "mcp_instructions_delta", "mcp_dropped_tools_delta",
++    "inlined_image_paths", "tool_hosts_notice", "tool_hosts_correction", "tool_host_result_lines", "mcp_resource", "memory_update",
++    "nested_memory", "opened_file_in_ide", "output_style", "output_token_usage", "pdf_reference", "plan_file_reference",
++    "plan_mode", "plan_mode_exit", "plan_mode_reentry", "proactivity", "read_truncation_notice", "sandbox_instructions",
++    "artifact_opening_prefetch", "environment", "model", "output_style_instructions", "language", "session_context",
++    "coordinator_context", "context_sections", "date", "instructions", "prompt_snapshot", "prompt_render_point",
++    "thinking_stripped", "advisor_stripped", "thinking_drop", "credential_org", "deferred_tools_record", "bash_output_audience_note",
++    "unknown_command_fallback", "relevant_memories", "selected_lines_in_diff", "selected_lines_in_ide", "silent_turn_reminder", "skill_listing",
++    "structured_output", "task_reminder", "team_context", "teammate_shutdown_batch", "todo_reminder", "token_usage",
++    "tool_search_usage_reminder", "total_tokens_reminder", "batching_reminder", "batching_reminder_sent", "secondary_reminder", "secondary_reminder_sent",
++    "ultra_effort_enter", "ultra_effort_exit", "ultrathink_effort", "workflow_keyword_request", "workflow_size_guideline_change", "remote_session_change",
++    "advisor_tool",
++]);
++const CHUCK_INTERRUPT_MARKERS = new Set(["[Request interrupted by user]", "[Request interrupted by user for tool use]"]);
++function chuckHumanOrigin(entry) {
++    return entry.origin === undefined || entry.origin?.kind === "human" || entry.origin?.kind === "auto-continuation";
++}
++function chuckToolResultOnly(entry) {
++    const content = entry.message?.content;
++    return Array.isArray(content) && content.length > 0 && content.every((block) => block?.type === "tool_result");
++}
++function chuckInterruptMarker(entry) {
++    const content = entry.message?.content;
++    if (typeof content === "string")
++        return CHUCK_INTERRUPT_MARKERS.has(content);
++    return Array.isArray(content) && content.length === 1 && content[0]?.type === "text" && CHUCK_INTERRUPT_MARKERS.has(content[0].text);
++}
++// A user entry that opens the next turn (the validator's declared-turn prompt).
++function chuckTurnPrompt(entry) {
++    return entry.type === "user" && chuckHumanOrigin(entry) && entry.isMeta !== true && entry.isCompactSummary !== true &&
++        entry.stackedExpansion !== true && !chuckToolResultOnly(entry) && !chuckInterruptMarker(entry);
++}
++// An entry the validator attributes to the turn in progress.
++function chuckInTurn(entry) {
++    switch (entry.type) {
++        case "assistant":
++        case "progress":
++        case "system":
++            return true;
++        case "attachment":
++            return entry.attachment?.type !== "queued_command" && CHUCK_TURN_FURNITURE.has(entry.attachment?.type);
++        case "user":
++            return chuckHumanOrigin(entry) && entry.isCompactSummary !== true && (entry.stackedExpansion === true ||
++                chuckInterruptMarker(entry) || chuckToolResultOnly(entry) || (entry.isMeta === true && entry.promptSource === undefined));
++        default:
++            return false;
++    }
++}
++// The uuid of the last transcript entry of the turn holding the resolved assistant message,
++// or undefined when the turn cannot be attributed unambiguously. Walks the non-sidechain
++// transcript order the SDK fork slices: every later entry before the next turn prompt must
++// descend from the message and belong to its turn (e.g. end-turn tool_result carriers and
++// structured_output attachments after the final assistant message).
++function chuckCompleteTurnEnd(entries, targetUuid, candidateIds, messageIdForGrouping) {
++    const chain = entries.filter((entry) => typeof entry?.uuid === "string" && entry.isSidechain !== true &&
++        ["user", "assistant", "attachment", "system", "progress"].includes(entry.type));
++    const byUuid = new Map();
++    for (const entry of chain)
++        if (!byUuid.has(entry.uuid))
++            byUuid.set(entry.uuid, entry);
++    const target = byUuid.get(targetUuid);
++    if (!target || target.type !== "assistant" || target.parent_tool_use_id != null || target.parent_agent_id != null ||
++        !candidateIds.includes(messageIdForGrouping(target)))
++        return undefined;
++    const descends = new Map([[targetUuid, true]]);
++    const descendsFromTarget = (entry) => {
++        const path = [];
++        let cursor = entry;
++        let result = false;
++        while (cursor && path.length <= chain.length) {
++            if (descends.has(cursor.uuid)) {
++                result = descends.get(cursor.uuid);
++                break;
++            }
++            path.push(cursor.uuid);
++            cursor = typeof cursor.parentUuid === "string" ? byUuid.get(cursor.parentUuid) : undefined;
++        }
++        for (const uuid of path)
++            descends.set(uuid, result);
++        return result;
++    };
++    let end = targetUuid;
++    for (const entry of chain.slice(chain.indexOf(target) + 1)) {
++        // The SDK cuts at a uuid's first occurrence, so a rewritten uuid makes the cut unprovable.
++        if (byUuid.get(entry.uuid) !== entry || !descendsFromTarget(entry))
++            return undefined;
++        if (chuckTurnPrompt(entry))
++            break;
++        if (!chuckInTurn(entry))
++            return undefined;
++        end = entry.uuid;
++    }
++    return end;
++}

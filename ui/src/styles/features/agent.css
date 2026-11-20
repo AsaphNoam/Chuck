@@ -2854,4 +2854,44 @@ a.agent-mini-card:focus-visible {
 .mail-wake {
   min-width: 0;
 }
+
+/* Inline Edit of the latest sent message (FS-01.R61, TS-08.R171). */
+.message-editor {
+  display: grid;
+  gap: var(--ad-space-2);
+  white-space: normal;
+  width: 100%;
+}
+
+.message-editor-input {
+  background: var(--ad-surface-raised);
+  border: var(--ad-border-thin) solid var(--ad-border-strong);
+  border-radius: var(--ad-radius-small);
+  color: var(--ad-text-primary);
+  font: inherit;
+  min-height: 3rem;
+  padding: var(--ad-space-2);
+  width: 100%;
+}
+
+.message-editor-note,
+.message-editor-status {
+  color: var(--ad-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  margin: 0;
+}
+
+.message-editor-error {
+  color: var(--ad-text-primary);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  margin: 0;
+}
+
+.message-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ad-space-2);
+}
 }

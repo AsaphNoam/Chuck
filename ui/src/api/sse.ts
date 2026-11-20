@@ -223,6 +223,12 @@ class SseClient {
     const envelope = JSON.parse(event.data) as BusEvent<TranscriptEvent>;
     if (!envelope.agent_id) return;
     const agentId = envelope.agent_id;
+    // An edit replaced active history: drop this view and read the whole
+    // transcript again, never since a seq (FS-01.R61, TS-03.R91).
+    if (envelope.data.type === "conversation_revision" || envelope.data.kind === "conversation_revision") {
+      this.onConversationRevision(agentId, envelope.data);
+      return;
+    }
     const seq = (envelope.data as { seq?: number }).seq ?? 0;
     if (seq > 0) {
       const last = this.lastAgentSeq[agentId] ?? 0;
@@ -235,6 +241,16 @@ class SseClient {
     if (this.openAgents.has(agentId)) {
       useTranscriptStore.getState().appendMessage(agentId, envelope.data);
     }
+  }
+
+  private onConversationRevision(agentId: string, event: TranscriptEvent) {
+    const data = (event.data ?? event) as { revision?: number };
+    delete this.lastAgentSeq[agentId];
+    if (!this.openAgents.has(agentId)) return;
+    useTranscriptStore.getState().discardAgent(agentId);
+    void this.refetchTranscript(agentId)
+      .then(() => useTranscriptStore.getState().markRevisionRead(agentId, Number(data.revision ?? 0)))
+      .catch((err) => useUiStore.getState().pushError("Could not reload the edited conversation", err instanceof Error ? err.message : String(err)));
   }
 
   // Live-only reasoning streams into its own memory-only store, anchored at the

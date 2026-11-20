@@ -109,7 +109,7 @@ func newOperatorAgentCmd() *cobra.Command {
 	file := agentOperation("file <id>", "GET", "file", 1, false, false, nil)
 	file.Flags().String("path", "", "explicit source path")
 	parent.AddCommand(file)
-	parent.AddCommand(newAgentTranscriptCmd(), newAgentDownloadCmd(false), newAgentDownloadCmd(true), newOperatorAgentStatusCmd())
+	parent.AddCommand(newAgentEditLastCmd(), newAgentEditLastStatusCmd(), newAgentTranscriptCmd(), newAgentDownloadCmd(false), newAgentDownloadCmd(true), newOperatorAgentStatusCmd())
 	return parent
 }
 

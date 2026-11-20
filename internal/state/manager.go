@@ -605,6 +605,17 @@ WHERE a.agent_id = ?`, agentID)
 
 	m.setKnown(agentID, true)
 	out.Clone = CloneAvailability(out.Interface, out.Archived, out.RuntimeCapabilities, nativeSession.String, CloneBusyState(out.State))
+	if out.HistoryRevision, err = m.store.HistoryRevision(agentID); err != nil {
+		return AgentStateUpdate{}, err
+	}
+	open, err := m.store.OpenEdit(agentID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return AgentStateUpdate{}, err
+	}
+	if err == nil {
+		out.EditOperation = &EditOperation{RequestID: open.RequestID, Phase: open.Phase, Reason: open.Reason}
+	}
+	out.Edit = EditAvailability(out, nativeSession.String, out.EditOperation != nil)
 	return AgentStateUpdate{AgentState: out}, nil
 }
 

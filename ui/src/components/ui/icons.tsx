@@ -70,6 +70,10 @@ export function ForkIcon() {
   return <Icon><circle cx="4.5" cy="3.5" r="1.5" /><circle cx="11.5" cy="3.5" r="1.5" /><circle cx="4.5" cy="12.5" r="1.5" /><path d="M4.5 5v6M11.5 5v1a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 0 4.5 11" /></Icon>;
 }
 
+export function PencilIcon() {
+  return <Icon><path d="M10.5 3.5 12.5 5.5M3 13l.5-2.5 7-7 2 2-7 7z" /></Icon>;
+}
+
 export function MoveLeftIcon() {
   return <Icon><path d="M10 4 6 8l4 4" /></Icon>;
 }

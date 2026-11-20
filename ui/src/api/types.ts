@@ -20,6 +20,8 @@ export interface RuntimeCapabilities {
   background_task_stop: boolean;
   file_change_reports: boolean;
   image_input?: boolean;
+  /** The adapter can prove a turn is complete before a later Edit (FS-01.R61). */
+  complete_turn_fork?: boolean;
 }
 
 export interface AttachmentCapabilities {
@@ -55,6 +57,12 @@ export interface AgentState {
   attachment_capabilities?: AttachmentCapabilities;
   /** Whether Clone is offered and, if not, why (FS-01.R36, TS-03.R43). */
   clone?: { available: boolean; reason: string };
+  /** Active conversation revision; an Edit names the one it saw (FS-01.R61). */
+  history_revision?: number;
+  /** Agent-level live gate for editing the last message (FS-01.R61). */
+  edit?: { available: boolean; reason?: string };
+  /** The edit in progress, if any. */
+  edit_operation?: { request_id: string; phase: string; reason?: string };
   interface: string;
   group?: string;
   created_at: string;

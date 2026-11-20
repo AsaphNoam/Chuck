@@ -179,6 +179,12 @@ const (
 	CodeTransitionInProgress = "transition_in_progress" // 409
 	CodeCloneUnavailable     = "clone_unavailable"      // 422
 
+	// Last-message Edit codes (TS-03.R90).
+	CodeEditConflict    = "edit_conflict"    // 409
+	CodeEditUnavailable = "edit_unavailable" // 422
+	CodeEditInProgress  = "edit_in_progress" // 409
+	CodeRequestConflict = "request_conflict" // 409
+
 	// Provider selection codes (TS-04.R76): the selected Claude/Codex
 	// executable cannot start, named by its effective source.
 	CodeProviderExecutableMissing = "provider_executable_missing"  // 422
@@ -214,7 +220,7 @@ func statusForCode(code string) int {
 	case CodeFileNotEditable, CodeValidation, CodeTerminalUnavailable, CodeSourceInvalid,
 		CodeAttachmentCapability, CodeAttachmentType,
 		CodePathRefused, CodeNotAFile, CodeNotText, CodeFileUnreadable, CodeWorkspaceUnavailable,
-		CodeBackgroundTaskControlUnavailable, CodeCloneUnavailable,
+		CodeBackgroundTaskControlUnavailable, CodeCloneUnavailable, CodeEditUnavailable,
 		CodeProviderExecutableMissing, CodeProviderExecutableInvalid, CodeBundledProviderMissing,
 		CodeProviderIncompatible:
 		return http.StatusUnprocessableEntity // 422
@@ -226,7 +232,7 @@ func statusForCode(code string) int {
 		CodeSourceChanged, CodeSourceConflict, CodeApprovalRequired,
 		CodeAgentArchived, CodeAgentArchiving, CodeProjectArchived, CodeProjectArchiving,
 		CodeBackendExists, CodeBackendCatalogChanged, CodeDirectoryPickerBusy,
-		CodeAgentBusy, CodeTransitionInProgress:
+		CodeAgentBusy, CodeTransitionInProgress, CodeEditConflict, CodeEditInProgress, CodeRequestConflict:
 		return http.StatusConflict // 409
 	case CodeProviderCheckBusy:
 		return http.StatusTooManyRequests // 429

@@ -24,6 +24,8 @@ interface ConnectionState {
   agents: Record<string, AgentState>;
   /** Per-agent counter bumped when its transcript grows. */
   transcriptRev: Record<string, number>;
+  /** Bumped when an edit revises an agent's history; its reader refetches from the start (FS-01.R61). */
+  revisionEpoch: Record<string, number>;
   heldRev: Record<string, number>;
   setLink: (link: PhoneLink) => void;
   bump: () => void;
@@ -35,6 +37,7 @@ export const useConnection = create<ConnectionState>((set) => ({
   revision: 0,
   agents: {},
   transcriptRev: {},
+  revisionEpoch: {},
   heldRev: {},
   setLink: (link) =>
     set((state) => ({
@@ -363,8 +366,13 @@ function open(gen: number) {
   });
   stream.addEventListener("new_message", (event) => {
     if (gen !== generation || hydratingAgents) return;
-    const id = parse(event)?.agent_id;
+    const message = parse(event);
+    const id = message?.agent_id;
     if (!id) return;
+    if ((message?.data as { type?: string } | undefined)?.type === "conversation_revision") {
+      useConnection.setState((state) => state.agents[id] ? { revisionEpoch: { ...state.revisionEpoch, [id]: (state.revisionEpoch[id] ?? 0) + 1 } } : state);
+      return;
+    }
     queueMessageRefresh(id);
   });
 }

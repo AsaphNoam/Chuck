@@ -175,7 +175,7 @@ func steerError(err error) *runtime.APIError {
 		return apiError(runtime.CodeConflict, "no message is held for this agent")
 	case errors.Is(err, runtime.ErrHeldChanged):
 		return apiError(runtime.CodeHeldChanged, "held message changed; reload before steering")
-	case errors.Is(err, runtime.ErrHistoryUnavailable), errors.Is(err, runtime.ErrTurnInFlight):
+	case errors.Is(err, runtime.ErrHistoryUnavailable), errors.Is(err, runtime.ErrTurnInFlight), errors.Is(err, runtime.ErrEditInProgress):
 		// The same recoverable refusals Send reports: nothing reached the agent.
 		return sessionOpError(err)
 	default:
@@ -741,6 +741,13 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	includeMeta := r.URL.Query().Get("include_meta") == "true"
 	native := s.currentNativeSession(id)
+	// The active revision is read before history: a later commit is a
+	// subsequent revision whose event the reader then sees (TS-03.R91).
+	revision, err := s.stateStore.HistoryRevision(id)
+	if err != nil {
+		writeAPIError(w, apiError(runtime.CodeInternal, "read history revision"))
+		return
+	}
 	// A tailnet read is always windowed, even when the phone names no limit
 	// (FS-20.R13); loopback callers opt in with limit or before_seq.
 	if limit > 0 || beforeSeq > 0 || remoteFrom(r.Context()) != nil {
@@ -756,7 +763,9 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		tw.unretained = s.unretainedPermissions(id)
-		writeJSON(w, http.StatusOK, tw.response(id))
+		body := tw.response(id)
+		body["history_revision"] = revision
+		writeJSON(w, http.StatusOK, body)
 		return
 	}
 	events, err := transcript.ReadFile(s.configStore.Home(), id, transcript.ReadOptions{
@@ -770,7 +779,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 	for i := range events {
 		s.decorateTurnEnd(&events[i], native)
 	}
-	body := map[string]any{"agent_id": id, "events": events}
+	body := map[string]any{"agent_id": id, "events": events, "history_revision": revision}
 	// A live request whose record did not commit rides beside history, never
 	// in it, so the desktop prompt survives a reload (TS-03.R73).
 	if unretained := s.unretainedPermissions(id); len(unretained) > 0 {
@@ -1108,6 +1117,9 @@ func sessionOpError(err error) *runtime.APIError {
 		return apiError(runtime.CodeNotFound, "agent not started")
 	case errors.Is(err, runtime.ErrTurnInFlight):
 		return apiError(runtime.CodeConflict, "a turn is already in flight")
+	case errors.Is(err, runtime.ErrEditInProgress):
+		// Refused before acceptance: the draft stays with the person (TS-01.R51).
+		return apiError(runtime.CodeEditInProgress, "Nothing was sent: this conversation is being edited. Your message is kept — send it once the edit finishes.")
 	case errors.Is(err, runtime.ErrHistoryUnavailable):
 		// A definite refusal: nothing reached the agent and the draft stays
 		// with the person; Stop and approvals remain available (FS-03.R99).

@@ -635,6 +635,10 @@ func (s *Server) Start(ctx context.Context) error {
 	sweepCtx, stopSweep := context.WithCancel(ctx)
 	defer stopSweep()
 	s.recoverIncompleteLaunches()
+	// Open edits settle before ordinary reconciliation admits work (TS-02.R69).
+	if s.registry != nil {
+		s.recoverEdits()
+	}
 	s.startReconciliationSweep(sweepCtx)
 	if err := s.stateStore.RecoverQuotaClaims(); err != nil {
 		ln.Close()

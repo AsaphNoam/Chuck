@@ -111,6 +111,9 @@ type RuntimeCapabilities struct {
 	BackgroundTaskStop bool  `json:"background_task_stop"`
 	FileChangeReports  bool  `json:"file_change_reports"`
 	SessionFailure     bool  `json:"session_failure"`
+	// CompleteTurnFork is the packaged adapter's private complete-turn fork
+	// proof (TS-04.R113); legacy snapshots default to false.
+	CompleteTurnFork bool `json:"complete_turn_fork"`
 }
 
 // AttachmentCapabilities is the same bounded input affordance on session reads
@@ -221,6 +224,12 @@ type AgentState struct {
 	AttachmentCapabilities *AttachmentCapabilities `json:"attachment_capabilities,omitempty"`
 	// Clone is the Clone affordance (FS-01.R36, TS-03.R43); always present.
 	Clone CloneAffordance `json:"clone"`
+	// HistoryRevision is the active conversation revision; Edit is the live
+	// agent-level gate for last-message Edit, and EditOperation names an edit
+	// that still owns the conversation (FS-01.R61, TS-03.R91).
+	HistoryRevision int64           `json:"history_revision"`
+	Edit            CloneAffordance `json:"edit"`
+	EditOperation   *EditOperation  `json:"edit_operation,omitempty"`
 
 	State      string  `json:"state"`
 	Detail     string  `json:"detail"`

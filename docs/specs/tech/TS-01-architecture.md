@@ -805,7 +805,7 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   parked or finished continuation frees its agent for the next task; a cancelled quota wait is
   not re-armed by a later failed turn; the writer inventory enforces the fixture-only exceptions.
 
-**R51 (planned) — Last-message editing is one same-agent lifecycle transition.** For
+**R51 (implemented 2026-11-20; packaged live receipts owed; see EDIT-STOP finding) — Last-message editing is one same-agent lifecycle transition.** For
 FS-01.R61, the server coordinates Edit through the existing lifecycle claim, runtime idle-turn
 reservation and generation-scoped start/teardown seams. The reservation excludes Send, Steer,
 held promotion and autonomous turn starts until edit preparation commits or aborts. Validate

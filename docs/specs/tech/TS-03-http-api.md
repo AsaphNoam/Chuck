@@ -1462,7 +1462,7 @@ data: {}
 Pagination uses `limit` and `offset` where exposed. Query parsing rejects malformed booleans and
 integers instead of silently applying defaults.
 
-**R90 (planned) — Edit is an idempotent current-conversation operation.** For FS-01.R61,
+**R90 (implemented 2026-11-20) — Edit is an idempotent current-conversation operation.** For FS-01.R61,
 POST /api/sessions/{agent_id}/edit-last accepts
 {request_id, message_seq, expected_revision, text}. It keeps the original message's attachment
 descriptors, validating their retained bytes through the normal attachment path, and applies
@@ -1483,13 +1483,17 @@ Existing Stop and turn Cancel target the edit transition under TS-01.R51. Recove
 TS-02.R69's edit-aware receipt handoff; a precommit aborted edit cannot become an appended
 ordinary Send, and postcommit recovery cannot apply a second revision.
 
-**R91 (planned) — Message actions and revision reads share server-owned eligibility.** For
-FS-01.R60–R62, transcript responses carry an active history_revision (zero for legacy history)
-and each root text message has optional message_actions with edit and fork entries
-{available, reason?, through_seq?}. A fork target is the completed root turn containing that
-message, including its final sent message; an unfinished turn has an unavailable reason.
-Edit appears only on the latest person's message. The server applies TS-01.R51 and TS-04.R113
-checks rather than trusting client inference. Absence of an affordance means unavailable.
+**R91 (implemented 2026-11-20) — Message actions and revision reads share server-owned eligibility.** For
+FS-01.R60–R62, transcript responses carry an active history_revision (zero for legacy history).
+Eligibility inputs are server-computed and live: each root turn_end carries R86's `fork`
+marker, and agent snapshots carry `edit: {available, reason?}` (the agent-level gate) and
+`runtime_capabilities.complete_turn_fork`. Clients only locate the turn: a fork target is the
+completed root turn containing the message, including its final sent message, and an unfinished
+turn has an unavailable reason. Edit appears only on the latest person's message; a later
+message also needs the previous turn's `fork` marker and the complete-turn capability. The
+edit route re-applies TS-01.R51 and TS-04.R113 checks rather than trusting client inference.
+*As built 2026-11-20:* this replaces the planned per-message `message_actions` field, which
+could not stay current on live events without republishing earlier messages.
 The clone route's existing through_seq behavior remains R86. Legacy compose_from_seq remains
 compatible as the old clone-and-compose API; the new UI never routes current-conversation Edit
 through it.

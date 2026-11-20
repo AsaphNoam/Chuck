@@ -76,9 +76,20 @@ func (c *ChatRuntime) openFork(ctx context.Context, as *agentState, spec LaunchS
 	}
 	var body struct {
 		SessionID string `json:"sessionId"`
+		Meta      struct {
+			Chuck struct {
+				CompleteTurn *completeTurnProof `json:"completeTurn"`
+			} `json:"chuck"`
+		} `json:"_meta"`
 	}
 	if json.Unmarshal(res, &body) != nil || body.SessionID == "" {
 		return "", nil, fmt.Errorf("runtime: session/fork returned no sessionId")
+	}
+	// Edit keeps an earlier turn only when the adapter proves it forked that
+	// whole native turn, including trailing tool results (TS-04.R113).
+	if spec.Fork.InPlace && point != nil && !body.Meta.Chuck.CompleteTurn.matches(point.MessageID) {
+		c.deleteForkedSession(as, body.SessionID)
+		return "", nil, &ForkRefusal{Reason: ForkReasonIncompleteTurn}
 	}
 	// Pinned claude-agent-acp 0.85.1 forks only the SDK persistence and never
 	// registers the new session, ignoring MCP/directories; open it through the
@@ -113,6 +124,22 @@ func (c *ChatRuntime) openFork(ctx context.Context, as *agentState, spec LaunchS
 		}
 	}
 	return body.SessionID, res, nil
+}
+
+// completeTurnVersion is the private complete-turn proof version Chuck reads
+// from the packaged adapters (TS-04.R113).
+const completeTurnVersion = 1
+
+// completeTurnProof is the packaged adapter's fork-response attestation that
+// the fork retained the entire native turn ending at sourceMessageId.
+type completeTurnProof struct {
+	Version         int    `json:"version"`
+	SourceMessageID string `json:"sourceMessageId"`
+	Complete        bool   `json:"complete"`
+}
+
+func (p *completeTurnProof) matches(messageID string) bool {
+	return p != nil && p.Version == completeTurnVersion && p.Complete && messageID != "" && p.SourceMessageID == messageID
 }
 
 // ForkRefusal is a fork Chuck declined or could not prove; the clone route
@@ -253,6 +280,7 @@ const (
 	ForkReasonUnverifiedAdapter = "This agent's adapter version is not verified to fork at a chosen turn."
 	ForkReasonNotTurnBoundary   = "Forking needs a completed turn."
 	ForkReasonProofFailed       = "The provider's fork did not end at the chosen turn, so no agent was created."
+	ForkReasonIncompleteTurn    = "This agent's adapter could not prove it kept the complete earlier turn; update to the supported package to edit later messages."
 )
 
 // messageTracker fingerprints the latest agent message by its standard ACP

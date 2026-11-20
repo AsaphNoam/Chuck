@@ -276,6 +276,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const { data: roles } = useRoles();
   const agent = useConnection((state) => state.agents[agentId]);
   const rev = useConnection((state) => state.transcriptRev[agentId] ?? 0);
+  const epoch = useConnection((state) => state.revisionEpoch[agentId] ?? 0);
   const heldRev = useConnection((state) => state.heldRev[agentId] ?? 0);
   const link = useConnection((state) => state.link);
   const offline = link !== "connected";
@@ -394,10 +395,11 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const generation = useRef(0);
 
   const transcript = useQuery({
-    queryKey: ["transcript", agentId, rev, earlier?.anchor],
+    queryKey: ["transcript", agentId, rev, earlier?.anchor, epoch],
     queryFn: () => getTranscriptWindow(agentId, { limit: TRANSCRIPT_PAGE, sinceSeq: earlier?.anchor }),
     enabled: chat,
-    placeholderData: (prev) => prev?.agent_id === agentId ? prev : undefined,
+    // An edited history never keeps its replaced window as a placeholder.
+    placeholderData: (prev, previousQuery) => prev?.agent_id === agentId && previousQuery?.queryKey[4] === epoch ? prev : undefined,
   });
   const liveStart = transcript.data?.events[0]?.seq;
   const gap = !!earlier && !transcript.isPlaceholderData && !!transcript.data?.has_more && earlier.recoveredLiveStart !== liveStart;
@@ -593,6 +595,19 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     void recover();
   }, [agentId, gap, gapRetry, earlier, liveStart]);
 
+  // An edit revised this conversation: drop older windows and read from the start.
+  const seenEpoch = useRef(epoch);
+  useEffect(() => {
+    if (seenEpoch.current === epoch) return;
+    seenEpoch.current = epoch;
+    generation.current++;
+    setEarlier(null);
+    setGapRetry(0);
+    setLoadingEarlier(false);
+    loadingEarlierRef.current = false;
+    scrollAnchor.current = null;
+  }, [epoch]);
+
   useEffect(() => {
     generation.current++;
     setEarlier(null);
@@ -731,6 +746,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
       </div>
       {chat && tab !== "manage" && <PhoneAnnotationButton sourceId={agentId} onOpen={() => setTrayOpen(true)} />}
       <PhoneAnnotations delivery={delivery} open={trayOpen} focusNewest={focusNewest} onClose={closeTray} />
+      {epoch > 0 && transcript.isError && <p className="phone-error" role="alert">Could not reload the edited conversation: {errorText(transcript.error)}</p>}
       {!agent.running && tab !== "manage" && error && <p className="phone-error" role="alert">{error}</p>}
       {tab === "files" && <section className="phone-section phone-files" aria-label="Files">
         <h2 ref={filesHeading} tabIndex={-1}>Files</h2>
