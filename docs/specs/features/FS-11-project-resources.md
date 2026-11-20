@@ -155,9 +155,9 @@ repository change or commit.
   may be designed separately.
 - Repository-resident directories, cloud synchronization, full-text search, access control beyond
   the current same-user model, and configurable locations are out of scope.
-- R11–R16 shipped 2026-11-20. The project file menu composes its own actions with the shared
-  copy feedback because Copy path is absolute while reveal and preview take the root-relative
-  path; chat menus use the shared `webLinkActions` composition. The A8/A9 recovery and boundary
+- R11–R16 shipped 2026-11-20. The project file menu and chat menus share the `fileActions`
+  composition; the project passes an absolute copy path while reveal and the HTML tab take the
+  root-relative path. The A8/A9 recovery and boundary
   cases are proven by server and component tests; the rendered journey covers the list, preview,
   CSV and HTML tab. The shared dialog entrance animation does not yet honour reduced motion.
 

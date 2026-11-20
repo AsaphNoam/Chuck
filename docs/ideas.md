@@ -365,6 +365,36 @@ Example:
     claims can fail, so a later 409 leaves that Edit aborted.
   Define acceptance, decision, journal append, selection, publication, dispatch, Stop, Cancel,
   restart and repair with the reader view and admission rule at each step.
+- **One owner rule for the file reader, its menus and focus.** From the Browse project files
+  review's inventory (PROJECT-FILES-7, 2026-11-20). PROJECT-FILES-1–6 were patched: the dialog
+  keeps its requested scope, a project switch remounts the scoped dashboard, Close/Escape return
+  to **Files**, a keyboard row menu focuses its first action and returns to the row, the file
+  viewer claims a rendered link so one menu opens, and chat and project menus share
+  `fileActions`. Writers of the displayed file: `useFileReader` (`FileViewer.tsx`) resets on
+  `path` only and has a per-read token; tab hosts (`FileTabsReader key=owner`), the project
+  preview (`key=projectId`), the standalone preview page (`key=project/path`) and
+  `ScopedProjectView key=id` remount by key; `useFileTabRoute` (`?file=`, Back/Forward) and the
+  route-less phone `useFileTabSet` drive tab selection. Focus movers: the project dialog, Focus
+  file dialog and Think Tank sources dialog restore focus; tab close refocuses the strip;
+  `onEmptied` returns to the transcript (desktop), the Files heading (phone) or nowhere (Think
+  Tank). Menu owners: FileViewer header/body/HTML bridge, SanitizedMarkdown links,
+  AnnotationContextMenu (Transcript, ReaderWorkspace, Think Tank), FileTabs tab strip, FilesTab
+  rows, the project row menu and the Think Tank files list. Missing or divergent rules
+  (code-read, not reproduced):
+  - an `agentId` or loader change without a path change re-reads but keeps the old loaded view,
+    and the loader is not a dependency; correctness rests on every caller keying the reader;
+  - stale-read fencing differs: reader token, the dialog's request counter, `FilesTab`'s
+    unmount-only guard (a quick agent change can land late data), none in the tab hooks;
+  - only the project row menu returns focus from a keyboard menu; the viewer, tab strip,
+    FilesTab, Markdown and annotation menus never focus an item or restore focus, and focus drops
+    to the body when the focused reader node unmounts;
+  - one-menu-per-right-click uses three mechanisms (`claimWebLink` microtask claim,
+    `stopPropagation` in the tab strip, plain `preventDefault`); TranscriptView's `openMenu`
+    returns early without claiming;
+  - Escape layering differs by dialog: DOM `.context-menu` check (Focus file, project dialog),
+    per-state check (Think Tank), plus every menu's own window listener.
+  Define the reader's identity (owner, loader, path) and reset rule, one focus-return contract
+  for keyboard-opened menus and emptied readers, and one claim rule for nested menus.
 
 ## Ideas being defined
 

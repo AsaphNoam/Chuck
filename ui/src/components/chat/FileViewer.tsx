@@ -305,7 +305,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
   // Rendered only the path (FS-13.R25).
   const currentSelection = () => !reader.editing && view.status === "loaded" && !view.file.image && !showFormatted && !showHtml && !showTable ? selectionDraft(bodyRef.current, view.file.path, showRendered) : null;
 
-  const openFileMenu = (x: number, y: number) => setMenu({ x, y, actions: webLinkActions(shownPath, pushError, onOpenInBrowser, revealInFinder) });
+  const openFileMenu = (x: number, y: number, target = shownPath) => setMenu({ x, y, actions: webLinkActions(target, pushError, onOpenInBrowser, revealInFinder) });
   useEffect(() => { setMenu(null); }, [shownPath, view.status, rendered]);
 
   const openSelectionMenu = (event: MouseEvent<HTMLDivElement>) => {
@@ -314,8 +314,10 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
       event.preventDefault();
       onSelectionMenu({ x: event.clientX, y: event.clientY, text: selected.text, draft: selected.draft, link: claimWebLink(event) ?? (isHtml ? shownPath : undefined) });
     } else if (isHtml || revealInFinder) {
+      // A right-click on a rendered link is claimed here, so the one menu that
+      // opens acts on the linked file, not the file being read (FS-03.R119, INV §2).
       event.preventDefault();
-      openFileMenu(event.clientX, event.clientY);
+      openFileMenu(event.clientX, event.clientY, claimWebLink(event) ?? shownPath);
     }
   };
 

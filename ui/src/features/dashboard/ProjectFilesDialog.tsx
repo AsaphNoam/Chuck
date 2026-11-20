@@ -4,8 +4,7 @@ import { getProjectResourceFile, getProjectResourceFiles, revealProjectFileInFin
 import { FileViewerView, useFileReader } from "../../components/chat/FileViewer";
 import { MenuPortalContext, PointerContextMenu, type PointerMenuState } from "../../components/ui/PointerContextMenu";
 import type { FileLink } from "../../components/chat/renderers/filePath";
-import { copyText } from "../../lib/copyText";
-import { isHtmlPath } from "../../lib/linkActions";
+import { fileActions, isHtmlPath } from "../../lib/linkActions";
 import { openProjectFileTab } from "../../lib/projectFileTab";
 import { useRevealSupported } from "../../lib/revealInFinder";
 import { useUiStore } from "../../store/uiStore";
@@ -39,7 +38,14 @@ const errorText = (error: ApiError) => error.code === "resource_scan_busy"
   ? "Other file lists are being read right now. Try again in a moment."
   : error.message || "The file list could not be read.";
 
-export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: { projectId: string; title: string; resourceDir: string; onClose: () => void }) {
+export function ProjectFilesDialog({ projectId, title, resourceDir, onClose, returnFocus }: {
+  projectId: string;
+  title: string;
+  resourceDir: string;
+  onClose: () => void;
+  /** Close and Escape return focus here, the dashboard's Files button (FS-11.R13). */
+  returnFocus?: React.RefObject<HTMLElement>;
+}) {
   const pushError = useUiStore((state) => state.pushError);
   const revealSupported = useRevealSupported();
   const [content, setContent] = useState<HTMLDivElement | null>(null);
@@ -54,14 +60,18 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: {
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScroll = useRef(0);
   const request = useRef(0);
+  // The scope of the latest catalog request, kept through loading and failure
+  // so Refresh and Retry repeat it and a folder change knows what is in flight.
+  const [scope, setScope] = useState("");
 
   // One catalog per open or Refresh. A response is fenced by request number, so
   // a superseded or post-close read never replaces the list (TS-08.R172). A
   // broad catalog that hit a limit lets a chosen folder read its own catalog.
-  const load = useCallback((scope: string) => {
+  const load = useCallback((next: string) => {
     const id = ++request.current;
+    setScope(next);
     setState({ status: "loading" });
-    getProjectResourceFiles(projectId, scope).then(
+    getProjectResourceFiles(projectId, next).then(
       (catalog) => { if (request.current === id) setState({ status: "loaded", catalog }); },
       (error: ApiError) => { if (request.current === id) setState({ status: "error", error }); },
     );
@@ -69,7 +79,6 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: {
   useEffect(() => { load(""); return () => { request.current++; }; }, [load]);
 
   const catalog = state.status === "loaded" ? state.catalog : null;
-  const scopedLoad = catalog !== null && catalog.folder !== "" && catalog.folder === folder;
   const folders = useMemo(() => (catalog?.entries ?? []).filter((entry) => entry.kind === "directory").map((entry) => entry.path).sort(), [catalog]);
   const scoped = useMemo(() => (catalog?.entries ?? []).filter((entry) => entry.kind !== "directory" && inFolder(entry.path, folder)), [catalog, folder]);
   const knownTypes = useMemo(() => [...new Set(scoped.map((entry) => fileType(entry.name)))].sort((a, b) => typeLabel(a).localeCompare(typeLabel(b))), [scoped]);
@@ -78,14 +87,17 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: {
     (types.length === 0 || types.includes(fileType(entry.name)))
     && (needle === "" || entry.path.toLowerCase().includes(needle)),
   ), [scoped, types, needle]);
-  const folderMissing = folder !== "" && catalog !== null && !scopedLoad && !folders.includes(folder);
+  const folderMissing = folder !== "" && catalog !== null && catalog.folder === "" && !folders.includes(folder);
 
+  // Only a complete, loaded root catalog narrows a folder locally; any other
+  // state requests the chosen scope, so a pending or failed read never leaves
+  // the table showing a different scope than the selector (TS-08.R172).
   const chooseFolder = (next: string) => {
     setFolder(next);
-    if (catalog?.partial && next !== "") load(next);
-    else if (scopedLoad) load("");
+    const rootComplete = scope === "" && catalog !== null && !catalog.partial;
+    if (next === "" ? scope !== "" : !rootComplete) load(next);
   };
-  const refresh = () => load(scopedLoad ? folder : "");
+  const refresh = () => load(scope);
   const showAll = () => { setFolder(""); load(""); };
 
   const openPreview = (entry: ResourceEntry) => {
@@ -105,20 +117,21 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: {
     (row ?? searchRef.current)?.focus();
   }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const actionsFor = (entry: ResourceEntry): PointerMenuState["actions"] => [
-    { label: "Copy path", select: () => void copyText(`${resourceDir}/${entry.path}`, pushError) },
-    ...(revealSupported && entry.kind === "file" ? [{ label: "Open in Finder", select: () => {
-      void revealProjectFileInFinder(projectId, entry.path).catch((error: unknown) => pushError("Could not open in Finder", error instanceof Error ? error.message : "Finder could not reveal that file"));
-    } }] : []),
-    ...(entry.kind === "file" && isHtmlPath(entry.name) ? [{ label: "Open in new tab", select: () => openProjectFileTab(projectId, entry.path) }] : []),
-  ];
-  const openMenu = (entry: ResourceEntry, x: number, y: number) => setMenu({ x, y, actions: actionsFor(entry) });
+  // Copy path is absolute; reveal and the HTML tab take the root-relative path
+  // within this project's scope (FS-11.R16, TS-08.R173).
+  const actionsFor = (entry: ResourceEntry) => fileActions(pushError, {
+    path: entry.path,
+    copyPath: `${resourceDir}/${entry.path}`,
+    open: entry.kind === "file" && isHtmlPath(entry.name) ? { label: "Open in new tab", run: (path) => openProjectFileTab(projectId, path) } : undefined,
+    reveal: revealSupported && entry.kind === "file" ? (path) => revealProjectFileInFinder(projectId, path) : undefined,
+  });
+  const openMenu = (entry: ResourceEntry, x: number, y: number, returnFocus?: HTMLElement) => setMenu({ x, y, actions: actionsFor(entry), returnFocus });
   const rowKey = (event: KeyboardEvent<HTMLTableRowElement>, entry: ResourceEntry) => {
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openPreview(entry); }
     else if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.preventDefault();
       const box = event.currentTarget.getBoundingClientRect();
-      openMenu(entry, box.left + 24, box.bottom);
+      openMenu(entry, box.left + 24, box.bottom, event.currentTarget);
     }
   };
   const searchKey = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -137,14 +150,16 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: {
           data-variant="default"
           aria-describedby={undefined}
           onOpenAutoFocus={(event) => { event.preventDefault(); searchRef.current?.focus(); }}
-          onEscapeKeyDown={(event) => { if (menu) event.preventDefault(); }}
+          onCloseAutoFocus={(event) => { event.preventDefault(); returnFocus?.current?.focus(); }}
+          // Escape closes an open menu first, the row menu or the preview's own (FS-11.R13).
+          onEscapeKeyDown={(event) => { if (content?.querySelector(".context-menu")) event.preventDefault(); }}
         >
           <header className="project-files-header">
             <Dialog.Title data-slot="title">Files · {title}</Dialog.Title>
             <Dialog.Close asChild><button type="button" className="ad-button-secondary">Close</button></Dialog.Close>
           </header>
           <MenuPortalContext.Provider value={content}>
-            {preview && <ProjectFilePreview projectId={projectId} link={preview} onBack={backToFiles} onOpenFile={setPreview} />}
+            {preview && <ProjectFilePreview key={projectId} projectId={projectId} link={preview} onBack={backToFiles} onOpenFile={setPreview} />}
             <div className="project-files-browser" hidden={preview !== null}>
               <div className="project-files-controls">
                 <label className="project-files-folder">
@@ -179,7 +194,12 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose }: {
                 onRetry={refresh}
                 onShowAll={showAll}
                 onOpen={openPreview}
-                onMenu={(entry, event) => { event.preventDefault(); openMenu(entry, event.clientX, event.clientY); }}
+                onMenu={(entry, event) => {
+                  event.preventDefault();
+                  // The keyboard menu's own contextmenu echo keeps its focus target.
+                  if (menu?.returnFocus && menu.returnFocus === event.currentTarget) return;
+                  openMenu(entry, event.clientX, event.clientY);
+                }}
                 onRowKey={rowKey}
               />
             </div>

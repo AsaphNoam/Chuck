@@ -2,7 +2,7 @@ import React from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { ScopedProjectDashboard } from "./ProjectDashboard";
@@ -182,6 +182,123 @@ describe("Project Files dialog", () => {
     catalogBody = { ...catalog, partial: true, partial_reason: "unreadable" };
     fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
     expect(await within(dialog).findByText(/some entries could not be read/)).toBeInTheDocument();
+  });
+
+  // TS-08.R172: the table always shows the scope the selector asked for, through a
+  // pending folder read and a failed scoped Refresh.
+  it("keeps the requested scope through a pending folder read and a failed Retry", async () => {
+    const requests: string[] = [];
+    let release = () => {};
+    let folderFails = false;
+    server.use(http.get("/api/projects/app/resource-files", async ({ request }) => {
+      const folder = new URL(request.url).searchParams.get("folder") ?? "";
+      requests.push(folder);
+      if (folder === "") return HttpResponse.json({ ...catalog, partial: true, partial_reason: "limit" });
+      if (folderFails) return HttpResponse.json({ error: { code: "file_unreadable", message: "that folder could not be read" } }, { status: 422 });
+      await new Promise<void>((resolve) => { release = resolve; });
+      return HttpResponse.json({ project_id: "app", folder, partial: false, entries: [entry("docs/Plan.md")] });
+    }));
+    const dialog = await openFiles();
+    const picker = within(dialog).getByRole("combobox", { name: "Folder" });
+    fireEvent.change(picker, { target: { value: "docs" } });
+    await waitFor(() => expect(requests).toEqual(["", "docs"]));
+    fireEvent.change(picker, { target: { value: "" } });
+    await waitFor(() => expect(requests).toEqual(["", "docs", ""]));
+    await within(dialog).findByRole("table");
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(rowNames(dialog)).toHaveLength(8);
+
+    folderFails = true;
+    fireEvent.change(picker, { target: { value: "docs" } });
+    expect(await within(dialog).findByText("that folder could not be read")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(requests).toEqual(["", "docs", "", "docs", "docs"]));
+  });
+
+  // FS-11.R13, INV §1: a route change to another project closes the dialog, so
+  // neither a loaded nor an in-flight preview of the old project stays visible.
+  it("closes at a project switch with a loaded or an in-flight preview", async () => {
+    let release = () => {};
+    let hold = false;
+    server.use(
+      http.get("/api/projects", () => HttpResponse.json({
+        app: { title: "App", color: [100, 116, 139], cwd: "/tmp/app", add_dirs: [], context_prompt: "", archived: false, resource_dir: "/r/app" },
+        other: { title: "Other", color: [100, 116, 139], cwd: "/tmp/other", add_dirs: [], context_prompt: "", archived: false, resource_dir: "/r/other" },
+      })),
+      http.get("/api/projects/app/resource-file", async ({ request }) => {
+        const path = new URL(request.url).searchParams.get("path")!;
+        if (hold) await new Promise<void>((resolve) => { release = resolve; });
+        return HttpResponse.json({ agent_id: "", project_id: "app", path, size: 6, mod_time: "", line_count: 1, content: "# Plan", truncated: false, language: "markdown", editable: false, edit_refusal: "project_read_only" });
+      }),
+    );
+    function Switch({ to }: { to: string }) {
+      const navigate = useNavigate();
+      return <button type="button" onClick={() => navigate(to)}>{`go ${to}`}</button>;
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/project/app"]}>
+          <Switch to="/project/other" />
+          <Switch to="/project/app" />
+          <Routes><Route path="project/:project" element={<ScopedProjectDashboard />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    for (const pending of [false, true]) {
+      hold = pending;
+      fireEvent.click(await screen.findByRole("button", { name: "Files" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(await within(dialog).findByText("Plan.md"));
+      if (!pending) await within(dialog).findByRole("heading", { name: "Plan" });
+      fireEvent.click(screen.getByRole("button", { name: "go /project/other", hidden: true }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(screen.queryByRole("heading", { name: "Plan" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "go /project/app" }));
+    }
+  });
+
+  // FS-11.R13/R16: dismissal returns focus to Files; a keyboard menu takes focus
+  // and returns it to its row on Escape or an action.
+  it("returns focus to Files on Close and Escape, and to the row from a keyboard menu", async () => {
+    let dialog = await openFiles();
+    const files = screen.getByRole("button", { name: "Files", hidden: true });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(files).toHaveFocus());
+
+    fireEvent.click(files);
+    dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("table");
+    const row = dialog.querySelector<HTMLElement>('tr[data-path="tool.ts"]')!;
+    row.focus();
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    await waitFor(() => expect(document.activeElement?.closest(".context-menu")).not.toBeNull());
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(row).toHaveFocus();
+    fireEvent.keyDown(row, { key: "ContextMenu" });
+    await waitFor(() => expect(document.activeElement?.closest(".context-menu")).not.toBeNull());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Copy path" }));
+    expect(row).toHaveFocus();
+
+    fireEvent.keyDown(row, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(files).toHaveFocus());
+  });
+
+  it("closes the preview's own file menu on Escape before the dialog", async () => {
+    const dialog = await openFiles();
+    fireEvent.click(dialog.querySelector('tr[data-path="page.html"]')!);
+    await within(dialog).findByRole("button", { name: "Back to files" });
+    const header = dialog.querySelector<HTMLElement>(".file-viewer-path")!;
+    fireEvent.contextMenu(header, { clientX: 5, clientY: 6 });
+    expect(dialog.querySelector(".context-menu")).not.toBeNull();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(dialog.querySelector(".context-menu")).toBeNull());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("shows an empty shared folder for a project with no files", async () => {

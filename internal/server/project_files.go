@@ -43,6 +43,8 @@ type resourceEntry struct {
 	Name    string  `json:"name"`
 	Kind    string  `json:"kind"`
 	ModTime *string `json:"mod_time"`
+	// modNanos is the full-precision timestamp the order uses (FS-11.R12).
+	modNanos int64
 }
 
 type resourceCatalog struct {
@@ -61,6 +63,10 @@ var errResourceRootMissing = errors.New("project resources missing")
 // and the project leaf as real, owner-only directories without following a
 // symlink at either level (TS-05.R30). The caller owns the returned descriptor.
 func (s *Server) openProjectResourceRoot(projectID string) (int, *runtime.APIError, error) {
+	// The id is validated before any config lookup sees it (TS-05.R30, INV §14).
+	if !config.ValidSlug(projectID) {
+		return -1, apiError(runtime.CodeNotFound, "no such project: "+projectID), nil
+	}
 	if _, err := s.configStore.ReadProject(projectID); err != nil {
 		if errors.Is(err, config.ErrNotFound) {
 			return -1, apiError(runtime.CodeNotFound, "no such project: "+projectID), nil
@@ -168,10 +174,13 @@ func (s *Server) handleProjectResourceFiles(w http.ResponseWriter, r *http.Reque
 	dir := root
 	if len(parts) > 0 {
 		if dir, err = openatNoFollow(root, parts, true); err != nil {
-			if errors.Is(err, unix.ENOENT) {
+			switch {
+			case errors.Is(err, unix.ENOENT):
 				refuse(apiError(runtime.CodeNotFound, "that folder no longer exists"))
-			} else {
+			case errors.Is(err, unix.ENOTDIR), errors.Is(err, unix.ELOOP):
 				refuse(apiError(runtime.CodeNotAFile, "that path does not name a folder"))
+			default:
+				refuse(apiError(runtime.CodeFileUnreadable, "that folder could not be read"))
 			}
 			return
 		}
@@ -228,8 +237,10 @@ func (sc *resourceScan) walk(dirfd int, rel string, depth int) {
 				continue
 			}
 			entry := resourceEntry{Path: entryPath, Name: name, Kind: resourceKind(uint32(st.Mode))}
-			mod := time.Unix(st.Mtim.Unix()).UTC().Format(time.RFC3339)
+			modTime := time.Unix(st.Mtim.Unix())
+			mod := modTime.UTC().Format(time.RFC3339)
 			entry.ModTime = &mod
+			entry.modNanos = modTime.UnixNano()
 			encoded, _ := json.Marshal(entry)
 			if sc.bytes+len(encoded)+1 > resourceScanMaxBytes {
 				sc.limited = true
@@ -283,8 +294,8 @@ func sortResourceEntries(entries []resourceEntry) {
 			return false
 		case a.ModTime != nil && b.ModTime == nil:
 			return true
-		case a.ModTime != nil && *a.ModTime != *b.ModTime:
-			return *a.ModTime > *b.ModTime
+		case a.ModTime != nil && a.modNanos != b.modNanos:
+			return a.modNanos > b.modNanos
 		case a.Name != b.Name:
 			return a.Name < b.Name
 		default:

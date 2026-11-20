@@ -138,6 +138,45 @@ func TestProjectResourceCatalogOrderAndScope(t *testing.T) {
 	}
 }
 
+// Times within one second order at full precision; an exact tie falls back to
+// name, then path (FS-11.R12).
+func TestProjectResourceCatalogSubsecondOrder(t *testing.T) {
+	_, h, root := projectFilesServer(t)
+	second := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	for rel, at := range map[string]time.Time{
+		"sub/a-older.md":   second.Add(100 * time.Millisecond),
+		"sub/b-newer.md":   second.Add(900 * time.Millisecond),
+		"sub/c-tie.md":     second.Add(50 * time.Millisecond),
+		"sub/x/c-tie.md":   second.Add(50 * time.Millisecond),
+		"sub/d-tie-too.md": second.Add(50 * time.Millisecond),
+	} {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(p, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cat, rec := getCatalog(t, h, "/api/projects/p1/resource-files?folder=sub")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("catalog: %d %s", rec.Code, rec.Body)
+	}
+	var files []string
+	for _, e := range cat.Entries {
+		if e.Kind == "file" {
+			files = append(files, e.Path)
+		}
+	}
+	want := []string{"sub/b-newer.md", "sub/a-older.md", "sub/c-tie.md", "sub/x/c-tie.md", "sub/d-tie-too.md"}
+	if strings.Join(files, ",") != strings.Join(want, ",") {
+		t.Fatalf("file order = %v, want %v", files, want)
+	}
+}
+
 func TestProjectResourceCatalogRefusals(t *testing.T) {
 	srv, h, root := projectFilesServer(t)
 	for target, status := range map[string]int{
@@ -168,7 +207,18 @@ func TestProjectResourceCatalogRefusals(t *testing.T) {
 		t.Fatalf("catalog created the legacy root: %v", err)
 	}
 
-	// An unreadable nested folder makes the scan partial, not failed.
+	// An invalid id stops before the config lookup: a directory where its
+	// config file would be makes that lookup fail as internal (TS-05.R30).
+	home := filepath.Dir(filepath.Dir(root))
+	if err := os.MkdirAll(filepath.Join(home, "projects", "BAD.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, rec := getCatalog(t, h, "/api/projects/BAD/resource-files"); rec.Code != http.StatusNotFound {
+		t.Fatalf("invalid id reached the config lookup: %d %s", rec.Code, rec.Body)
+	}
+
+	// An unreadable nested folder makes the scan partial, not failed; scoped to
+	// that folder it is unreadable, not a wrong kind (FS-11.R14).
 	locked := filepath.Join(root, "locked")
 	if err := os.Mkdir(locked, 0o000); err != nil {
 		t.Fatal(err)
@@ -179,6 +229,12 @@ func TestProjectResourceCatalogRefusals(t *testing.T) {
 		if rec.Code != http.StatusOK || !cat.Partial || cat.PartialReason != "unreadable" {
 			t.Fatalf("unreadable folder: %d %s", rec.Code, rec.Body)
 		}
+		if _, rec = getCatalog(t, h, "/api/projects/p1/resource-files?folder=locked"); !strings.Contains(rec.Body.String(), `"file_unreadable"`) {
+			t.Fatalf("scoped unreadable folder: %d %s", rec.Code, rec.Body)
+		}
+	}
+	if _, rec = getCatalog(t, h, "/api/projects/p1/resource-files?folder=Notes.md"); !strings.Contains(rec.Body.String(), `"not_a_file"`) {
+		t.Fatalf("file as folder: %d %s", rec.Code, rec.Body)
 	}
 	_ = os.Chmod(locked, 0o700)
 

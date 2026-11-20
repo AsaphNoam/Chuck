@@ -1537,8 +1537,10 @@ Paths are root-relative with `/` separators and preserve the original spelling. 
 carries `project_id` and the requested `folder`. Return an explicit `partial` flag and
 `partial_reason` (`unreadable` for skipped entries, `limit` for a reached limit, which wins). A missing legacy resource root returns a complete empty
 catalog for the default scope. An invalid project, unusable root, or missing selected folder uses
-the existing typed errors. The request changes no filesystem state. Sort file rows by modification
-time descending, then name and path ascending. Provide a null-safe client schema and use
+the existing typed errors; a selected folder that exists but cannot be opened is
+`file_unreadable`, distinct from `not_a_file` for a file or link. The request changes no filesystem
+state. Sort file rows by the filesystem's full-precision modification time descending (the wire
+`mod_time` is second precision), then name and path ascending. Provide a null-safe client schema and use
 `Cache-Control: no-store` for catalog and content responses.
 
 Bound one catalog request to 20,000 visited entries, 8 MiB encoded response, 64 directory levels

@@ -314,12 +314,15 @@ export function ScopedProjectDashboard() {
   // member. On the `!project && hasAgents` fall-through (a live agent naming a
   // removed project) the New Agent picker must stay available so a launch can
   // target a real project instead of the rejected route id (INV §10).
-  return <ScopedProjectView id={id} project={project} />;
+  // Keyed by project: a route change to another project resets every dialog,
+  // menu and pending read the old project owned (FS-11.R13, INV §1).
+  return <ScopedProjectView key={id} id={id} project={project} />;
 }
 
 function ScopedProjectView({ id, project }: { id: string; project?: Omit<ProjectResponse, "project"> }) {
   const [forkOpen, setForkOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const filesButton = useRef<HTMLButtonElement>(null);
   const [bgMenu, setBgMenu] = useState<BackgroundMenu | null>(null);
   const bgMenuPlacement = useMenuPlacement(bgMenu);
   const openersRef = useRef<CardGridOpeners | null>(null);
@@ -359,7 +362,7 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
         {project?.repo_backed && !project.archived && (
           <button type="button" onClick={() => setForkOpen(true)}>New worktree project</button>
         )}
-        {project && <button type="button" onClick={() => setFilesOpen(true)}>Files</button>}
+        {project && <button type="button" ref={filesButton} onClick={() => setFilesOpen(true)}>Files</button>}
       </div>
       <CardGrid projectID={id} fixedProject={project ? id : undefined} projectTitle={project?.title || UNAVAILABLE_PROJECT} openersRef={openersRef} />
       {/* Rooms follow the agent grid, one card per row (FS-02.R71). */}
@@ -375,7 +378,7 @@ function ScopedProjectView({ id, project }: { id: string; project?: Omit<Project
         <WorktreeForkDialog sourceID={id} sourceTitle={project.title} onClose={() => setForkOpen(false)} />
       )}
       {filesOpen && project && (
-        <ProjectFilesDialog projectId={id} title={project.title} resourceDir={project.resource_dir} onClose={() => setFilesOpen(false)} />
+        <ProjectFilesDialog projectId={id} title={project.title} resourceDir={project.resource_dir} returnFocus={filesButton} onClose={() => setFilesOpen(false)} />
       )}
     </section>
   );

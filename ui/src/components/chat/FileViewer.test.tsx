@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { FileViewer, FileViewerView, useFileReader } from "./FileViewer";
 import { draftKey, putDraft } from "../../features/fileTabs/drafts";
+import { RevealInFinderProvider, resetRevealSupportedForTest } from "../../lib/revealInFinder";
 import { CONVERSATION_FILE_KEYS, readFileTarget, writeFileTarget } from "../../features/fileTabs/useFileTabRoute";
 
 const GO_SOURCE = "package state\n\nfunc Read() {}\n";
@@ -329,6 +330,31 @@ describe("FileViewer", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // FS-03.R119: a right-click on a local link in a rendered Markdown file opens one
+  // menu, and its Open in Finder reveals the linked file, not the file being read.
+  it("opens one menu for a rendered file link and reveals the linked file", async () => {
+    resetRevealSupportedForTest();
+    const reveals: string[] = [];
+    let capabilities = false;
+    server.use(
+      http.get("/api/capabilities", () => { capabilities = true; return HttpResponse.json({ reveal_in_finder: true }); }),
+      http.post("/api/sessions/:id/file/reveal-in-finder", async ({ request }) => {
+        reveals.push(((await request.json()) as { path: string }).path);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    render(<RevealInFinderProvider agentId="a_1"><FileViewer agentId="a_1" link={{ path: "docs/notes.md" }} onClose={vi.fn()} onOpenFile={vi.fn()} /></RevealInFinderProvider>);
+    await screen.findByRole("heading", { name: "Title" });
+    await waitFor(() => expect(capabilities).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "other" }), { clientX: 5, clientY: 6 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelectorAll(".context-menu")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Open in Finder" }));
+    await waitFor(() => expect(reveals).toEqual(["docs/other.go"]));
+    resetRevealSupportedForTest();
   });
 
   it("offers Rendered/Source for Markdown only, with the rendered form going through the sanitized renderer", async () => {
