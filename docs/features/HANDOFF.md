@@ -39,7 +39,11 @@ None.
 
 ## Resolved decisions
 
-- Message action design lives in the FS-01 draft and the matching **Ideas being defined** entry.
+- Message action design is ready in
+  [message-hover-actions-and-current-conversation-edit.md](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
+  (FS-01.R60–R62/A42–A44). The last sent message has Copy/Edit/Fork; other messages have
+  Copy/Fork as top-right hover icons. Fresh-context design review found no material findings
+  on 2026-11-20; the change is waiting to start.
 - Keep the current HTTP error envelopes and provider model-ID ownership. Revisit each
   compatibility contract when there is a concrete caller need and a migration plan.
 - Keep **Open agent** hidden after a failed launch or resume. Explain the pause and offer

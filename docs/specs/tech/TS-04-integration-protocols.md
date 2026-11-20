@@ -1787,6 +1787,49 @@ R72's 60 seconds. Key it to the catalog revision and resolved executable identit
 results against config change, removal or executable replacement. Retry rechecks the affected
 target even after a failed observation. There is no periodic provider probe or credential cache.
 
+**R113 (planned) — Edit prepares an isolated replacement context before changing selection.**
+For FS-01.R61, extend the native fork/start seam to prepare an unsent candidate for the same
+Chuck agent. For a later user turn, resolve its preceding active completed root turn and use
+R65/R110's native fork with the frozen source session and execution contract. Prove the
+candidate contains the complete retained turn and no part of the replaced turn before it
+can be committed. Retain R110's identity/version gate and replay fingerprint check, and extend
+the packaged adapter's boundary resolution where the final assistant-message id precedes
+kept native tool-result or structured-output entries. Such a cut must include those entries
+through the actual retained turn boundary. A text fingerprint alone proves only the visible
+reply endpoint, so it cannot authorize a known incomplete native boundary. An unprovable
+boundary returns edit_unavailable. Record the adapter-specific complete-turn proof and its
+packaged-provider receipt before enabling that adapter's Edit affordance.
+
+The packaged adapter extends R110's existing fork response with private
+_meta.chuck.completeTurn = {version:1, sourceMessageId, complete:true} only after resolving and
+forking the entire retained native turn. Chuck requires an exact match with the requested
+source point plus the existing target replay proof. For Claude, resolve to the last retained
+chain entry, including an end-turn tool_result or structured_output attachment, and reject
+an ambiguous attribution to a turn. For Codex, use the containing lastTurnId and verify the
+native fork retains that complete turn. This extends the existing packaged fork patch with a
+contract test per adapter and no new RPC method. A missing proof keeps later-turn Edit
+unavailable with a reason to use the supported package. Plain Clone and message Fork retain
+R110's existing compatibility. The initialize result advertises the optional private
+_meta.chuck.completeTurnForkVersion = 1; normalize it into stored runtime capabilities with
+legacy default zero for preflight affordances and verify it again on the preparing peer.
+First-turn Edit uses the fresh-context path below.
+
+For the first user turn, prepare a fresh native session with exactly the source's frozen
+initial configuration and startup context, including HistoryPrimer and guidance-delivery
+semantics. Use the existing fresh-start composer and preparation-purpose rules rather than a
+fabricated empty fork or current mutable defaults. An unavailable original startup artifact
+makes the context unprovable and returns an unavailable-context reason. Candidate setup/load
+replay is private, turn-free and bounded by ordinary startup deadlines. It must not write a new Chuck agent,
+copy or discard the source transcript, perform work, or add a user-visible clone marker.
+After the lifecycle transition commits, its ordinary person turn receives the revised text
+and original attachments under the same input request id. Before commit, failed candidates
+are stopped through normal teardown and their provider session is deleted best-effort, with
+bounded diagnostic evidence for failed cleanup. The old native session remains retained for
+recovery under the existing native-history policy. This choice reuses verified fork/start
+machinery to preserve source context before commit; it makes no claim that direct native
+rewind is impossible. Verify retained facts, omitted old reply, first-turn context and
+complete native kept-turn payloads on each supported packaged adapter (FS-01.A43; INV §2/§4/§12/§15/§20).
+
 ## 3. Interfaces & data shapes
 
 R97's internal check operation accepts a sanitized frozen provider selection (backend type,

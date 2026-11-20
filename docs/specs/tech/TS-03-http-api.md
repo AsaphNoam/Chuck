@@ -1462,6 +1462,48 @@ data: {}
 Pagination uses `limit` and `offset` where exposed. Query parsing rejects malformed booleans and
 integers instead of silently applying defaults.
 
+**R90 (planned) — Edit is an idempotent current-conversation operation.** For FS-01.R61,
+POST /api/sessions/{agent_id}/edit-last accepts
+{request_id, message_seq, expected_revision, text}. It keeps the original message's attachment
+descriptors, validating their retained bytes through the normal attachment path, and applies
+the existing Send text/body bounds. The authenticated local operator owns this operation;
+agent tokens and paired-phone credentials cannot call it. No provider identifiers are accepted.
+Validate and reserve through TS-01.R51. Stale message/revision returns 409 edit_conflict;
+an honest unavailable state returns 422 edit_unavailable with a bounded reason and next action.
+Malformed input uses existing validation errors. These refusals precede acceptance and effects.
+
+Acceptance returns 202 with {agent_id, request_id, phase, revision, delivery, reason?}, identifying
+the accepted operation rather than completed model work. GET
+/api/sessions/{agent_id}/edit-last/{request_id} returns the same receipt-backed result and the
+recoverable replacement input for its local operator. Repeating the same request id and exact
+payload returns that operation; another payload under it returns 409 request_conflict.
+After acceptance, failures update the operation result, including whether the original or
+revised conversation is active, and never masquerade as a side-effect-free refusal.
+Existing Stop and turn Cancel target the edit transition under TS-01.R51. Recovery follows
+TS-02.R69's edit-aware receipt handoff; a precommit aborted edit cannot become an appended
+ordinary Send, and postcommit recovery cannot apply a second revision.
+
+**R91 (planned) — Message actions and revision reads share server-owned eligibility.** For
+FS-01.R60–R62, transcript responses carry an active history_revision (zero for legacy history)
+and each root text message has optional message_actions with edit and fork entries
+{available, reason?, through_seq?}. A fork target is the completed root turn containing that
+message, including its final sent message; an unfinished turn has an unavailable reason.
+Edit appears only on the latest person's message. The server applies TS-01.R51 and TS-04.R113
+checks rather than trusting client inference. Absence of an affordance means unavailable.
+The clone route's existing through_seq behavior remains R86. Legacy compose_from_seq remains
+compatible as the old clone-and-compose API; the new UI never routes current-conversation Edit
+through it.
+
+Agent/session snapshots carry the current history_revision and any nonterminal edit's
+request id, phase and bounded reason. A committed conversation_revision event invalidates
+transcript, preview, usage, search and action projections before replacement input events.
+Desktop, phone, operator transcript reads/follow and reconnect hydration replace their active
+view from the committed revision; a cursor alone must not retain a superseded reply.
+Readers unable to consume the revision event fail visibly and refetch rather than silently
+dropping it. Keep raw audit bytes in retained storage and explicit immutable references under
+TS-02.R70. No revision event exposes native session ids or replays control effects. Update
+Go/TypeScript payloads, clients and the event registry together (INV §1/§10/§11/§15/§19).
+
 ## 4. Invariants
 
 - **INV §1:** reconnect/hydration resets connection-scoped derived state.

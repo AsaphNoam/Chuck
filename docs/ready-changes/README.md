@@ -51,6 +51,10 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`message-hover-actions-and-current-conversation-edit.md`](message-hover-actions-and-current-conversation-edit.md)
+  — subtle Copy/Fork icons on every desktop message, last-message Edit in the current
+  conversation, and revision-aware recovery and readers.
+
 - [`instant-first-chat-and-backend-setup.md`](instant-first-chat-and-backend-setup.md) — detect
   Claude and Codex on first run, give each provider one Settings action, and link setup errors to
   the affected backend.

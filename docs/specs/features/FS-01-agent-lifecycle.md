@@ -188,15 +188,36 @@ orphaned processes.
   Fork opens R58's existing confirmation. Dismissing an action returns focus to its opener when
   that opener is still present.
 
-- **R61 (planned; history treatment awaiting decision) — Edit the current conversation.**
+- **R61 (planned) — Edit the last sent message in the current conversation.**
   Replaces R58's Edit behavior when implemented. Edit is offered only on the last sent message;
   Fork remains available on that message through R60. Edit opens that last message for
   editing within the current conversation, retaining its agent identity and current chat route.
-  The person explicitly submits the edited text or cancels. Cancellation preserves the
-  conversation. Successful editing updates both the visible conversation and the context used
-  by the provider. A failure preserves the edited text and explains the next valid action.
-  The treatment of the selected message's old reply and later turns is an open decision in
-  section 6; its acceptance and technical design must be completed before this change is ready.
+  "Last sent message" means the most recent root message sent by the person, including after
+  the agent has replied. The message must have begun the latest conversation turn. While that
+  turn is active, an input or permission is pending, background work remains active, a quota
+  continuation is pending, or a task or room still owns the agent's execution, Edit explains
+  what must settle first. Messages injected into a running turn explain why that turn's
+  starting message is required. A stopped chat can prepare an edit from its retained session.
+  Unsupported or unprovable provider context, unavailable attachment bytes, and a stale message
+  selection refuse visibly before changing the conversation. The first sent message is editable
+  using the conversation's original starting context.
+
+  Edit uses an inline text editor with **Save and regenerate** and **Cancel**, preserving the
+  ordinary composer's existing draft. Existing attachments remain attached and visible in the
+  editor. An inline explanation states that saving replaces the last sent message and its
+  reply, and that tool actions and file changes already made remain in effect. Saving retains
+  the preceding conversation, replaces the selected message and its turn in the active
+  conversation, and generates a new reply. The superseded version remains in Chuck's retained
+  local transcript for recovery for the conversation's existing lifetime. Normal chat,
+  search and subsequent provider context use the active version. Cancellation before submission
+  preserves the conversation. New input arriving before submission makes the selection stale.
+
+  Acceptance is shown promptly as editing in progress. Before the replacement commits, failure
+  restores the original active conversation and keeps the edited text recoverable. After the
+  replacement commits, Stop retains the revised conversation and stops its response. A quota
+  hold follows the normal recovery rules for the revised turn. A delivery whose outcome is
+  unknown explains that uncertainty and requires explicit recovery before another submission.
+  Repeating a submission or reconnecting cannot create a second replacement or a duplicate turn.
 
 - **R62 (planned) — Copy a message from its hover actions.** Copy writes the selected message's
   full text to the clipboard, including Markdown source when present. On success the icon
@@ -861,12 +882,19 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
   visibility, and message association. *Verify by* transcript component tests and rendered
   desktop checks with deterministic data.
 
-- **A43 (planned; history decision pending)** (R61) — Edit and submit a sent message, verifying
-  that the same agent identity and chat route remain and that the provider receives the revised
-  conversation. Cancel an edit and verify the transcript is preserved. Fail submission and
-  verify edited text remains recoverable with an actionable error. Complete the checks for the
-  old reply and later turns after section 6's decision. *Verify by* lifecycle/API tests and a
-  rendered edit journey with a deterministic provider, plus bounded packaged-provider receipts.
+- **A43 (planned)** (R61) — In a three-turn chat, edit the latest sent message after its reply
+  and verify the same agent identity, name, settings and route, retained first two turns,
+  revised third message and newly generated reply. Ask the provider to identify the revised
+  message and an earlier fact to prove both the cut and kept context. Check first-message edit,
+  retained attachments, stopped-chat edit, repeat edits and the unchanged ordinary composer
+  draft. Cancel before submission. Race submission with Send, Steer and an autonomous turn.
+  Exercise each unavailable case and verify its explanation and absence of mutation.
+  Fail or restart before and after preparation, commit and prompt dispatch; retain the
+  superseded raw version, show one active revision after reconnect, and never send twice.
+  Stop and quota-hold the revised response. Verify search, context reads, existing source
+  references and all chat readers agree on active versus retained history. *Verify by*
+  migration, runtime/API and receipt fault-injection checks, rendered desktop journeys, and
+  bounded packaged Claude/Codex receipts proving both retained context and excluded old reply.
 
 - **A44 (planned)** (R62) — Copy a user message and a Markdown assistant message by pointer
   and keyboard. Independently read the clipboard and compare the complete source text,
@@ -876,14 +904,11 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
 
 ## 6. Deviations & open decisions
 
-- **Current-conversation Edit (R61, being defined 2026-11-19).** The operator specified that Edit
-  acts on the current conversation and is offered only for the last message. Every message,
-  including the last, offers Fork and Copy as light, borderless icons at the top right on hover.
-  The draft interprets "last message" as the most recent message sent by the person, including
-  after a reply; confirmation of that interpretation is pending. Fork resolves any selected
-  message to the end of its completed turn. Define the treatment of the last message's old
-  reply on edit, retention of replaced history, and recovery after a partially failed edit
-  before technical design is ready.
+- **Message actions (planned R60–R62; design approved to finish 2026-11-20).** The approved
+  current-conversation Edit supersedes R58's clone-based Edit when implemented. Fork and Copy
+  are offered on every root text message; the latest sent message additionally offers Edit.
+  R61 defines replacement and retained history. R58 remains the shipped behavior until this
+  change lands. Phone and terminal retain their current action scope.
 
 - **Provider quota recognition repair (implemented 2026-10-30):** R55/R57/A37/A39 extend
   terminal-RPC recognition and reset extraction for direct continuation at reset plus one minute.

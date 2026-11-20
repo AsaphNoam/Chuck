@@ -805,6 +805,37 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   parked or finished continuation frees its agent for the next task; a cancelled quota wait is
   not re-armed by a later failed turn; the writer inventory enforces the fixture-only exceptions.
 
+**R51 (planned) — Last-message editing is one same-agent lifecycle transition.** For
+FS-01.R61, the server coordinates Edit through the existing lifecycle claim, runtime idle-turn
+reservation and generation-scoped start/teardown seams. The reservation excludes Send, Steer,
+held promotion and autonomous turn starts until edit preparation commits or aborts. Validate
+the active history revision, last user message and turn ownership under that reservation,
+before acceptance. Refuse task/room ownership, unresolved input/permission, active background work,
+quota continuation and unsupported history without changing any of them.
+
+Prepare a provider session containing exactly the retained context through TS-04.R113.
+Replace the old runtime under the same agent identity using the shared frozen-start composer,
+with old-generation teardown complete before new registration. Keep the candidate unable to
+send prompts, receive work or publish replay while preparing. Its provisional start records
+the owned process generation in the edit transition and defers ordinary session-snapshot,
+session_meta and visible status publication until the edit commit; reuse existing start hooks
+with this explicit staging policy. TS-02.R69 owns the durable decision
+across the journal and session snapshot. Before that decision, abort restores the original
+selection/history and cleans up the candidate. After it, recovery completes the revised selection
+before any Resume, input or activation is admitted. A post-commit provider-send uncertainty
+belongs to the existing receipt's unknown state and requires explicit recovery.
+
+The accepted receipt owns the replacement input throughout. It passes the same request id to
+ordinary person-turn admission after the revised history/session commit. Do not let session
+startup, history publication or HTTP retry submit it a second time. Stop serializes against the
+decision: before it, abort preparation; after it, stop the revised response and release any
+undispatched replacement receipt. Before the decision, Stop also stops the source agent;
+turn Cancel aborts the edit and restores the source's previous running/stopped condition.
+After the decision, turn Cancel uses the revised turn's normal cancellation semantics.
+Time-bounded preparation uses the existing startup deadline,
+and late callbacks recheck both operation and launch generation (INV §1/§2/§4/§5/§15/§19/§23).
+Verify FS-01.A43 through failure injection on both sides of the decision and send boundary.
+
 ## 3. Interfaces & data shapes
 
 **Runtime interface** (`internal/runtime/runtime.go`, minimum surface):

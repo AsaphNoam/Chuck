@@ -2206,7 +2206,8 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   menu beside Copy and Annotate (`forkActionFor`, `ForkConfirmDialog`), on the agent page and the
   dashboard chat pane; `PointerContextMenu` items gained `disabled` and an accessible description.
   The quota disclosure is a native `<details>` with a `<meter>` per known window, rendered in
-  the presentation fixture; the rendered fork-action journey is still owed.
+  the presentation fixture; the rendered fork-action journey is still owed. Planned R171
+  replaces this item's message-action presentation and clone-based Edit.
 - **R163 — Local prompt echo reconciles by request id.** For FS-03.R118 the transcript
   store pairs an unsequenced local `user_text` with its sequenced event by comparing the echo's
   `message_id` to the event's `request_id`, in both arrival orders and in the reconciliation tail.
@@ -2294,6 +2295,30 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   launch and workspace controls. Use the existing request and mutation clients. *Verify:*
   FS-14.A72/A74 through serialized requests and rendered authoring, validation, and launch journeys
   on the affected desktop and phone surfaces (INV §2/§3/§5/§8/§11/§13/§17/§20).
+
+- **R171 (planned) — Desktop message icons share actions with the existing context menu.**
+  For FS-01.R60–R62, TranscriptView's root user/assistant text-message composition renders Copy
+  and Fork icons, plus Edit only on the latest sent message, using TS-03.R91's affordances.
+  The same action descriptors drive its hover row and existing right-click menu. Reuse the
+  current semantic tokens and compact icon primitive styling, with transparent resting fill,
+  muted stroke, no border and accessible target sizes. Reveal at the top right on message
+  hover or focus-within, retain visibility while crossing to controls, and show quiet hover
+  feedback and a clear keyboard focus indicator. Accessible names, tooltips and disabled
+  reasons remain legible in every supported appearance. Reserve enough room to avoid
+  covering the first line, code selection or attachment controls. Use no new preference,
+  icon library or animation dependency; honor reduced motion for any existing transition.
+
+  Edit opens a feature-owned inline textarea seeded from the selected message, retaining
+  attachments and the ordinary composer draft. Use existing textarea, button, validation and
+  input-recovery primitives for Save and regenerate, Cancel, progress and failures.
+  Keep the same request id after accepted submission or a lost response, query its receipt
+  before allowing another save, and consume the committed history revision before showing the
+  replacement turn. A stale selection preserves the local edit and offers reloading current
+  history. Fork keeps its existing confirmation and navigation. Copy uses the shared
+  clipboard helper with success feedback and the existing visible failure path. Phone and
+  terminal gain no action row but must consume revised history through TS-03.R91.
+  Verify FS-01.A42–A44 on the agent page and dashboard pane at the supported desktop floor,
+  with long content, all appearances, keyboard focus and reduced motion (INV §1/§2/§8/§10/§13).
 
 ## 3. Interfaces & data shapes
 

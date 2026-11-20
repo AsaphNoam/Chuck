@@ -1043,6 +1043,68 @@ search stays within a small multiple of its idle time; the store's write paths s
 second writer. Check the separation by holding the history connection for the entire point
 read and write, then verify that the history handle rejects writes.
 
+**R69 (planned) — Edit retains an immutable history and one recoverable commit decision.**
+For FS-01.R61 and TS-01.R51, extend the existing input receipt with an edit action and store its
+bounded transition metadata in a related record keyed by the same agent/request id. The receipt
+remains the sole owner of replacement text and attachment descriptors. Store the payload hash,
+expected active revision and source message, superseded sequence range, old and candidate native
+session selections, launch generation, phase, boundary-event identity, dispatch-started flag
+and bounded result. Transition metadata is at most 8 KiB and never copies transcript content.
+Allow one nonterminal edit or committed undispatched replacement per agent.
+Phases are preparing, committing, committed and aborted;
+committed input retains the ordinary receipt's independent delivery state. Retain records and
+superseded transcript bytes for the conversation's existing lifetime, deleting them with it.
+Use a forward-only additive migration, defaulting existing conversations to revision zero.
+
+Preparation persists acceptance before provider preparation. A single SQLite transaction records
+the irreversible committing decision and its candidate selection, after candidate proof and
+start readiness. A synced, idempotent journal event conversation_revision then records
+{request_id, revision, replaces_from_seq, replaces_through_seq}. Its identity is allocated once,
+with uncertain writes handled under R52. Finish the session snapshot and committed phase in a
+SQLite transaction before publishing or dispatching input. Ordinary history/session reads and
+all admission paths reconcile or report editing while the decision is incomplete, so a reader
+cannot pair the new history with the old provider selection. Startup examines every nonterminal
+record before ordinary reconciliation: abort preparing, complete committing from its recorded
+decision, and restore committed delivery from its receipt. Never infer an abort from a lost
+HTTP connection. Repeated recovery detects an already-complete boundary by request id and never
+appends another or reuses sequences. A missing or uncertain boundary holds admission with an
+actionable history error until ordinary journal repair proves its outcome.
+Before entering ordinary prompt admission, durably mark dispatch started. Recovery may submit a
+known undispatched replacement once, under the same receipt and reservation. Once dispatch
+started, the ordinary receipt determines submitted, released, failed or unknown; a surviving
+prepared receipt is unknown and cannot be automatically resent.
+Recovery preserves the edit action: an aborted precommit edit hands its text to a newly
+validated edit successor, acknowledging the old receipt only after that successor accepts.
+After commit, recovery hands replacement input to the already-revised conversation and never
+creates another revision of the superseded source message. Unknown delivery keeps the existing
+explicit-recovery acknowledgement and warning.
+
+**R70 (planned) — Active history is a shared projection of retained revisions.** The journal
+keeps original bytes and monotonically increasing sequence ids. A conversation_revision hides
+the selected user message and its turn's events through the captured source tail from the
+active view, while keeping revision metadata and unrelated durable control/audit records.
+An event's historical identity, attachment ownership and generation are never rewritten.
+Implement one revision fold in internal/transcript for the ordinary read, bounded context,
+primer, clone-prefix and reindex paths; live projections consume the same committed boundaries.
+Apply all relevant revision boundaries before a since-seq or page filter, including on a
+reader that begins after the boundary it needs. Existing logs without revisions retain today's
+meaning. Explicit immutable source references continue to resolve their exact retained bytes
+under the existing authorization, while ordinary search and unpinned context use active history.
+Capture a consistent journal prefix and active revision for each read; an edit committed after
+that snapshot is a subsequent revision, rather than a mixed page. Hydration keeps the existing
+atomic snapshot/subscription ordering and applies any later invalidation.
+New excerpts bind to the revised active document digest; old search hits fail their existing
+digest check rather than silently moving.
+
+Search text, span provenance, previews and rollups rebuild together from active history through
+the existing per-conversation repair/index builder. A committed revision whose index repair
+fails marks that conversation's search projection unavailable until repaired; stale text is
+never returned as current. Journal truth remains committed. Reset live accumulators before
+indexing the replacement turn. The revision event is metadata, carries no native ids or message
+text, and never settles quota, task, room, mail or turn control. Retained audit records do not
+re-trigger any of those effects. Verify populated-store upgrades under both SQLite variants,
+repeat edits, suffix pagination, restart and failed reindex (FS-01.A43; INV §2/§7/§9/§11/§15/§17).
+
 ## 3. Interfaces & data shapes
 
 **R45 (implemented 2026-10-11) — Quota recovery is one bounded record per conversation.** For
