@@ -1503,6 +1503,9 @@ request id, phase and bounded reason. A committed conversation_revision event in
 transcript, preview, usage, search and action projections before replacement input events.
 Desktop, phone, operator transcript reads/follow and reconnect hydration replace their active
 view from the committed revision; a cursor alone must not retain a superseded reply.
+Operator follow treats a folded page's superseded range as continuous; when a revision reaches
+already-emitted output it emits that revision record first as the reset boundary, then the
+refreshed active view, so earlier sequences repeat only after the boundary.
 Readers unable to consume the revision event fail visibly and refetch rather than silently
 dropping it. Keep raw audit bytes in retained storage and explicit immutable references under
 TS-02.R70. No revision event exposes native session ids or replays control effects. Update

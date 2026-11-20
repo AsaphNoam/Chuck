@@ -99,7 +99,9 @@ func newAgentEditLastStatusCmd() *cobra.Command {
 }
 
 // operatorFollowRefetch re-reads the active transcript from the start after a
-// committed revision and emits it; original event ids and seqs are unchanged.
+// committed revision. The latest revision record is emitted first as the reset
+// boundary: every line after it replaces earlier output, with original event
+// ids and seqs unchanged.
 func operatorFollowRefetch(ctx context.Context, client *operatorClient, cmd *cobra.Command, id string, last *int64) error {
 	operatorFollowProgress(cmd, "conversation revised; re-reading active transcript")
 	data, err := client.Request(ctx, "GET", "/api/sessions/"+url.PathEscape(id)+"/transcript?include_meta=true", nil, nil)
@@ -110,13 +112,26 @@ func operatorFollowRefetch(ctx context.Context, client *operatorClient, cmd *cob
 	if err != nil {
 		return err
 	}
-	var high int64
-	for _, raw := range events {
+	boundary := -1
+	var boundarySeq int64
+	for i, raw := range events {
+		if seq, _, ok := operatorRevisionSpan(raw); ok && seq > boundarySeq {
+			boundary, boundarySeq = i, seq
+		}
+	}
+	if boundary < 0 {
+		return &operatorError{Code: "invalid_response", Message: "revised transcript lacks its revision record", ExitCode: 1}
+	}
+	if err := operatorFollowLine(cmd, events[boundary]); err != nil {
+		return err
+	}
+	high := boundarySeq
+	for i, raw := range events {
 		var e runtime.Event
 		if json.Unmarshal(raw, &e) != nil || e.Type == "" {
 			return &operatorError{Code: "invalid_response", Message: "durable event lacks sequence or type", ExitCode: 1}
 		}
-		if e.Seq == 0 && e.Type == runtime.EvSessionMeta {
+		if i == boundary || (e.Seq == 0 && e.Type == runtime.EvSessionMeta) {
 			continue
 		}
 		if err := operatorFollowLine(cmd, raw); err != nil {

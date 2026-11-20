@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func runEditCmd(t *testing.T, handler http.HandlerFunc, stdin string, args ...string) (string, string, error) {
@@ -120,22 +122,34 @@ func TestOperatorEditLastStatusQuery(t *testing.T) {
 	}
 }
 
-func TestOperatorFollowRefetchesActiveViewOnConversationRevision(t *testing.T) {
+// revisionFollowSeqs follows agent a and returns the emitted sequences in
+// order. pages[i] answers stream i's since_seq read, live[i] is stream i's tail
+// after hydration and full is the unbounded active view a reset re-reads.
+func revisionFollowSeqs(t *testing.T, pages, live []string, full string, target int) []int64 {
+	t.Helper()
 	marker := map[string]any{"agent_id": "__hydrated__", "data": map[string]bool{"hydrated": true}}
-	var fullReads int
+	var streams atomic.Int32
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/events":
+			n := int(streams.Add(1)) - 1
 			w.Header().Set("Content-Type", "text/event-stream")
-			w.WriteHeader(200)
 			_, _ = io.WriteString(w, operatorSSEEvent("state_update", marker))
+			if n < len(live) && live[n] != "" {
+				outer := map[string]any{"type": "new_message", "agent_id": "a", "data": json.RawMessage(live[n])}
+				_, _ = io.WriteString(w, operatorSSEEvent("new_message", outer))
+			}
 		case "/api/sessions/a/transcript":
-			if r.URL.Query().Has("since_seq") {
-				_, _ = io.WriteString(w, `{"agent_id":"a","events":[{"agent_id":"a","seq":1,"type":"user_message","data":{"text":"old"}},{"agent_id":"a","seq":2,"type":"conversation_revision","data":{"request_id":"r","revision":1,"replaces_from_seq":1,"replaces_through_seq":1}}]}`)
+			if !r.URL.Query().Has("since_seq") {
+				_, _ = io.WriteString(w, `{"agent_id":"a","events":[`+full+`]}`)
 				return
 			}
-			fullReads++
-			_, _ = io.WriteString(w, `{"agent_id":"a","history_revision":1,"events":[{"agent_id":"a","seq":2,"type":"conversation_revision","data":{"request_id":"r","revision":1,"replaces_from_seq":1,"replaces_through_seq":1}},{"agent_id":"a","seq":3,"type":"user_message","data":{"text":"new"}}]}`)
+			n := int(streams.Load()) - 1
+			page := ""
+			if n < len(pages) {
+				page = pages[n]
+			}
+			_, _ = io.WriteString(w, `{"agent_id":"a","events":[`+page+`]}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -143,15 +157,72 @@ func TestOperatorFollowRefetchesActiveViewOnConversationRevision(t *testing.T) {
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 	client := &operatorClient{HTTP: srv.Client(), BaseURL: srv.URL}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	out := &countOutput{cancel: cancel, target: 3}
+	out := &countOutput{cancel: cancel, target: target}
 	cmd := operatorFollowCmd(t, ctx, out)
+	cmd.SetErr(io.Discard)
 	if err := operatorFollow(cmd, client, "a", 0); err != nil {
-		t.Fatal(err)
+		t.Fatalf("follow: %v output=%q", err, out.buf.String())
 	}
-	s := out.buf.String()
-	if fullReads != 1 || !strings.Contains(s, `"text":"new"`) || !strings.Contains(s, `"seq":3`) {
-		t.Fatalf("reads=%d output=%q", fullReads, s)
+	var seqs []int64
+	for _, line := range strings.Split(strings.TrimSpace(out.buf.String()), "\n") {
+		var e struct {
+			Seq int64 `json:"seq"`
+		}
+		if json.Unmarshal([]byte(line), &e) != nil {
+			t.Fatalf("line %q", line)
+		}
+		seqs = append(seqs, e.Seq)
+	}
+	return seqs
+}
+
+const (
+	revUser1 = `{"agent_id":"a","seq":1,"type":"user_message","data":{"text":"old"}}`
+	revText2 = `{"agent_id":"a","seq":2,"type":"assistant_text","data":{"delta":"reply"}}`
+	revAnn3  = `{"agent_id":"a","seq":3,"type":"annotation","data":{"text":"kept"}}`
+	revText4 = `{"agent_id":"a","seq":4,"type":"assistant_text","data":{"delta":"more"}}`
+	revRev5  = `{"agent_id":"a","seq":5,"type":"conversation_revision","data":{"request_id":"r","revision":1,"replaces_from_seq":1,"replaces_through_seq":4}}`
+	revUser6 = `{"agent_id":"a","seq":6,"type":"user_message","data":{"text":"new"}}`
+)
+
+// The active view after the edit: the annotation stays inside the superseded
+// range and the revision follows a gap.
+const revActive = revAnn3 + "," + revRev5 + "," + revUser6
+
+func TestOperatorFollowInitialFoldedReadCrossesRetainedRecord(t *testing.T) {
+	got := revisionFollowSeqs(t, []string{revActive}, nil, revActive, 3)
+	if fmt.Sprint(got) != "[3 5 6]" {
+		t.Fatalf("seqs = %v", got)
+	}
+}
+
+func TestOperatorFollowReconnectResetsBeforeRefreshedView(t *testing.T) {
+	// Stream 1 emits 1–2 then ends; the reconnect page is folded past the
+	// cursor, so the retained annotation sits before the revision.
+	got := revisionFollowSeqs(t, []string{revUser1 + "," + revText2, revActive}, nil, revActive, 5)
+	if fmt.Sprint(got) != "[1 2 5 3 6]" {
+		t.Fatalf("seqs = %v; want reset boundary 5 before the refreshed view", got)
+	}
+}
+
+func TestOperatorFollowLiveEditResetsBeforeRefreshedView(t *testing.T) {
+	initial := revUser1 + "," + revText2 + "," + revAnn3 + "," + revText4
+	got := revisionFollowSeqs(t, []string{initial}, []string{revRev5}, revActive, 7)
+	if fmt.Sprint(got) != "[1 2 3 4 5 3 6]" {
+		t.Fatalf("seqs = %v; want reset boundary 5 before the refreshed view", got)
+	}
+}
+
+func TestOperatorContinuousSkipsOnlySupersededSpans(t *testing.T) {
+	spans := [][2]int64{{3, 5}, {6, 8}}
+	for _, c := range []struct {
+		last, seq int64
+		want      bool
+	}{{2, 3, true}, {2, 9, true}, {2, 10, false}, {1, 4, false}} {
+		if got := operatorContinuous(c.last, c.seq, spans); got != c.want {
+			t.Errorf("continuous(%d,%d)=%v", c.last, c.seq, got)
+		}
 	}
 }

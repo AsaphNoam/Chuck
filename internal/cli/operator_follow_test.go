@@ -122,13 +122,13 @@ func TestOperatorFollowEventRejectsGapAndSkipsDuplicate(t *testing.T) {
 	cmd.Flags().Bool("json", true, "")
 	cmd.SetOut(io.Discard)
 	last := int64(2)
-	if err := operatorFollowEvent(cmd, json.RawMessage(`{"seq":2,"type":"unknown","data":{}}`), &last); err != nil {
+	if err := operatorFollowEvent(cmd, json.RawMessage(`{"seq":2,"type":"unknown","data":{}}`), &last, nil); err != nil {
 		t.Fatal(err)
 	}
 	if last != 2 {
 		t.Fatalf("duplicate advanced sequence: %d", last)
 	}
-	if err := operatorFollowEvent(cmd, json.RawMessage(`{"seq":4,"type":"unknown","data":{}}`), &last); err == nil {
+	if err := operatorFollowEvent(cmd, json.RawMessage(`{"seq":4,"type":"unknown","data":{}}`), &last, nil); err == nil {
 		t.Fatal("gap accepted")
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -457,11 +458,22 @@ func operatorFollowCatchup(ctx context.Context, client *operatorClient, cmd *cob
 			return err
 		}
 	}
+	// A folded page keeps control records inside a superseded range and hides
+	// the rest, so collect the page's revisions before checking continuity.
+	var spans [][2]int64
+	for _, raw := range events {
+		if seq, span, ok := operatorRevisionSpan(raw); ok && seq > *last {
+			if span[0] <= *last {
+				return operatorFollowRefetch(ctx, client, cmd, id, last)
+			}
+			spans = append(spans, span)
+		}
+	}
 	for _, raw := range events {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := operatorFollowEvent(cmd, raw, last); err != nil {
+		if err := operatorFollowEvent(cmd, raw, last, spans); err != nil {
 			if operatorIsRevised(err) {
 				return operatorFollowRefetch(ctx, client, cmd, id, last)
 			}
@@ -491,9 +503,43 @@ func operatorFollowFrame(cmd *cobra.Command, f operatorSSEFrame, id string, last
 	if json.Unmarshal(f.data, &e) != nil {
 		return &operatorError{Code: "invalid_response", Message: "invalid durable event envelope", ExitCode: 1}
 	}
-	return operatorFollowEvent(cmd, e.Data, last)
+	return operatorFollowEvent(cmd, e.Data, last, nil)
 }
-func operatorFollowEvent(cmd *cobra.Command, raw json.RawMessage, last *int64) error {
+
+// operatorRevisionSpan returns a conversation revision's sequence and the
+// root range it supersedes.
+func operatorRevisionSpan(raw json.RawMessage) (int64, [2]int64, bool) {
+	var e runtime.Event
+	if json.Unmarshal(raw, &e) != nil || e.Type != runtime.EvConversationRevision {
+		return 0, [2]int64{}, false
+	}
+	var d runtime.ConversationRevisionData
+	if json.Unmarshal(e.Data, &d) != nil || d.ReplacesFromSeq < 1 || d.ReplacesThroughSeq < d.ReplacesFromSeq {
+		return 0, [2]int64{}, false
+	}
+	return e.Seq, [2]int64{d.ReplacesFromSeq, d.ReplacesThroughSeq}, true
+}
+
+// operatorContinuous reports whether every sequence between last and seq lies
+// in a superseded span, which an active read hides by design.
+func operatorContinuous(last, seq int64, spans [][2]int64) bool {
+	next := last + 1
+	for next < seq {
+		advanced := false
+		for _, s := range spans {
+			if next >= s[0] && next <= s[1] {
+				next = s[1] + 1
+				advanced = true
+			}
+		}
+		if !advanced {
+			return false
+		}
+	}
+	return true
+}
+
+func operatorFollowEvent(cmd *cobra.Command, raw json.RawMessage, last *int64, spans [][2]int64) error {
 	var e runtime.Event
 	if json.Unmarshal(raw, &e) != nil || e.Type == "" {
 		return &operatorError{Code: "invalid_response", Message: "durable event lacks sequence or type", ExitCode: 1}
@@ -510,10 +556,15 @@ func operatorFollowEvent(cmd *cobra.Command, raw json.RawMessage, last *int64) e
 	if e.Seq <= *last {
 		return nil
 	}
-	if e.Type == runtime.EvConversationRevision {
-		return errOperatorRevised
+	// A page's revisions arrive pre-checked in spans; any other revision whose
+	// range reaches the cursor supersedes emitted output: reset the consumer.
+	if _, span, ok := operatorRevisionSpan(raw); ok && !slices.Contains(spans, span) {
+		if span[0] <= *last {
+			return errOperatorRevised
+		}
+		spans = append(spans, span)
 	}
-	if e.Seq != *last+1 {
+	if !operatorContinuous(*last, e.Seq, spans) {
 		return operatorGap(*last, "missing durable sequence")
 	}
 	if err := operatorFollowLine(cmd, raw); err != nil {
