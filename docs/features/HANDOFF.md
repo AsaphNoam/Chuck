@@ -167,18 +167,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### EDIT-FLAKE — Edit lifecycle tests fail under full-suite load (seen 2026-11-20 at `a66c0f52`) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** — EDIT-FLAKE-1 (medium; FS-01.R60–R62, TS-01.R51, INV §5/§17). One `make test`
-  run (GOFLAGS=-p=1, clean worktree at `a66c0f52` plus the PROJECT-FILES fix, which touches no
-  runtime or Edit code) failed `TestEditStopAndCancelAfterDecision` and
-  `TestGroupAndPeerStopReachPreparingEdit` (`edit_interrupt_test.go:298,338`: Edit refused with
-  `edit_unavailable` “Wait for the agent to finish its current turn.”) and
-  `TestSendRefusedWhileEditOwnsTheConversation` (`edit_test.go:229`: reserve refused, “the agent
-  still has work in progress”). All three passed with `-count=3` alone, with and without the fix.
-  The tests appear to assume the previous turn has settled before Edit; under load it has not.
-  Find the ordering the fixtures depend on and control it, or repair the product ordering.
-
 ### STEER-HOLD — write-ahead Steer (verification pending) — **Fix model:** difficult — Codex Sol.
 
 - **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §15/§19). The repair is in
@@ -197,6 +185,7 @@ specs, live user state or unrelated dirty files changed.
   (`internal/server/queue_steer_test.go`); reservation checks runtime turn ownership under lock
   (`internal/runtime/edit_reservation.go`). Control that ordering to determine whether the
   fixture needs a settlement barrier or the published idle state is premature.
+  `TestGroupAndPeerStopReachPreparingEdit` failed the same way in the PROJECT-FILES closure run.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
