@@ -180,13 +180,6 @@ specs, live user state or unrelated dirty files changed.
   that exact request. The history therefore says the message was sent while the receipt offers it
   back as unsent. Keep the durable acceptance and recovery guarantees while making the transcript
   and search reflect the actual handoff. Use the controlled Stop schedule as a regression.
-- **Must fix** — QUEUED-TAIL-3 (trivial/easy; FS-12.R24, INV §13). A long uninterrupted URL or
-  path escapes the new card on the full agent page. The queued list uses the held text rule's
-  `white-space: pre-wrap` without a long-token wrap rule (`ui/src/components/chat/QueuedInput.tsx:9`,
-  `ui/src/styles/features/agent.css:1180,2336`). In Chromium a 1,323-character URL expanded the
-  830px transcript scroller to over 10,000px at the desktop floor and overflowed the card at
-  1440px as well. The expanded dashboard and phone kept the same input within the card. Wrap long
-  tokens in the desktop queued card and assert that its content fits the transcript at 1024px.
 - **Worth fixing** — QUEUED-TAIL-4 (medium; workflow §7, INV §19). The same subsystem received
   `119880aa` (moved assignment receipt and attachments) and `de246a42` (prompt identity and
   held-tail reconciliation) within 30 days. Before patching, inventory the writers and entry

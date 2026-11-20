@@ -1180,6 +1180,7 @@ a.agent-mini-card:focus-visible {
 .transcript-held-text {
   color: var(--ad-text-muted);
   margin: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
