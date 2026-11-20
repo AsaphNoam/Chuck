@@ -35,9 +35,10 @@ None.
 
 ## Decisions needing input
 
-- **Project Files:** Confirm desktop preview-only access, name/path search, and listing symbolic links
-  without following them. [FS-11.R11–R15/A6–A9](../specs/features/FS-11-project-resources.md#project-file-browser)
-  is drafted. Technical design follows confirmation.
+- **Project Files:** Confirm an all-folders default with a folder selector, a sandboxed HTML preview
+  in a new browser tab, and desktop-only shared-folder access without symbolic-link traversal.
+  [FS-11.R11–R16/A6–A10](../specs/features/FS-11-project-resources.md#project-file-browser) and
+  FS-03.R119–R120/A94–A95 cover the file browser, Finder and CSV. Technical design follows confirmation.
 
 ## Resolved decisions
 
