@@ -130,18 +130,19 @@ Example:
   2026-11-15). Each exit from a claimed turn gate decides on its own who ends the durable turn row,
   emits `turn_end`, settles the request receipt and runs or releases the held successor, and
   TS-01.R45 and INV §5/§19 state begin and end separately rather than as one exit matrix. EXEC-1–3
-  were patched one at a time. Divergent exits found:
-  - an idle Steer claims the gate with no turn row; `updateOwnedBusy` treats the claim as an owned
-    turn, so a tool frame writes `busy`, and `resolveSteerFallback` releases the gate with no
-    status write (EXEC-9, confirmed: `SteerMessage` → `claimTurnLocked`, `chat.go` ~820, ~1026);
+  were patched one at a time. EXEC-9 (idle Steer leaves `busy`) was fixed in `9493b929`.
+  TURN-STOP-1–3 closed in `adc47b71`; the Stop and process-exit inventory is recorded under
+  “One settlement rule for a stopped or exited process” below. This idea stays in the backlog
+  pending a current inventory of chat-turn exits. Historical leads to recheck:
   - Stop ends the row but emits no `turn_end`, while crash and normal completion do;
   - finishTurn's `!ended` branch and onTransportClosed's `stopped` branch assume Stop settles,
-    which holds only when `stopComplete` is set; a bare `shutdownProcess` skips every settlement;
+    which holds only when `stopComplete` is set; a bare `shutdownProcess` skips every settlement
+    (checked: every bare `shutdown()` caller is a start-failure or quota-probe path, so latent);
   - a quota block releases the gate but leaves the held message and Steer fallback in place with
     receipts `held`, and `SteerMessage` refuses until a later turn end or Stop;
-  - a refused begin ends the row but leaves an already `submitted` receipt to its caller:
-    `runReservedHeld` writes `failed`, Send and the registry return the error and leave it
-    `submitted`;
+  - a refused begin's receipt differs by caller (checked: `beginTurn`'s refusal now writes
+    `released` for every caller, so nothing stays `submitted`; `runReservedHeld` then also writes
+    `failed`);
   - an ordinary prompt's receipt is never moved past `submitted` in the runtime;
   - Stop's row end names the `execTurnID` captured after `finishTurn` may have cleared it;
   - after a failed turn-end write the row and status stay `running`/`busy` on an idle agent until
@@ -242,12 +243,6 @@ Example:
   EOF) in transport order and returns the single owner for row, status, `turn_end`, quota, mail,
   room and task; state Stop's rule for a delivered result; and make the exit hook and `turn_end`
   one signal for server-side settlement. Coordinate with the two entries above.
-
-## Ideas being defined
-
-These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
-the relevant feature and technical specifications; it does not change product code.
-
 - **One owner for a sent prompt's echo and the held tail.** From the request-ID matching review's
   inventory (PROMPT-4, 2026-11-15). PROMPT-1–3 were patched: one echo per request ID, both desktop
   surfaces share `useHeldProjection`, and a hold read begun before a Send's accepted hold
@@ -332,41 +327,11 @@ the relevant feature and technical specifications; it does not change product co
   Define acceptance, claim, record, provider write, Stop, Cancel, refusal, owner replacement,
   restart and recovery with the receipt and transcript write each makes and their order.
   Coordinate with the two entries above.
-- **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
-  the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
-  Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
-  missing data stays unknown and no conversation work is interrupted to retrieve it.
-  Prepared behavior: FS-09.R80–R81/A49–A50; technical observation contract TS-04.R89/TS-03.R61.
-  The operator confirmed a compact **Subscription quota** disclosure in each chat header,
-  separate from context usage. No placement decision remains.
-  Full passive snapshot/read/refresh is **TBD for both providers**, with ACP gaps below. Claude's
-  partial live events can supply an observed window; do not mistake them for a complete snapshot.
-  Pinned Claude ACP 0.85.1's SDK usage-control call has both windows, but `/usage` retrieves them
-  only in a queued `session/prompt` and returns Markdown (`dist/acp-agent.js:101`, `:1848`,
-  `:2698`; `dist/usage-markdown.js:1`, `:117`). Codex ACP 2.1.1 privately reads full snapshots but
-  only renders `/status` text (`dist/index.js:35250`, `:36069`); private update handling at
-  `:30460` returns no ACP event. Official releases/current source were also checked; a newer
-  version does not yet establish passive typed support. No command scraper, hidden turn, extra
-  authenticated provider client or new adapter patch is approved for this view. Define the
-  full passive delivery after verified ACP availability. Pinned live Claude utilization/reset
-  declarations have no explicit units; expose numeric percentages/time conversion only after
-  provider/primary-code evidence resolves them. No guessed percent scaling or epoch arithmetic.
-- **Live permission policy and provider-native autonomy modes.** Define a chat-page permission-mode
-  control and the requested defaults: an AgentDeck-owned “approve for me” policy for Codex and the
-  provider's automatic mode for Claude. Specify scope, persistence, provider mapping, whether a
-  running session can change policy safely, and how this relates to frozen role/global
-  `skip_permissions` and per-request Approve/Deny.
-- **Broader agent authority.** Agents can already create, list, read, retry and re-arm their own
-  tasks (TS-10.R34). Resuming or launching another agent without going through a task remains
-  undefined and needs its own authority design, as does creating several related tasks as one
-  unit, which TS-10 §5 excludes (multiple arms already provide fan-in/join). The selected peer
-  transcript-reading and human-approved Stop portion was promoted and implemented on 2026-10-16
-  (FS-06.R39–R44).
-- **Detached configuration import.** Define verified copyable fields/assets and provider injection
-  paths before implementing detached import. The API still returns 501; FS-08.R35 removed the
-  unavailable UI controls.
-- **Activity map.** Explore a repository/session activity view using server APIs only, with clear
-  privacy, scale, and normal-user value boundaries.
+
+## Ideas being defined
+
+These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
+the relevant feature and technical specifications; it does not change product code.
 
 ## ACP Wait-list
 
