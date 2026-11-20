@@ -95,13 +95,11 @@ They are not queued for `/fix`. The recorded text is in
 [`CR-A10-findings.md`](../archive/reviews/adversarial-2026-11-14/CR-A10-findings.md).
 
 - **Browse project files** (FS-11.R11–R16, FS-03.R119–R120, TS-03.R93–R94, TS-05.R30–R31,
-  TS-08.R172–R174): `8cba163c..` closure, available for review. Notes for the reviewer:
-  project reads open the owner-only shared root by descriptor with no-follow `openat`
-  (`openatNoFollow`, shared with `openWorkspaceImage`); the scan admission semaphore is
-  process-wide (`resourceScans`); the project file menu composes its own actions (absolute
-  Copy path vs relative reveal/preview); chat Finder is provided by `RevealInFinderProvider`
-  on the agent page and dashboard pane only (not Think Tank or Archive). Native Finder and
-  real-server journeys are owed in ACCEPTANCE-GATES.
+  TS-08.R172–R174): reviewed `8cba163c^..f2239ad0` at `f2239ad0`; open for the findings below.
+  Descriptor-relative reads reuse `openatNoFollow`; scan admission is process-wide. The separate
+  HTML tab uses the scoped read-only loader. Chat Finder covers the agent page and expanded
+  dashboard chat under FS-03.R119. Real-server Chromium covered an unreadable folder and a
+  displayed symlink. Native Finder selection remains owed in ACCEPTANCE-GATES.
 
 - **Message hover actions and current-conversation Edit** (FS-01.R60–R62, FS-22.R13,
   TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): reviewed at
@@ -168,6 +166,52 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### Browse project files (reviewed 2026-11-20 at `f2239ad0`) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — PROJECT-FILES-1 (medium; FS-11.R12/R14, TS-03.R93, TS-08.R172, INV §1/§7/§8).
+  `ProjectFilesDialog.tsx:61–89` derives the active request scope from the last loaded catalog.
+  In real Chromium, choosing a folder from a partial catalog, then switching to **All folders**
+  while the folder response is delayed, drops unrelated root rows when the response arrives.
+  A failed scoped Refresh also loses its scope: after making the selected folder unreadable,
+  **Retry** sent a root request. The server describes that unreadable directory as a path that
+  does not name a folder (`project_files.go:169–176`). Retain the requested scope through loading
+  and failure, fence each response by the current selection, and distinguish unreadable from
+  wrong-kind directories. Test both transitions against the browser and API.
+- **Must fix** — PROJECT-FILES-2 (medium; FS-11.R13/R15, TS-08.R172, INV §1/§11/§14).
+  `ProjectDashboard.tsx:318–322,377–378` retains the dialog when the route changes project.
+  `ProjectFilesDialog.tsx:280–285` passes an unchanging reader owner; changing the loader alone
+  leaves the displayed file in place. In real Chromium, browser history from one project to another
+  changed the dialog title and left the original project's CSV visible under it. Reset the dialog
+  and its pending responses at the project boundary. Test a project switch with both loaded and
+  in-flight previews.
+- **Must fix** — PROJECT-FILES-3 (medium; FS-11.R13/R16, TS-08.R172, INV §8/§10/§13).
+  Close and Escape leave focus on the document body in all four appearances at 1024px.
+  Shift+F10 opens the project row menu, and Tab advances to the next file row
+  (`ProjectFilesDialog.tsx:116–122,129–145`, `ProjectDashboard.tsx:362`). Wire focus return to the
+  Files trigger and give keyboard-invoked menus an initial action and a return target. Verify
+  the full keyboard path including selection and Escape.
+- **Must fix** — PROJECT-FILES-4 (medium; FS-03.R119, TS-08.R173, INV §2/§8/§10).
+  Right-clicking a local link in a rendered chat Markdown file opens two menus for two different
+  files when Finder is available. `FileViewer.tsx:311–319` opens the current-file menu while
+  `SanitizedMarkdown.tsx:105–108` opens the linked-file menu. A focused component regression counted
+  two menus. Give the clicked link one action owner and check that the chosen reveal targets it.
+  The project table currently shares the clipboard helper and duplicates Finder action and failure
+  handling (`ProjectFilesDialog.tsx:108–114`); TS-08.R173 calls for shared action composition.
+  The project action inputs need to retain absolute copy and scoped reveal and preview paths.
+- **Must fix** — PROJECT-FILES-5 (trivial/easy; FS-11.R12, TS-03.R93, INV §11).
+  `project_files.go:230–232,278–291` discards fractions of a second before sorting. The real API
+  put an alphabetically earlier, older file first when both modification times fell in the same
+  second. Order by the filesystem timestamp at full precision, then apply the name and path
+  tie-breaks. Verify each case with controlled modification times.
+- **Must fix** — PROJECT-FILES-6 (trivial/easy; TS-05.R30, INV §14). Source review found that
+  `openProjectResourceRoot` calls `ReadProject` before validating the project id. Validate the id
+  before the config lookup and prove invalid ids stop at that boundary.
+- **Worth fixing** — PROJECT-FILES-7 (medium; TS-08.R172/R173/R174, INV §1/§2/§10).
+  The shared file reader and tab subsystem had fixes for lost focus and stale reads in the last
+  30 days (`134b4ef5`, `688c4b10`). Inventory every entry point and owner that updates the displayed
+  file, moves focus, or dispatches a file action. Locate the rules for source changes, nested menu
+  ownership and focus return before repairing the findings.
 
 ### STEER-HOLD — refused Steer of a held message (fixed 2026-11-20; remaining work) — **Fix model:** difficult — Codex Sol.
 
