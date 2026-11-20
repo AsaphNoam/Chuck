@@ -169,7 +169,7 @@ orphaned processes.
   copied into this agent by Clone, Edit or Fork from here (fork from the source agent instead). A fork the provider rejects creates no
   agent, transcript, process or messaging identity and reports the rejection. Nothing rewrites or
   truncates the source conversation, no file is rewound, and phone and terminal surfaces do not
-  offer these actions. *R60–R61 plan replacement of message-action placement and Edit behavior.*
+  offer these actions. *R60–R61 replaced message-action placement and Edit behavior; see §6.*
 
 - **R60 (implemented 2026-11-20) — Message actions at the top right on hover.** On the agent page and in
   the dashboard chat pane, hovering a user or assistant text message reveals a compact action
@@ -904,11 +904,11 @@ restart writes R20's outcome. Real driver/provider receipts are required by FS-0
 
 ## 6. Deviations & open decisions
 
-- **Message actions (planned R60–R62; design approved to finish 2026-11-20).** The approved
-  current-conversation Edit supersedes R58's clone-based Edit when implemented. Fork and Copy
-  are offered on every root text message; the latest sent message additionally offers Edit.
-  R61 defines replacement and retained history. R58 remains the shipped behavior until this
-  change lands. Phone and terminal retain their current action scope.
+- **Message actions (R60–R62 implemented 2026-11-20).** Current-conversation Edit (R61) replaced
+  R58's clone-based Edit in the desktop UI. Fork and Copy are offered on every root text
+  message; the latest sent message additionally offers Edit. R58's clone-based Edit remains only
+  as the retained clone API's `compose_from_seq` option, which the desktop no longer calls.
+  Phone and terminal retain their current action scope.
 
 - **Provider quota recognition repair (implemented 2026-10-30):** R55/R57/A37/A39 extend
   terminal-RPC recognition and reset extraction for direct continuation at reset plus one minute.

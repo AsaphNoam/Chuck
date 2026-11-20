@@ -61,6 +61,27 @@ function openEditor(container: HTMLElement) {
   return screen.getByRole("textbox", { name: "Edit message" }) as HTMLTextAreaElement;
 }
 
+describe("Edit editor stays clear of Jump to latest (FS-12.R24, TS-08.R171)", () => {
+  it("hides Jump to latest while the editor is open and restores it after", () => {
+    const { container } = renderChat();
+    const list = container.querySelector(".transcript-view") as HTMLElement;
+    Object.defineProperty(list, "scrollHeight", { configurable: true, get: () => 1000 });
+    Object.defineProperty(list, "clientHeight", { configurable: true, get: () => 100 });
+    Object.defineProperty(list, "scrollTop", { configurable: true, writable: true, value: 900 });
+    fireEvent.scroll(list);
+    list.scrollTop = 100;
+    fireEvent.scroll(list);
+    expect(screen.getByRole("button", { name: "Jump to latest" })).toBeInTheDocument();
+
+    openEditor(container);
+    fireEvent.scroll(list);
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Jump to latest" })).toBeInTheDocument();
+  });
+});
+
 describe("Edit eligibility (FS-01.R61)", () => {
   it("offers Edit only on the latest sent message", () => {
     const { container } = renderChat();
@@ -72,6 +93,7 @@ describe("Edit eligibility (FS-01.R61)", () => {
     ["the server's live gate", events, { edit: { available: false, reason: "The agent is working." } }, "The agent is working."],
     ["a message sent while working", [...events.slice(0, 3), { kind: "user_text", seq: 4, text: "a" }, { kind: "user_text", seq: 5, text: "b" }, { kind: "turn_end", seq: 6, fork: ok }], {}, "This message was sent while the agent was working; edit the message that began that turn."],
     ["an unfinished turn", events.slice(0, 5), {}, "Wait for this turn to finish."],
+    ["a later turn the agent started", [...events, { kind: "assistant_text", seq: 7, text: "mail arrived" }, { kind: "turn_end", seq: 8, fork: ok }], {}, "The agent took another turn after this message, so editing it would hide that turn."],
     ["an earlier turn that cannot fork", [{ ...events[0] }, events[1], { kind: "turn_end", seq: 3, fork: { available: false, reason: "No fork point." } }, ...events.slice(3)], {}, "No fork point."],
     ["an adapter that cannot prove completeness", events, { runtime_capabilities: { complete_turn_fork: false } as never }, "This agent's adapter cannot prove a complete earlier turn; update to the supported package to edit later messages."],
   ];

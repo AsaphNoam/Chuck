@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -285,4 +286,36 @@ func readEventsRaw(t *testing.T, srv *Server, id string) []runtime.Event {
 		t.Fatal(err)
 	}
 	return evs
+}
+
+// EDIT-REVIEW-11 (FS-01.R61): a mail-woken turn that completed after the
+// last person message is not that message's turn. Edit refuses rather than
+// superseding it, and the later reply stays visible.
+func TestEditLastRefusesWhenALaterTurnFollowed(t *testing.T) {
+	srv, base, id, _ := forkServer(t, map[string]string{"FAKEACP_COMPLETE_TURN": "1"})
+	latest, _ := lastRootPrompt(t, readTranscriptAPI(t, base, id))
+	insertMail(t, srv, id, "wake")
+	pending := pendingActivations(t, srv, id)
+	if len(pending) != 1 {
+		t.Fatalf("activations = %+v, want one", pending)
+	}
+	srv.executeMailActivation(context.Background(), pending[0])
+	deadline := time.Now().Add(5 * time.Second)
+	for len(rootTurnEnds(readEvents(t, srv, id))) < 4 {
+		if time.Now().After(deadline) {
+			t.Fatal("mail turn did not complete")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	waitStatus(t, srv, id, "idle")
+	if again, _ := lastRootPrompt(t, readTranscriptAPI(t, base, id)); again.Seq != latest.Seq {
+		t.Fatalf("mail turn wrote a person message at %d", again.Seq)
+	}
+	resp, raw := post(t, base+"/api/sessions/"+id+"/edit-last", map[string]any{"request_id": "edit-1", "message_seq": latest.Seq, "expected_revision": 0, "text": "x"})
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(string(raw), editReasonLaterTurn) {
+		t.Fatalf("edit = %d %s", resp.StatusCode, raw)
+	}
+	if got := len(rootTurnEnds(readTranscriptAPI(t, base, id))); got != 4 {
+		t.Fatalf("active turn ends after refusal = %d, want 4", got)
+	}
 }

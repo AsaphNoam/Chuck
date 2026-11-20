@@ -282,7 +282,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
           )}
         </div>
       </div>
-      {!atBottom && (
+      {!atBottom && editingSeq === null && (
         <button type="button" className="jump-to-latest ad-button-secondary" onClick={jumpToLatest}>
           Jump to latest
         </button>

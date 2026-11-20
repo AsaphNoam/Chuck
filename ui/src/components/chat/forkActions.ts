@@ -18,7 +18,8 @@ export type EditAction = { seq: number; available: boolean; reason?: string };
 export type EditAgent = Pick<AgentState, "edit" | "runtime_capabilities">;
 
 const INJECTED_MESSAGE = "This message was sent while the agent was working; edit the message that began that turn.";
-const UNFINISHED_TURN = "This turn is still running; Fork is available once it completes.";
+const LATER_TURN = "The agent took another turn after this message, so editing it would hide that turn.";
+const UNFINISHED_TURN ="This turn is still running; Fork is available once it completes.";
 
 function isRoot(event: TranscriptEvent) {
   return !event.activity_id;
@@ -47,7 +48,9 @@ export function editActionFor(events: TranscriptEvent[], event: TranscriptEvent,
   const previous = [...events].reverse().find((item) => isRootKind(item, "turn_end") && (item.seq as number) < seq);
   const floor = (previous?.seq as number | undefined) ?? 0;
   if (events.some((item) => isRootKind(item, "user_text") && (item.seq as number) > floor && (item.seq as number) < seq)) return no(INJECTED_MESSAGE);
-  if (!events.some((item) => isRootKind(item, "turn_end") && (item.seq as number) > seq)) return no("Wait for this turn to finish.");
+  const endsAfter = events.filter((item) => isRootKind(item, "turn_end") && (item.seq as number) > seq).length;
+  if (endsAfter === 0) return no("Wait for this turn to finish.");
+  if (endsAfter > 1) return no(LATER_TURN);
   if (events.some((item) => isRootKind(item, "user_text") && (item.seq as number) < seq)) {
     const fork = previous?.fork as ForkAffordance | undefined;
     if (!fork) return no("This turn has no fork information yet.");

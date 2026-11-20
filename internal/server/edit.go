@@ -46,6 +46,7 @@ const editReasonNotStarted = "The edit was saved, but the revised conversation c
 const (
 	editReasonInjected   = "This message was sent while the agent was working; edit the message that began that turn."
 	editReasonUnfinished = "Wait for this turn to finish."
+	editReasonLaterTurn  = "The agent took another turn after this message, so editing it would hide that turn."
 	editReasonNoProof    = "This agent's adapter cannot prove a complete earlier turn; update to the supported package to edit later messages."
 	editReasonNoMessage  = "This conversation has no sent message to edit."
 	// editReasonSearchUnavailable is the committed edit's attention reason
@@ -291,6 +292,7 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 	}
 	var latest, previousEnd, endAfter *runtime.Event
 	var tail int64
+	endsAfter := 0 // root turn ends after the latest message
 	for i := range events {
 		ev := &events[i]
 		if ev.Seq > tail {
@@ -301,12 +303,15 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 		}
 		switch ev.Type {
 		case runtime.EvUserPrompt:
-			latest, endAfter = ev, nil
+			latest, endAfter, endsAfter = ev, nil, 0
 		case runtime.EvTurnEnd:
 			if latest == nil {
 				previousEnd = ev
-			} else if endAfter == nil {
-				endAfter = ev
+			} else {
+				endsAfter++
+				if endAfter == nil {
+					endAfter = ev
+				}
 			}
 		}
 	}
@@ -340,6 +345,11 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 	}
 	if endAfter == nil {
 		return none, runtime.Message{}, snap, editUnavailable(editReasonUnfinished)
+	}
+	// The selected message must have started the latest turn: a later
+	// application-initiated turn (mail, continuation) would be superseded.
+	if endsAfter > 1 {
+		return none, runtime.Message{}, snap, editUnavailable(editReasonLaterTurn)
 	}
 	var original runtime.UserPromptData
 	if err := json.Unmarshal(latest.Data, &original); err != nil {
