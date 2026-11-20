@@ -501,3 +501,47 @@ func TestManagerProjectsSubscriptionQuotaForStoppedAgents(t *testing.T) {
 		}
 	}
 }
+
+// EDIT-EDGE-2 (TS-01.R51): a preparing Edit candidate's SessionStart writes
+// neither its session nor its status over the source's.
+func TestSessionStartDuringPreparingEditChangesNothing(t *testing.T) {
+	withFixedNow(t, mustTime(t, "2026-11-20T10:00:00Z"))
+	st, _ := newTestStore(t)
+	mgr := NewManager(st, &capturePublisher{})
+	if err := st.WriteAgent(testAgent("a_edit", mustTime(t, "2026-11-20T09:00:00Z"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`INSERT INTO sessions(agent_id, name, role, project, backend, model, interface, cwd, system_prompt, last_session_id, created_at, updated_at)
+VALUES ('a_edit', 'E', 'r', 'p', 'b', 'm', 'chat', '/tmp', '', 'source', '2026-11-20T09:00:00Z', '2026-11-20T09:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.WriteStatus(Status{AgentID: "a_edit", State: "stopped"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.WriteRunning(RunningEntry{AgentID: "a_edit", PID: 1, Interface: "chat", HookToken: "tok", StartedAt: timeNow()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.CreateEdit(EditTransition{AgentID: "a_edit", RequestID: "edit-1", PayloadHash: "h", MessageJSON: "{}", MessageSeq: 1}); err != nil {
+		t.Fatal(err)
+	}
+	hook := HookPayload{AgentID: "a_edit", Event: "SessionStart", State: "idle", SessionID: "candidate"}
+	if _, err := mgr.ApplyHook("tok", hook); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := st.ReadSession("a_edit")
+	status, _ := st.ReadStatus("a_edit")
+	if snap.LastSessionID != "source" || status.State != "stopped" {
+		t.Fatalf("preparing edit: session %q status %q", snap.LastSessionID, status.State)
+	}
+	if err := st.AbortEdit("a_edit", "edit-1", "aborted"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.ApplyHook("tok", hook); err != nil {
+		t.Fatal(err)
+	}
+	snap, _ = st.ReadSession("a_edit")
+	status, _ = st.ReadStatus("a_edit")
+	if snap.LastSessionID != "candidate" || status.State != "idle" {
+		t.Fatalf("after abort: session %q status %q", snap.LastSessionID, status.State)
+	}
+}

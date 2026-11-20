@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -220,4 +221,197 @@ func searchRows(t *testing.T, srv *Server, id string) int {
 		n += fts
 	}
 	return n
+}
+
+func postEdit(t *testing.T, base, id string) {
+	t.Helper()
+	latest, _ := lastRootPrompt(t, readTranscriptAPI(t, base, id))
+	if resp, raw := post(t, base+"/api/sessions/"+id+"/edit-last", map[string]any{"request_id": "edit-1", "message_seq": latest.Seq, "expected_revision": 0, "text": "third, revised"}); resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("edit = %d %s", resp.StatusCode, raw)
+	}
+}
+
+// holdEditAfterDecision holds this agent's decided edit before it publishes
+// the revision, until release is closed.
+func holdEditAfterDecision(t *testing.T, id string) (reached <-chan struct{}, release chan struct{}) {
+	t.Helper()
+	at := make(chan struct{}, 1)
+	release = make(chan struct{})
+	editAfterDecision = func(agentID string) {
+		if agentID == id {
+			at <- struct{}{}
+			<-release
+		}
+	}
+	t.Cleanup(func() { editAfterDecision = nil })
+	return at, release
+}
+
+// whileHeld runs action, checks that it waits for the held edit rather than
+// conflicting or bypassing it, then releases the edit and returns the result.
+func whileHeld[T any](t *testing.T, release chan struct{}, action func() T) T {
+	t.Helper()
+	done := make(chan T, 1)
+	go func() { done <- action() }()
+	select {
+	case got := <-done:
+		t.Fatalf("returned %v while the edit still held its claim", got)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case got := <-done:
+		return got
+	case <-time.After(15 * time.Second):
+		t.Fatal("action never returned after the edit finished")
+	}
+	panic("unreachable")
+}
+
+func postStatus(url string, body any) int {
+	b, _ := json.Marshal(body)
+	resp, err := http.Post(url, "application/json", strings.NewReader(string(b)))
+	if err != nil {
+		return 0
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+// EDIT-EDGE-3 (TS-01.R51): after the decision, Stop waits for the edit,
+// keeps the revision, releases the undispatched replacement and stops the
+// revised conversation; turn Cancel lets the replacement dispatch and then
+// cancels the revised turn normally.
+func TestEditStopAndCancelAfterDecision(t *testing.T) {
+	for _, tc := range []struct {
+		name, path string
+		body       any
+		status     int
+		running    bool
+	}{
+		{"stop", "/stop", nil, http.StatusOK, false},
+		{"cancel", "/cancel", map[string]string{"target": "turn"}, http.StatusAccepted, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, base, id, _ := forkServer(t, map[string]string{"FAKEACP_COMPLETE_TURN": "1"})
+			reached, release := holdEditAfterDecision(t, id)
+			postEdit(t, base, id)
+			waitReached(t, reached)
+			if got := whileHeld(t, release, func() int { return postStatus(base+"/api/sessions/"+id+tc.path, tc.body) }); got != tc.status {
+				t.Fatalf("%s = %d", tc.name, got)
+			}
+			if rec := waitEdit(t, srv, id, "edit-1", settled); rec.Phase != state.EditCommitted {
+				t.Fatalf("edit = %+v", rec)
+			}
+			receipt, err := srv.stateStore.AttachmentReceipt(id, "edit-1")
+			if err != nil || (receipt.Delivery == "released") == tc.running {
+				t.Fatalf("receipt = %+v %v", receipt, err)
+			}
+			if got := srv.registry.Owns(id); got != tc.running {
+				t.Fatalf("running = %v, want %v", got, tc.running)
+			}
+			if snap, _ := srv.stateStore.ReadSession(id); snap.LastSessionID != "fake-fork-1" {
+				t.Fatalf("session = %q", snap.LastSessionID)
+			}
+			if rev, _ := srv.stateStore.HistoryRevision(id); rev != 1 {
+				t.Fatalf("revision = %d", rev)
+			}
+		})
+	}
+}
+
+// EDIT-EDGE-3 (TS-01.R51): group release and an approved peer Stop reach a
+// preparing edit the way the Stop route does instead of conflicting with it.
+func TestGroupAndPeerStopReachPreparingEdit(t *testing.T) {
+	for _, via := range []string{"group", "peer"} {
+		t.Run(via, func(t *testing.T) {
+			srv, base, id, _ := forkServer(t, map[string]string{"FAKEACP_COMPLETE_TURN": "1"})
+			agent, err := srv.stateStore.ReadAgent(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			agent.Group = "editing"
+			if err := srv.stateStore.WriteAgent(agent); err != nil {
+				t.Fatal(err)
+			}
+			reached, _ := holdEditAtDecision(t, id)
+			postEdit(t, base, id)
+			waitReached(t, reached)
+			if via == "group" {
+				if resp, raw := post(t, base+"/api/projects/"+agent.Project+"/groups/stop", map[string]string{"group": "editing"}); resp.StatusCode != http.StatusOK {
+					t.Fatalf("group stop = %d %s", resp.StatusCode, raw)
+				}
+			} else if got := srv.executePeerStop(context.Background(), "peer-1", state.Agent{AgentID: "a_requester"},
+				state.HistoryAgent{AgentID: id}, peerExecution{}); got.Outcome != "already_stopped" {
+				t.Fatalf("peer stop = %+v", got)
+			}
+			if rec, _ := srv.stateStore.ReadEdit(id, "edit-1"); rec.Phase != state.EditAborted {
+				t.Fatalf("edit = %+v", rec)
+			}
+			if srv.registry.Owns(id) {
+				t.Fatal("agent still running")
+			}
+		})
+	}
+}
+
+// EDIT-EDGE-3 (TS-01.R51): after the decision, an approved peer Stop waits
+// for the edit and does not stop the revised run it was not approved for.
+func TestPeerStopAfterEditDecisionIsStale(t *testing.T) {
+	srv, base, id, _ := forkServer(t, map[string]string{"FAKEACP_COMPLETE_TURN": "1"})
+	before, _, err := srv.peerExecution(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reached, release := holdEditAfterDecision(t, id)
+	postEdit(t, base, id)
+	waitReached(t, reached)
+	got := whileHeld(t, release, func() string {
+		return srv.executePeerStop(context.Background(), "peer-1", state.Agent{AgentID: "a_requester"},
+			state.HistoryAgent{AgentID: id}, before).Code
+	})
+	if got != "peer_stop_stale" {
+		t.Fatalf("peer stop = %q", got)
+	}
+	waitEdit(t, srv, id, "edit-1", settled)
+	if receipt, err := srv.stateStore.AttachmentReceipt(id, "edit-1"); err != nil || receipt.Delivery == "released" {
+		t.Fatalf("receipt = %+v %v", receipt, err)
+	}
+	if !srv.registry.Owns(id) {
+		t.Fatal("the revised run was stopped")
+	}
+}
+
+// EDIT-EDGE-1 (TS-01.R51, TS-02.R69): a candidate that cannot publish after
+// the commit is stopped, and its undispatched replacement goes to recovery.
+func TestEditFailedPublishStopsCandidateAndReleasesReplacement(t *testing.T) {
+	srv, base, id, _ := forkServer(t, map[string]string{"FAKEACP_COMPLETE_TURN": "1"})
+	editBeforePublish = func(agentID string) error {
+		if agentID == id {
+			return errors.New("injected publish failure")
+		}
+		return nil
+	}
+	t.Cleanup(func() { editBeforePublish = nil })
+	postEdit(t, base, id)
+	if rec := waitEdit(t, srv, id, "edit-1", settled); rec.Phase != state.EditCommitted {
+		t.Fatalf("edit = %+v", rec)
+	}
+	for deadline := time.Now().Add(10 * time.Second); srv.editRunning(id); time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("edit worker never finished")
+		}
+	}
+	if receipt, err := srv.stateStore.AttachmentReceipt(id, "edit-1"); err != nil || receipt.Delivery != "released" {
+		t.Fatalf("receipt = %+v %v", receipt, err)
+	}
+	if srv.registry.Owns(id) {
+		t.Fatal("unpublished candidate still running")
+	}
+	if rec, _ := srv.stateStore.ReadEdit(id, "edit-1"); rec.Reason != editReasonNotStarted {
+		t.Fatalf("reason = %q", rec.Reason)
+	}
+	if snap, _ := srv.stateStore.ReadSession(id); snap.LastSessionID != "fake-fork-1" {
+		t.Fatalf("session = %q", snap.LastSessionID)
+	}
 }

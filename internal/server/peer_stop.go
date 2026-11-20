@@ -87,6 +87,13 @@ func (s *Server) StopPeer(ctx context.Context, requester messaging.SessionIdenti
 }
 
 func (s *Server) executePeerStop(ctx context.Context, requestID string, from state.Agent, target state.HistoryAgent, exec peerExecution) messaging.PeerStopResult {
+	// A running Edit owns the lifecycle claim. Before its decision the
+	// approved Stop aborts it and leaves the target stopped; after it, the
+	// revised run is a new execution the approval does not cover, and the
+	// staleness check below reports that (TS-01.R51).
+	if _, _, ae := s.interruptEdit(ctx, target.AgentID, editStopBeforeDecision); ae != nil {
+		return peerStopUnchanged(requestID, "Another lifecycle action on the target is in progress. Nothing was stopped.")
+	}
 	release, ok := s.claimQuotaActions(quotaAgentKeys([]string{target.AgentID}))
 	if !ok {
 		return peerStopUnchanged(requestID, "Another lifecycle action on the target is in progress. Nothing was stopped.")

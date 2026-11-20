@@ -95,7 +95,9 @@ They are not queued for `/fix`. The recorded text is in
 - **Message hover actions and current-conversation Edit** (FS-01.R60–R62, FS-22.R13,
   TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): reviewed at
   `b2986ebf` for `99e4672b`, `1bfa4d28`, `b16c722f` and `b2986ebf`; open
-  EDIT-REVIEW findings below. Reconcile with the previously recorded EDIT-EDGE work before repair.
+  EDIT-REVIEW findings below. EDIT-EDGE-1–3 are closed by the commit after `58708881`: a
+  post-decision failure now stops the unpublished candidate and runs restart recovery in
+  process, which bears on EDIT-REVIEW-4's reproduction; recheck it there.
   Packaged live provider receipts remain owed in ACCEPTANCE-GATES.
 - **Assignment-queued input at the transcript tail** (WITHDRAW-SEND-3/STEER-HOLD-4; FS-03.R48):
   reviewed at `b16c722f` for implementation `c02083df`; open findings QUEUED-TAIL-1–4 below.
@@ -192,23 +194,6 @@ specs, live user state or unrelated dirty files changed.
   replacement, restart and recovery. Include the prompt snapshot, transcript, search and each
   browser projection, and identify which existing rule governs each handoff.
 
-### EDIT-EDGE — Edit edge paths found by the EDIT fix's independent check (2026-11-20) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Worth fixing** — EDIT-EDGE-1 (TS-01.R51, INV §15/§18). If `PublishStaged` fails after
-  `FinishEdit` (`internal/server/edit.go` `completeEditRevision`), the worker records a reason and
-  returns. It neither dispatches the replacement nor releases it to recovery, so the input waits for
-  the next restart's `recoverEdits`, and the candidate keeps running unpublished. Restart in the
-  committing phase selects the candidate but never journals its session_meta.
-- **Worth fixing** — EDIT-EDGE-2 (TS-01.R51, INV §1). Staging defers the candidate's start status
-  only. A `usage_update` still republishes live context through `republishLive`
-  (`internal/runtime/chat.go`), and a SessionStart hook still applies its status. Either can write
-  candidate usage onto the source's stopped status row, and the values can survive an aborted edit.
-- **Worth fixing** — EDIT-EDGE-3 (TS-01.R51, INV §5/§10). Only the Stop route and turn Cancel reach a running
-  edit. Group release (`groups.go`) and peer stop (`peer_stop.go`) take the lifecycle claim directly
-  and still get a conflict for up to the 3-minute preparation bound. So does a Stop in the instant
-  between edit acceptance and control registration. No test covers Stop or Cancel after the
-  decision.
-
 ### EDIT-REVIEW — Message hover actions and current-conversation Edit (2026-11-20) — **Fix model:** difficult — Codex Sol.
 
 - **Must fix** — EDIT-REVIEW-1 (difficult, FS-01.A43, TS-04.R113, INV §1/§20). A successful
@@ -292,6 +277,11 @@ specs, live user state or unrelated dirty files changed.
   feature spec's deviations section still says clone-based Edit is shipped
   (`docs/specs/features/FS-01-agent-lifecycle.md:907–911`). Reconcile that historical
   behavior with the implemented current-conversation editor and retained legacy API.
+- **Worth fixing** — EDIT-EDGE-4 (easy, TS-01.R51, INV §5). Group release stops an editing
+  member's Edit only after claiming every other member, but the interrupt cannot be undone. A
+  later conflict (the member's claim retaken after the interrupt, a start lease, the membership
+  recheck, or a second editing member) still returns 409 after that Edit was aborted
+  (`internal/server/groups.go` `groupAction`). Found by the EDIT-EDGE independent check.
 
 ### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
 

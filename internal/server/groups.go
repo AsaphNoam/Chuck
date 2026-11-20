@@ -135,15 +135,31 @@ func (s *Server) groupAction(ctx context.Context, project, group string, ids []s
 	}
 	claimed := make([]string, 0, len(ids))
 	startLeased := make([]string, 0, len(ids))
+	busy := func() ([]groupActionResult, error) {
+		for _, claimedID := range claimed {
+			s.releaseLifecycle(claimedID)
+		}
+		for _, archivedID := range archiveClaimed {
+			s.endAgentArchive(projects[archivedID], archivedID)
+		}
+		return nil, errGroupLifecycleBusy
+	}
+	// A member's running Edit holds its claim. Stop it as the Stop route
+	// would, but only once every other member is claimed, so contention
+	// elsewhere still changes nothing (TS-01.R51).
+	var editing []string
 	for _, id := range ids {
-		if !s.claimLifecycle(id) {
-			for _, claimedID := range claimed {
-				s.releaseLifecycle(claimedID)
-			}
-			for _, archivedID := range archiveClaimed {
-				s.endAgentArchive(projects[archivedID], archivedID)
-			}
-			return nil, errGroupLifecycleBusy
+		if s.claimLifecycle(id) {
+			claimed = append(claimed, id)
+		} else if s.editRunning(id) {
+			editing = append(editing, id)
+		} else {
+			return busy()
+		}
+	}
+	for _, id := range editing {
+		if _, _, ae := s.interruptEdit(ctx, id, editStop); ae != nil || !s.claimLifecycle(id) {
+			return busy()
 		}
 		claimed = append(claimed, id)
 	}

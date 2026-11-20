@@ -47,6 +47,11 @@ type resumeOverride struct {
 func (s *Server) claimLifecycle(agentID string) bool {
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
+	return s.claimLifecycleLocked(agentID)
+}
+
+// claimLifecycleLocked is claimLifecycle with lifecycleMu already held.
+func (s *Server) claimLifecycleLocked(agentID string) bool {
 	if _, busy := s.lifecycleBusy[agentID]; s.lifecycleClosed || busy {
 		return false
 	}

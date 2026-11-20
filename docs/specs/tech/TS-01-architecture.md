@@ -833,12 +833,19 @@ undispatched replacement receipt. Before the decision, Stop also stops the sourc
 turn Cancel aborts the edit and restores the source's previous running/stopped condition.
 After the decision, turn Cancel uses the revised turn's normal cancellation semantics.
 *As built 2026-11-20:* Stop and turn Cancel reach the edit through a per-agent control that
-serializes with the decision and wait for the edit to release its lifecycle claim. The staged
+exists for as long as the edit's lifecycle claim, serializes with the decision, and is awaited
+until the edit releases that claim. Group release reaches it as Stop does, once every other
+member is claimed. An approved peer Stop aborts it only before the decision; afterwards it
+waits and reports the revised run as one its approval does not cover. The staged
 candidate keeps its launch generation in its running row, which carries no native session id
-until publication, and a preparing edit ignores SessionStart hook session ids. Restart
+until publication. A preparing edit ignores SessionStart hooks, and a staged candidate does not
+republish live usage onto the source's status row. Restart
 reconciliation therefore cannot retain the candidate. The committed phase and the candidate
 selection share one SQLite transaction; the live candidate then publishes its session_meta,
-running session id and ready status before dispatch.
+running session id and ready status before dispatch. Without a live candidate to publish (a
+restart, or one that failed to publish and was stopped), recovery journals the selected
+session's record from the snapshot. A post-decision failure stops the unpublished candidate and
+completes the decision through the same recovery a restart runs, releasing the replacement.
 Time-bounded preparation uses the existing startup deadline,
 and late callbacks recheck both operation and launch generation (INV §1/§2/§4/§5/§15/§19/§23).
 Verify FS-01.A43 through failure injection on both sides of the decision and send boundary.

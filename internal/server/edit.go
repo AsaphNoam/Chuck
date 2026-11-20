@@ -26,6 +26,22 @@ const editStartTimeout = 3 * time.Minute
 // boundary; nil in production.
 var editBeforeDecision func(ctx context.Context, agentID string)
 
+// editAfterDecision lets tests hold a decided edit before it publishes the
+// revision; nil in production.
+var editAfterDecision func(agentID string)
+
+// editBeforePublish lets tests fail a committed candidate's publication; nil
+// in production.
+var editBeforePublish func(agentID string) error
+
+// editReasonUnrepaired is the committed edit's attention reason when neither
+// the live completion nor its in-process recovery could finish the revision.
+const editReasonUnrepaired = "The edit was saved but its history could not be finished. Restart Chuck to repair it."
+
+// editReasonNotStarted is the committed edit's attention reason when its
+// revised conversation could not start and the replacement was offered back.
+const editReasonNotStarted = "The edit was saved, but the revised conversation could not start, so your replacement was not sent. Resume the agent to continue."
+
 // Edit message-level refusal reasons (FS-01.R61).
 const (
 	editReasonInjected   = "This message was sent while the agent was working; edit the message that began that turn."
@@ -106,19 +122,38 @@ func (s *Server) handleEditLast(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError(runtime.CodeNotFound, "no such agent: "+id))
 		return
 	}
-	if !s.claimLifecycle(id) {
+	// The control is registered with the claim, under the same lock, so Stop
+	// and Cancel reach the edit from its first instant (TS-01.R51).
+	ctx, cancel := context.WithTimeout(context.Background(), editStartTimeout)
+	ctl := &editControl{cancel: cancel, done: make(chan struct{})}
+	s.lifecycleMu.Lock()
+	if !s.claimLifecycleLocked(id) {
+		s.lifecycleMu.Unlock()
+		cancel()
 		writeAPIError(w, apiError(runtime.CodeTransitionInProgress, "another lifecycle change is in progress for this agent"))
 		return
 	}
+	s.editControls[id] = ctl
+	s.lifecycleMu.Unlock()
 	chat := s.registry.Chat()
-	if !chat.ReserveEdit(id, req.RequestID) {
+	reserved := chat.ReserveEdit(id, req.RequestID)
+	release := func() {
+		cancel()
+		if reserved {
+			chat.ReleaseEdit(id, req.RequestID)
+		}
 		s.releaseLifecycle(id)
+		s.lifecycleMu.Lock()
+		if s.editControls[id] == ctl { // a later edit may already own the slot
+			delete(s.editControls, id)
+		}
+		s.lifecycleMu.Unlock()
+		close(ctl.done)
+	}
+	if !reserved {
+		release()
 		writeAPIError(w, editUnavailable(state.EditReasonEditing))
 		return
-	}
-	release := func() {
-		chat.ReleaseEdit(id, req.RequestID)
-		s.releaseLifecycle(id)
 	}
 	plan, msg, snap, ae := s.validateEdit(agent, req)
 	if ae != nil {
@@ -144,26 +179,9 @@ func (s *Server) handleEditLast(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("edit accepted", "agent", id, "request_id", req.RequestID, "message_seq", req.MessageSeq)
 	s.touchState(id)
 	accepted, _ := s.stateStore.ReadEdit(id, req.RequestID)
-	ctx, cancel := context.WithTimeout(context.Background(), editStartTimeout)
-	ctl := &editControl{cancel: cancel, done: make(chan struct{})}
-	s.lifecycleMu.Lock()
-	if s.editControls == nil {
-		s.editControls = map[string]*editControl{}
-	}
-	s.editControls[id] = ctl
-	s.lifecycleMu.Unlock()
 	writeJSON(w, http.StatusAccepted, s.editResultFor(accepted, false))
 	go func() {
-		defer func() {
-			cancel()
-			release()
-			s.lifecycleMu.Lock()
-			if s.editControls[id] == ctl { // a later edit may already own the slot
-				delete(s.editControls, id)
-			}
-			s.lifecycleMu.Unlock()
-			close(ctl.done)
-		}()
+		defer release()
 		s.runEdit(ctx, ctl, agent, snap, accepted, plan, msg)
 	}()
 }
@@ -178,35 +196,59 @@ type editControl struct {
 	done    chan struct{}
 }
 
-// interrupt asks the edit to stop. Before the decision it cancels
-// preparation; Stop then leaves the agent stopped, while Cancel restores the
-// source's running/stopped condition. After the decision a Stop releases the
-// undispatched replacement. It reports whether the decision was still ahead.
-func (c *editControl) interrupt(stop bool) bool {
+// editInterrupt is how a lifecycle action reaches a running Edit.
+type editInterrupt int
+
+const (
+	// editCancel is turn Cancel: abort before the decision and restore the
+	// source's running/stopped condition.
+	editCancel editInterrupt = iota
+	// editStop is Stop and group release: abort before the decision and
+	// leave the agent stopped; after it, release the undispatched replacement.
+	editStop
+	// editStopBeforeDecision is an approved peer Stop: it aborts like Stop
+	// before the decision, but the revised run it was not approved for is
+	// left to finish its handoff.
+	editStopBeforeDecision
+)
+
+// interrupt asks the edit to stop and reports whether the decision was still
+// ahead.
+func (c *editControl) interrupt(mode editInterrupt) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if stop {
-		c.stop = true
-	}
 	if c.decided {
+		if mode == editStop {
+			c.stop = true
+		}
 		return false
+	}
+	if mode != editCancel {
+		c.stop = true
 	}
 	c.cancel()
 	return true
 }
 
+// editRunning reports whether an Edit holds the agent's lifecycle claim.
+func (s *Server) editRunning(id string) bool {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	return s.editControls[id] != nil
+}
+
 // interruptEdit interrupts the agent's running Edit, if any, and waits for
 // its worker to release the lifecycle claim. handled is false when no edit
 // runs; beforeDecision reports whether the edit was aborted.
-func (s *Server) interruptEdit(ctx context.Context, id string, stop bool) (handled, beforeDecision bool, ae *runtime.APIError) {
+func (s *Server) interruptEdit(ctx context.Context, id string, mode editInterrupt) (handled, beforeDecision bool, ae *runtime.APIError) {
 	s.lifecycleMu.Lock()
 	ctl := s.editControls[id]
 	s.lifecycleMu.Unlock()
 	if ctl == nil {
 		return false, false, nil
 	}
-	beforeDecision = ctl.interrupt(stop)
-	s.log.Info("edit interrupted", "agent", id, "stop", stop, "before_decision", beforeDecision)
+	beforeDecision = ctl.interrupt(mode)
+	s.log.Info("edit interrupted", "agent", id, "mode", int(mode), "before_decision", beforeDecision)
 	select {
 	case <-ctl.done:
 		return true, beforeDecision, nil
@@ -377,9 +419,27 @@ func (s *Server) runEdit(ctx context.Context, ctl *editControl, agent state.Agen
 		return
 	}
 	s.log.Info("edit committing", "agent", id, "request_id", requestID, "revision", revision)
+	if editAfterDecision != nil {
+		editAfterDecision(id)
+	}
 	if err := s.completeEditRevision(id, requestID); err != nil {
 		s.log.Error("complete edit revision", "agent", id, "request_id", requestID, "err", err)
-		_ = s.stateStore.SetEditReason(id, requestID, "The edit was saved but its history could not be finished. Resume the agent to repair it.")
+		// The candidate never published: stop it rather than leave it running
+		// unseen, then complete the decision as a restart would (TS-02.R69).
+		if _, staged := s.registry.StagedSession(id); staged {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), editStartTimeout)
+			if err := s.registry.Stop(stopCtx, id); err != nil && !errors.Is(err, runtime.ErrNoHandle) {
+				s.log.Error("stop unpublished edit candidate", "agent", id, "err", err)
+			}
+			stopCancel()
+			s.teardownAgentRegistration(id)
+		}
+		if rec, err := s.stateStore.ReadEdit(id, requestID); err == nil {
+			s.recoverEdit(rec)
+			if done, err := s.stateStore.ReadEdit(id, requestID); err == nil && done.Phase == state.EditCommitted && done.Reason == "" {
+				_ = s.stateStore.SetEditReason(id, requestID, editReasonNotStarted)
+			}
+		}
 		s.touchState(id)
 		return
 	}
@@ -493,12 +553,35 @@ func (s *Server) completeEditRevision(id, requestID string) error {
 				return err
 			}
 		}
+		// With no live candidate (a restart, or a stopped unpublished one)
+		// PublishStaged cannot journal the selected session; record it from
+		// the snapshot instead, as a switch rollback does. A retry may repeat
+		// this record, which only restates the same selection.
+		if _, live := s.registry.StagedSession(id); !live && rec.CandidateSession != "" {
+			agent, err := s.stateStore.ReadAgent(id)
+			if err != nil {
+				return err
+			}
+			snap, err := s.stateStore.ReadSession(id)
+			if err != nil {
+				return err
+			}
+			snap.LastSessionID = rec.CandidateSession
+			if err := s.appendRestoredSessionMeta(agent, snap); err != nil {
+				return fmt.Errorf("record the edited session: %w", err)
+			}
+		}
 		if err := s.stateStore.FinishEdit(id, requestID); err != nil {
 			return err
 		}
 	}
 	// The committed candidate becomes visible only now (TS-01.R51); after a
 	// restart no candidate runs and the snapshot already selects it.
+	if editBeforePublish != nil {
+		if err := editBeforePublish(id); err != nil {
+			return err
+		}
+	}
 	if err := s.registry.PublishStaged(id); err != nil && !errors.Is(err, runtime.ErrNoHandle) {
 		return fmt.Errorf("publish the edited session: %w", err)
 	}
@@ -602,30 +685,35 @@ func (s *Server) recoverEdits() {
 		return
 	}
 	for _, rec := range open {
-		id := rec.AgentID
-		switch rec.Phase {
-		case state.EditPreparing:
-			if snap, err := s.stateStore.ReadSession(id); err == nil && rec.OldSession != "" && snap.LastSessionID != rec.OldSession {
-				snap.LastSessionID = rec.OldSession
-				if agent, err := s.stateStore.ReadAgent(id); err == nil {
-					if err := s.stateStore.RestoreSwitchSource(agent, snap); err != nil {
-						s.log.Error("restore interrupted edit source", "agent", id, "err", err)
-					}
+		s.recoverEdit(rec)
+	}
+}
+
+// recoverEdit settles one open edit with no running worker.
+func (s *Server) recoverEdit(rec state.EditTransition) {
+	id := rec.AgentID
+	switch rec.Phase {
+	case state.EditPreparing:
+		if snap, err := s.stateStore.ReadSession(id); err == nil && rec.OldSession != "" && snap.LastSessionID != rec.OldSession {
+			snap.LastSessionID = rec.OldSession
+			if agent, err := s.stateStore.ReadAgent(id); err == nil {
+				if err := s.stateStore.RestoreSwitchSource(agent, snap); err != nil {
+					s.log.Error("restore interrupted edit source", "agent", id, "err", err)
 				}
 			}
-			if err := s.stateStore.AbortEdit(id, rec.RequestID, "Nothing was changed: Chuck restarted while preparing the edit."); err != nil {
-				s.log.Error("abort interrupted edit", "agent", id, "err", err)
-			}
-		case state.EditCommitting:
-			if err := s.completeEditRevision(id, rec.RequestID); err != nil {
-				s.log.Error("complete interrupted edit", "agent", id, "err", err)
-				_ = s.stateStore.SetEditReason(id, rec.RequestID, "The edit was saved but its history could not be finished. Resume the agent to repair it.")
-				continue
-			}
-			s.releaseUndispatchedEdit(rec)
-		case state.EditCommitted:
-			s.releaseUndispatchedEdit(rec)
 		}
+		if err := s.stateStore.AbortEdit(id, rec.RequestID, "Nothing was changed: Chuck restarted while preparing the edit."); err != nil {
+			s.log.Error("abort interrupted edit", "agent", id, "err", err)
+		}
+	case state.EditCommitting:
+		if err := s.completeEditRevision(id, rec.RequestID); err != nil {
+			s.log.Error("complete interrupted edit", "agent", id, "err", err)
+			_ = s.stateStore.SetEditReason(id, rec.RequestID, editReasonUnrepaired)
+			return
+		}
+		s.releaseUndispatchedEdit(rec)
+	case state.EditCommitted:
+		s.releaseUndispatchedEdit(rec)
 	}
 }
 

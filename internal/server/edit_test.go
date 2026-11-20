@@ -261,6 +261,21 @@ func TestRecoverEditsCompletesCommittingOnce(t *testing.T) {
 	if receipt, err := srv.stateStore.AttachmentReceipt(id, "edit-1"); err != nil || receipt.Delivery != "released" {
 		t.Fatalf("receipt = %+v %v", receipt, err)
 	}
+	// EDIT-EDGE-1: with no live candidate to publish it, recovery journals the
+	// selected session's record itself.
+	var last runtime.SessionMetaData
+	metas, err := transcript.ReadFile(srv.configStore.Home(), id, transcript.ReadOptions{Raw: true, IncludeMeta: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range metas {
+		if ev.Type == runtime.EvSessionMeta && ev.Seq > 0 {
+			_ = json.Unmarshal(ev.Data, &last)
+		}
+	}
+	if snap, _ := srv.stateStore.ReadSession(id); snap.LastSessionID != "candidate" || last.SessionID != "candidate" {
+		t.Fatalf("selected %q, last session record %q", snap.LastSessionID, last.SessionID)
+	}
 }
 
 func readEventsRaw(t *testing.T, srv *Server, id string) []runtime.Event {

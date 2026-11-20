@@ -3091,6 +3091,14 @@ func (c *ChatRuntime) writeStatus(as *agentState, st state.Status) error {
 // without disturbing the row's state/detail/trace/busy_since (neither a
 // usage_update nor a task lifecycle update implies a status transition).
 func (c *ChatRuntime) republishLive(as *agentState) {
+	// A staged Edit candidate's usage stays in memory until PublishStaged; the
+	// status row still belongs to the source (TS-01.R51).
+	as.mu.Lock()
+	staged := as.staged != nil
+	as.mu.Unlock()
+	if staged {
+		return
+	}
 	c.mutateStatus(as, false, func(_ *state.Status, err error) bool {
 		if err != nil {
 			// Without a transition to record, wait for the next write to carry
