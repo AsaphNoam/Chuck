@@ -357,13 +357,13 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 	}
 	plan := editPlan{from: latest.Seq, through: tail}
 	if previousEnd != nil {
-		if aff := forkAffordance(*previousEnd, snap.LastSessionID); !aff.Available {
+		if aff := forkAffordance(*previousEnd, s.forkSessionsFor(id, snap.LastSessionID)); !aff.Available {
 			return none, runtime.Message{}, snap, editUnavailable(aff.Reason)
 		}
 		if !snap.RuntimeCapabilities.CompleteTurnFork {
 			return none, runtime.Message{}, snap, editUnavailable(editReasonNoProof)
 		}
-		plan.fork = &runtime.ForkPlan{InPlace: true, SourceAgentID: id, SourceSessionID: snap.LastSessionID,
+		plan.fork = &runtime.ForkPlan{InPlace: true, SourceAgentID: id, SourceSessionID: forkSource(previousEnd.ForkPoint, snap.LastSessionID),
 			SourceSeq: previousEnd.Seq, ForkPoint: previousEnd.ForkPoint, HistoryPrimer: snap.HistoryPrimer}
 	}
 	// The kept attachments must still be retained intact, under Send's own

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/runtime"
+	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/transcript"
 )
 
@@ -217,12 +218,38 @@ func TestForkAffordanceReasons(t *testing.T) {
 		{"copied turn", runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ForkPoint: &runtime.ForkPoint{Copied: true}}, runtime.ForkReasonCopiedTurn},
 	}
 	for _, tc := range cases {
-		got := forkAffordance(tc.ev, "s1")
+		got := forkAffordance(tc.ev, forkSessions{current: "s1"})
 		if got == nil || got.Available != (tc.want == "") || got.Reason != tc.want {
 			t.Fatalf("%s: affordance = %+v, want reason %q", tc.name, got, tc.want)
 		}
 	}
-	if forkAffordance(runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ActivityID: "child"}, "s1") != nil {
+	if forkAffordance(runtime.Event{Type: runtime.EvTurnEnd, Data: ended, ActivityID: "child"}, forkSessions{current: "s1"}) != nil {
 		t.Fatal("a child turn end is marked")
+	}
+}
+
+// EDIT-REVIEW-1: a committed Edit relates its old session to the candidate
+// only for the turns it kept; a later runtime switch breaks the chain.
+func TestForkSessionsFollowEditLineage(t *testing.T) {
+	lineage := []state.EditLineageStep{
+		{OldSession: "s2", CandidateSession: "s3", KeptBefore: 10},
+		{OldSession: "s1", CandidateSession: "s2", KeptBefore: 7},
+	}
+	f := forkSessions{current: "s3", lineage: lineage}
+	for _, tc := range []struct {
+		session string
+		seq     int64
+		want    bool
+	}{
+		{"s3", 12, true}, {"s2", 9, true}, {"s1", 6, true},
+		{"s1", 8, false}, // superseded by the first edit
+		{"s2", 11, false}, {"", 1, false}, {"other", 1, false},
+	} {
+		if got := f.holds(tc.session, tc.seq); got != tc.want {
+			t.Errorf("holds(%q, %d) = %v, want %v", tc.session, tc.seq, got, tc.want)
+		}
+	}
+	if (forkSessions{current: "switched", lineage: lineage}).holds("s2", 9) {
+		t.Error("a runtime switch after the edit kept the old session")
 	}
 }

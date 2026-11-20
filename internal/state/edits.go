@@ -155,6 +155,32 @@ phase IN ('preparing','committing') OR (phase='committed' AND dispatched=0) ORDE
 	return out, rows.Err()
 }
 
+// EditLineageStep is one committed edit's native-session replacement: the
+// candidate session continues the old one for every turn before keptBefore.
+type EditLineageStep struct {
+	OldSession, CandidateSession string
+	KeptBefore                   int64
+}
+
+// EditLineage lists the agent's committed edits, newest first (TS-04.R113).
+func (s *Store) EditLineage(agentID string) ([]EditLineageStep, error) {
+	rows, err := s.db.Query(`SELECT old_session, candidate_session, replaces_from FROM edit_transitions
+WHERE agent_id=? AND phase='committed' ORDER BY revision DESC`, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("state: read edit lineage: %w", err)
+	}
+	defer rows.Close()
+	var out []EditLineageStep
+	for rows.Next() {
+		var step EditLineageStep
+		if err := rows.Scan(&step.OldSession, &step.CandidateSession, &step.KeptBefore); err != nil {
+			return nil, fmt.Errorf("state: scan edit lineage: %w", err)
+		}
+		out = append(out, step)
+	}
+	return out, rows.Err()
+}
+
 // HistoryRevision is the agent's active conversation revision: the newest
 // committing or committed decision, zero for legacy history.
 func (s *Store) HistoryRevision(agentID string) (int64, error) {

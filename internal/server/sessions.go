@@ -740,7 +740,7 @@ func (s *Server) handleTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	includeMeta := r.URL.Query().Get("include_meta") == "true"
-	native := s.currentNativeSession(id)
+	native := s.currentForkSessions(id)
 	// The active revision is read before history: a later commit is a
 	// subsequent revision whose event the reader then sees (TS-03.R91).
 	revision, err := s.stateStore.HistoryRevision(id)

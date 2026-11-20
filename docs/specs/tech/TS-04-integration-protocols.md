@@ -1823,6 +1823,12 @@ _meta.chuck.completeTurnForkVersion = 1; normalize it into stored runtime capabi
 legacy default zero for preflight affordances and verify it again on the preparing peer.
 First-turn Edit uses the fresh-context path below.
 
+A kept turn's recorded fork point keeps naming the native session that produced it. Each
+committed edit relates its old session to its candidate for the turns before its superseded
+range, so a fork point in that chain is in the current provider context; a runtime switch
+breaks the chain. Edit and message Fork at such a point fork the point's own retained session,
+under the same replay fingerprint proof, so the replacement message can be edited again.
+
 For the first user turn, prepare a fresh native session with exactly the source's frozen
 initial configuration and startup context, including HistoryPrimer and guidance-delivery
 semantics. Use the existing fresh-start composer and preparation-purpose rules rather than a

@@ -97,10 +97,11 @@ func (s *Server) cloneAgent(ctx context.Context, sourceID string, req cloneReque
 	composeText := ""
 	if req.ThroughSeq != 0 {
 		// A chosen turn forks at its stored provider point (TS-04.R110).
-		if aff := forkAffordance(boundary, snap.LastSessionID); !aff.Available {
+		if aff := forkAffordance(boundary, s.forkSessionsFor(sourceID, snap.LastSessionID)); !aff.Available {
 			return cloneResponse{}, cloneUnavailable(aff.Reason)
 		}
 		plan.ForkPoint = boundary.ForkPoint
+		plan.SourceSessionID = forkSource(boundary.ForkPoint, snap.LastSessionID)
 		if req.ComposeFromSeq != 0 {
 			after, err := transcript.ReadFile(s.configStore.Home(), sourceID, transcript.ReadOptions{SinceSeq: boundary.Seq})
 			if err != nil {

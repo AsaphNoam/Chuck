@@ -319,3 +319,48 @@ func TestEditLastRefusesWhenALaterTurnFollowed(t *testing.T) {
 		t.Fatalf("active turn ends after refusal = %d, want 4", got)
 	}
 }
+
+// EDIT-REVIEW-1 (FS-01.A43, TS-04.R113): after an Edit the kept turn's fork
+// point still names the original native session. The committed edit's
+// lineage relates it to the replacement, so the replacement message can be
+// edited again, forking at the same kept turn of the original session.
+func TestEditLastTwiceForksTheKeptTurnAgain(t *testing.T) {
+	srv, base, id, metaDump := forkServer(t, map[string]string{"FAKEACP_COMPLETE_TURN": "1"})
+	original, _ := srv.stateStore.ReadSession(id)
+	edit := func(requestID, text string, revision int64) {
+		t.Helper()
+		latest, _ := lastRootPrompt(t, readTranscriptAPI(t, base, id))
+		_ = os.Remove(metaDump)
+		body := map[string]any{"request_id": requestID, "message_seq": latest.Seq, "expected_revision": revision - 1, "text": text}
+		if resp, raw := post(t, base+"/api/sessions/"+id+"/edit-last", body); resp.StatusCode != http.StatusAccepted {
+			t.Fatalf("%s = %d %s", requestID, resp.StatusCode, raw)
+		}
+		if rec := waitEdit(t, srv, id, requestID, settled); rec.Phase != state.EditCommitted || rec.Revision != revision {
+			t.Fatalf("%s record = %+v", requestID, rec)
+		}
+		waitStatus(t, srv, id, "idle")
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			active := readTranscriptAPI(t, base, id)
+			if got := promptTexts(active); len(rootTurnEnds(active)) == 3 && got[len(got)-1] == text {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%s: active prompts = %v", requestID, promptTexts(active))
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if meta, _ := os.ReadFile(metaDump); !strings.Contains(string(meta), `"messageId":"msg-2"`) {
+			t.Fatalf("%s did not fork after turn 2: %s", requestID, meta)
+		}
+	}
+	edit("edit-1", "third, revised", 1)
+	// The kept second turn's affordance stays available after the first Edit.
+	if kept := rootTurnEnds(readTranscriptAPI(t, base, id))[1]; kept.Fork == nil || !kept.Fork.Available {
+		t.Fatalf("kept turn end %d after edit: %+v", kept.Seq, kept.Fork)
+	}
+	edit("edit-2", "third, revised again", 2)
+	if lineage, _ := srv.stateStore.EditLineage(id); len(lineage) != 2 || lineage[1].OldSession != original.LastSessionID {
+		t.Fatalf("lineage = %+v, want two edits from %s", lineage, original.LastSessionID)
+	}
+}
