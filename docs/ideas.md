@@ -71,6 +71,10 @@ Example:
   Kept separate from `docs/ready-changes/mermaid-diagrams-in-chat.md` on 2026-08-27 because it is a
   server-wide change that could affect the dev proxy, xterm, and inline styles. Noted while
   researching safe diagram rendering.
+- **Choose an external base for AgentDeck-owned worktrees.** Support a deterministic per-project or
+  per-repository checkout layout outside `$CHUCK_HOME` for operators whose repositories live under a
+  separate workspace base. Ownership records, base-directory changes, recovery, migration and safe
+  deletion need definition before changing the canonical worktree path.
 - **One commit point for a started agent's identity and session.** From the shared resume start
   review's inventory (SW-START-4, 2026-11-15). SW-START-1–3 were patched: a Switch rollback
   restores the agent's selection and session snapshot in one transaction
@@ -347,10 +351,6 @@ the relevant feature and technical specifications; it does not change product co
   full passive delivery after verified ACP availability. Pinned live Claude utilization/reset
   declarations have no explicit units; expose numeric percentages/time conversion only after
   provider/primary-code evidence resolves them. No guessed percent scaling or epoch arithmetic.
-- **Choose an external base for AgentDeck-owned worktrees.** Support a deterministic per-project or
-  per-repository checkout layout outside `$AGENTDECK_HOME` for operators whose repositories live
-  under a separate workspace base. Define ownership records, base-directory changes, recovery,
-  migration, and safe deletion before changing the canonical worktree path.
 - **Live permission policy and provider-native autonomy modes.** Define a chat-page permission-mode
   control and the requested defaults: an AgentDeck-owned “approve for me” policy for Codex and the
   provider's automatic mode for Claude. Specify scope, persistence, provider mapping, whether a
