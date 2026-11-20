@@ -51,6 +51,9 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
+- [`browse-project-files.md`](browse-project-files.md) — searchable shared files in newest-first
+  order, type filters, modal and HTML-tab previews, Finder actions in project and chat, and CSV tables.
+
 - [`message-hover-actions-and-current-conversation-edit.md`](message-hover-actions-and-current-conversation-edit.md)
   — subtle Copy/Fork icons on every desktop message, last-message Edit in the current
   conversation, and revision-aware recovery and readers.

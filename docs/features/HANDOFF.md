@@ -35,13 +35,13 @@ None.
 
 ## Decisions needing input
 
-- **Project Files:** Confirm an all-folders default with a folder selector, a sandboxed HTML preview
-  in a new browser tab, and desktop-only shared-folder access without symbolic-link traversal.
-  [FS-11.R11–R16/A6–A10](../specs/features/FS-11-project-resources.md#project-file-browser) and
-  FS-03.R119–R120/A94–A95 cover the file browser, Finder and CSV. Technical design follows confirmation.
+None.
 
 ## Resolved decisions
 
+- [Project Files](../ready-changes/browse-project-files.md) starts with all shared folders and
+  offers a folder selector. HTML opens in a sandboxed viewer in a new browser tab. The shared
+  folder is desktop-only and symbolic links cannot be followed. The change is waiting to start.
 - Message action design is ready in
   [message-hover-actions-and-current-conversation-edit.md](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
   (FS-01.R60–R62/A42–A44). The last sent message has Copy/Edit/Fork; other messages have

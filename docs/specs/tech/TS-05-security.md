@@ -344,6 +344,32 @@ local Host/Origin rejection and direct phone PUT denial independently. Noncooper
 writers can race the final check/rename as explicitly accepted in TS-03.R81; do not claim OS-level
 exclusive file ownership or protection against a hostile same-user process.
 
+**R30 (planned) — Project file operations use a descriptor-scoped shared root.** For FS-11.R11–R16
+and TS-03.R93/R94, read the configured project by validated id and derive its root only through
+`ProjectResourcesPath` (TS-02.R13). Validate the resource parent and project directory as real,
+owner-only directories. Open them and walk beneath them descriptor-relatively with no-follow
+directory opens on every component, sharing the existing workspace no-follow open pattern in
+`attachments.go`. A final symlink may contribute display metadata from its own directory entry.
+Never resolve or disclose its target. Reject absolute paths, traversal segments, and non-regular
+preview targets, and verify the opened descriptor before decoding content. Refuse an unsafe root
+or unsupported safe-open platform. The existing general-purpose session and room file loaders
+have a different trust scope and must never serve as fallbacks. Keep resource names and paths out
+of access diagnostics, telemetry, SSE and transcript payloads. Register all project read and
+reveal endpoints behind `localOnly` and explicitly deny them to the remote mux. Tests exercise root,
+ancestor and final-entry symlink substitutions, missing projects, path escapes, non-regular files,
+and local Host/Origin and paired-phone denial (INV §14/§17).
+
+**R31 (planned) — Finder reveals only an explicitly selected regular file.** Require a local menu
+selection to call TS-03.R94 from the browser. The server resolves chat paths using the existing
+local chat authority and working-directory rules (R24) and project paths using R30. Check the
+target as a readable regular file independently of whether its content has a supported preview.
+On macOS invoke the native reveal command with a fixed executable, separate arguments and a
+bounded timeout. Use no shell, no content execution and no automatic retry. For project files
+verify that the canonical path still resolves under R30 to the same descriptor identity just
+before handoff. Finder consumes a pathname and may observe a subsequent rename by another
+same-user process. The action neither reads nor executes the file at that point. Verify command
+arguments and refusal paths with an injected runner, and actual selection with a local Mac check.
+
 ## 3. Interfaces & data shapes
 
 Security-relevant interfaces are the single listener, Host/Origin middleware, launch token

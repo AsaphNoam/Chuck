@@ -2320,6 +2320,40 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   Verify FS-01.A42–A44 on the agent page and dashboard pane at the supported desktop floor,
   with long content, all appearances, keyboard focus and reduced motion (INV §1/§2/§8/§10/§13).
 
+- **R172 (planned) — One project modal owns browse and preview.** For FS-11.R11–R16 use the scoped
+  project header and existing dialog, search, menu, and file-viewer primitives. Fetch one TS-03.R93
+  catalog on open or Refresh and derive query, file type, and folder filters from metadata. If the
+  catalog is incomplete, a selected known folder can request its own bounded catalog. Keep both
+  table navigation and preview in one dialog, with distinct Back to files and Close actions.
+  Keep list context in that dialog only. Fence responses by project, scope and request so a closed
+  dialog or changed project cannot display old data. A wide table scrolls inside the dialog, and
+  its headers and the search controls remain available while scanning. Reuse appearance tokens
+  with no new motion. Verify the real project route at the supported desktop floor and across
+  appearances, including empty states, long paths, focus, keyboard operation and reduced motion.
+
+- **R173 (planned) — Shared actions and source-qualified preview.** Use the existing file viewer
+  with an explicit project loader and no editing or annotation callbacks. Resolve relative file
+  links from the previewed file in the same project loader. Reuse shared file-action composition
+  for the project table and chat menus, including clipboard/failure feedback. Bind Finder to the
+  originating scope and local host capability in TS-03.R94. The project HTML command opens a
+  first-party viewer page synchronously from the operator action with no opener, using an encoded
+  relative file reference in the URL fragment. It uses the same scoped JSON loader and opaque
+  sandbox and CSP in R152. Never serve original HTML as the top-level document or redirect the
+  project action to the native browser launch route. Keep the source list context in its original
+  tab. Verify independent tabs, refusal of out-of-root links and preservation of the existing chat
+  HTML and annotation actions.
+
+- **R174 (planned) — Share a bounded CSV table renderer.** For FS-03.R120 derive CSV rows once per
+  complete text snapshot in the shared file viewer. Recognize case-insensitive `.csv`, support an
+  initial UTF-8 BOM, CRLF/LF records, escaped quotes, quoted newlines and empty fields, and keep the
+  exact source independently of the parsed rows. Use literal cell text and numbered columns, with
+  the first record still present as data. Bound table parsing and rendering to 1,000 rows, 100
+  columns and 20,000 cells per snapshot, and fall back to labelled Source if any limit would be
+  exceeded. Do the same for invalid quoting, differing record widths or a truncated snapshot.
+  A cited line stays in Source. Preserve the existing source actions, safe inline rendering,
+  freshness behavior and reader-specific authority. Use a semantic table with local horizontal
+  scrolling, and render its cell values without HTML interpretation or formula evaluation.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract

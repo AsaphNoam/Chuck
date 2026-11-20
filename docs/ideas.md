@@ -244,11 +244,6 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
-- **Browse project files.** Add a newest-first file table, folder and type filters, a modal viewer,
-  an HTML new-tab action, and a shared **Open in Finder** action for project and chat files. Add CSV
-  tables to the viewer. Draft behavior is in FS-11.R11–R16/A6–A10 and FS-03.R119–R120/A94–A95.
-  Await confirmation of folder scope, HTML tab behavior, and desktop shared-folder access boundaries.
-
 - **One owner for a sent prompt's echo and the held tail.** From the request-ID matching review's
   inventory (PROMPT-4, 2026-11-15). PROMPT-1–3 were patched: one echo per request ID, both desktop
   surfaces share `useHeldProjection`, and a hold read begun before a Send's accepted hold

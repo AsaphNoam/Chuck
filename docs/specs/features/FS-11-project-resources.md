@@ -155,9 +155,7 @@ repository change or commit.
   may be designed separately.
 - Repository-resident directories, cloud synchronization, full-text search, access control beyond
   the current same-user model, and configurable locations are out of scope.
-- R11–R16/A6–A10 are a feature draft. Confirm the all-folders default with a folder selector,
-  sandboxed HTML in a new browser tab, and desktop-only shared-folder access without symbolic-link
-  traversal before technical design.
+- R11–R16/A6–A10 are planned in [Browse project files](../../ready-changes/browse-project-files.md).
 
 ## 7. Traceability
 
