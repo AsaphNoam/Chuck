@@ -283,59 +283,20 @@ specs, live user state or unrelated dirty files changed.
   recheck, or a second editing member) still returns 409 after that Edit was aborted
   (`internal/server/groups.go` `groupAction`). Found by the EDIT-EDGE independent check.
 
-### STEER-HOLD — a refused Steer of a queued message cycles into “held message changed” (investigated 2026-11-17) — **Fix model:** difficult — Codex Sol.
+### STEER-HOLD — refused Steer of a held message (fixed 2026-11-20; remaining work) — **Fix model:** difficult — Codex Sol.
 
-**Report (verbatim):** “trying to steer doesn't do anything (message stays queued) and I get "Could
-not steer — held message changed; reload before steering." Reloading the page didn't change
-anything. When the agent finished its turn the message was sent as usual queued message behavior.
-Also the 'Queued — it will be delivered when the agent's assignment continues.' appears a lot of
-times even if there is no queued message, I think it just doesn't leave, when steer does work the
-message 'Delivered into the running turn.' just stays”. No field build, agent, adapter or log was
-supplied. The local dashboard (a v0.22.0-era build running since 2026-11-06) recorded no Steer
-request, so it is not the source; source inspected at `81e67283`.
+STEER-HOLD-1/2/3/5 are fixed and the inventory (STEER-HOLD-6) is in `docs/ideas.md` as “One
+transition table for a held message and a Steer”. One gap from the fix's independent check remains.
 
-**Mechanism, reproduced** with the fake adapter set to refuse: the first empty-composer Steer
-returns “The agent refused this steered message”, the server re-holds the message under a new
-`held_id`, and the browser keeps the old one, so the next Steer is `held_changed`; that refreshes the
-hold, and the next Steer is refused again. Turn end then sends the restored hold as an ordinary
-queued message. **Why the person's adapter refused is undetermined.** Neither the refusal reason nor
-desktop requests reach the log. Reproduction: `TestRefusedPromotedSteerKeepsTheHoldUnchanged`
-(`internal/server/queue_steer_test.go`, skipped).
-
-- **Must fix** — STEER-HOLD-1 (confirmed; FS-03.R50, TS-03.R39, INV §5/§19). A refused promoted
-  Steer restores the hold through `hold()`, which mints a new `held_id`
-  (`internal/runtime/chat.go:1032–1035`). The desktop composer refreshes its hold only on
-  `held_changed`, not on a refusal (`ui/src/components/chat/useInputDelivery.ts:171–178`). Every
-  retry therefore fails. Restore the original hold identity (or refresh it on any promoted-Steer
-  refusal), and un-skip the reproduction.
-- **Must fix** — STEER-HOLD-2 (confirmed; FS-03.R48/R50, INV §15/§19). A request-bearing Steer emits
-  its durable `user_text` before the native call (`internal/runtime/chat.go:839–848`). A refusal
-  leaves that entry behind, even though the response says nothing was delivered and the code
-  comment says a refusal writes nothing. Each refused attempt adds another copy, and the restored
-  hold is later sent again. The desktop held projection can match that `request_id` and clear the
-  pending tail early (`ui/src/components/chat/useHeldProjection.ts:35–45`). The skipped test's
-  transcript assertion covers it. Typed Steer has the same ordering.
-- **Worth fixing** — STEER-HOLD-3 (confirmed code path; spec gap; FS-03.R48/R50, INV §1). Composer notices
-  are cleared only by the next Send or Steer, Withdraw, Cancel or an agent switch
-  (`ui/src/components/chat/Composer.tsx:44,110,188,285,298`;
-  `useInputDelivery.ts:141–147`). “Delivered into the running turn.”, “That turn had already
-  ended…” and “Queued — …assignment continues.” therefore stay after the turn or queued input that
-  they describe has settled. FS-03 names the text but not the lifetime. **Operator decision
-  (2026-11-17):** each of these Send/Steer outcome notices becomes a toast that lasts 3 seconds and
-  then fades out, rather than a persistent composer line. Specify that in FS-03, and reuse the
-  existing toast surface (`ui/src/components/shell/NotificationCenter.tsx`, which currently
-  auto-dismisses after 6s) with a per-toast 3s duration and a fade. Add a Composer test for the
-  3s dismissal. Errors stay where they are.
-- **Worth fixing** — STEER-HOLD-5 (observability; INV §22). The refusal transition logs only
-  `provider_refused` (`internal/runtime/chat.go:891–909`). The adapter's RPC code and method are not
-  logged, and desktop route outcomes are not logged either. Log the bounded RPC code with the
-  `request_id`/`held_id` for a refused Steer and `held_changed`. A report like this one could then
-  tell an unsupported adapter, invalid parameters and a stale client apart.
-- **Worth fixing** — STEER-HOLD-6 (inventory; workflow §7 second fix round). Chat input
-  holding and Steer received fixes within 30 days (`7c407643`, `1bf0ffb9`, `de246a42`,
-  `0e98d3c4`). Before patching, list every writer of `turn.held` and `turn.steerFallback`, every
-  Send/Steer/Withdraw/turn-end/stop entry point, the transcript and receipt writes each makes,
-  and where the legal moves are specified.
+- **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §19). To keep a refused Steer out
+  of history, the Steer `user_text` is now written after the native `_session/steering` answer,
+  not before it (`internal/runtime/chat.go` `SteerMessage`). The receipt still records `unknown`
+  before the call, so the input stays recoverable. A crash, Stop or transport close while that
+  call is pending can now leave a delivered or possibly delivered Steer out of the transcript; a
+  late append after Stop fails and only logs. An injected Steer's first reply chunks can also be
+  written before its row (suspected, not reproduced). R13 says every accepted prompt is appended
+  before publication. Choose with the transition-table idea: write ahead with a retraction record
+  on refusal, or narrow R13 for Steer to “recoverable through its receipt”.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

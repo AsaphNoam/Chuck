@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ChatPanel } from './ChatPanel';
 import { useAgentStore } from '../../store/agentStore';
 import { useHeldStore } from '../../store/heldStore';
+import { useUiStore } from '../../store/uiStore';
 
 const mocks = vi.hoisted(() => ({
   getHeldPrompt: vi.fn(),
@@ -99,6 +100,6 @@ it('clears a transient recovery snapshot once the matching Steer succeeds', asyn
   // The server would now report submitted, but successful Steer never reads it.
   mocks.getHeldPrompt.mockResolvedValue({ agent_id: 'steer-agent', text: '', after_seq: 0 });
   await act(async () => completeSteer({ accepted: true, agent_id: 'steer-agent', outcome: 'steered' }));
-  await screen.findByText('Delivered into the running turn.');
+  await waitFor(() => expect(useUiStore.getState().toasts.map((toast) => toast.title)).toContain('Delivered into the running turn.'));
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Send recovered message' })).toBeNull());
 });

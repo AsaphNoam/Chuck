@@ -10,6 +10,11 @@ import { readHeldRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import type { AttachmentDescriptor } from "../../api/types";
 import { useTranscriptStore } from "../../store/transcriptStore";
 import { clearAttachmentDraftCacheForTests } from "./attachments";
+import { OUTCOME_TOAST_MS, useUiStore } from "../../store/uiStore";
+
+// Desktop Send/Steer outcomes are 3s toasts, not composer lines (FS-03.R50).
+const outcomeToasts = () => useUiStore.getState().toasts
+  .filter((toast) => toast.durationMs === OUTCOME_TOAST_MS).map((toast) => toast.title);
 
 // Files returned by the mock file-search, narrowed by the q param so the test can
 // assert query filtering (FS-03.R30/A15).
@@ -49,6 +54,7 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 afterEach(() => {
   cleanup();
+  useUiStore.setState({ toasts: [] });
   localStorage.clear();
   clearAttachmentDraftCacheForTests();
   useHeldStore.setState({ byAgent: {}, afterSeqByAgent: {}, attachmentsByAgent: {}, recoveryByAgent: {}, recoveryUnreadByAgent: {}, heldIdByAgent: {}, requestIdByAgent: {}, holdRevisionByAgent: {}, queuedByAgent: {} });
@@ -559,7 +565,7 @@ describe("Composer queued follow-up and steering", () => {
     type(ta, "use opus for the fix");
     fireEvent.keyDown(ta, { key: "Enter" });
 
-    expect(await screen.findByText("Queued — it will be delivered when the agent's assignment continues.")).toBeTruthy();
+    await waitFor(() => expect(outcomeToasts()).toContain("Queued — it will be delivered when the agent's assignment continues."));
     expect(ta.value).toBe("");
     expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
     expect(useTranscriptStore.getState().byAgent.a_1 ?? []).toHaveLength(0);
@@ -883,7 +889,7 @@ describe("Composer queued follow-up and steering", () => {
     const ta = screen.getByRole("textbox") as HTMLTextAreaElement;
     type(ta, "use the other file");
     fireEvent.click(screen.getByRole("button", { name: "Steer" }));
-    expect(await screen.findByText("Delivered into the running turn.")).toBeInTheDocument();
+    await waitFor(() => expect(outcomeToasts()).toContain("Delivered into the running turn."));
     expect(ta.value).toBe("");
     view.unmount();
 
@@ -894,7 +900,7 @@ describe("Composer queued follow-up and steering", () => {
     type(screen.getByRole("textbox") as HTMLTextAreaElement, "too late");
     fireEvent.change(screen.getByLabelText("Choose files to attach"), { target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] } });
     fireEvent.click(screen.getByRole("button", { name: "Steer" }));
-    expect(await screen.findByText("That turn had already ended — sent as a new turn.")).toBeInTheDocument();
+    await waitFor(() => expect(outcomeToasts()).toContain("That turn had already ended — sent as a new turn."));
   });
 
   it("submits one steer while the first request is still in flight", async () => {
@@ -950,7 +956,7 @@ describe("Composer queued follow-up and steering", () => {
     type(ta, "newer direction");
     finishSteer?.();
 
-    await waitFor(() => expect(screen.getByText("Delivered into the running turn.")).toBeInTheDocument());
+    await waitFor(() => expect(outcomeToasts()).toContain("Delivered into the running turn."));
     expect(ta.value).toBe("newer direction");
     expect(getChatDraft("a_1")).toBe("newer direction");
   });
@@ -974,7 +980,7 @@ describe("Composer queued follow-up and steering", () => {
     finishSteer?.();
 
     await waitFor(() => expect(currentTextarea.value).toBe("current agent draft"));
-    expect(screen.queryByText("Delivered into the running turn.")).not.toBeInTheDocument();
+    expect(outcomeToasts()).not.toContain("Delivered into the running turn.");
     expect(getChatDraft("a_2")).toBe("current agent draft");
   });
 

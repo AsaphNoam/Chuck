@@ -387,7 +387,6 @@ func TestSteerRoutePromotesTheHeldMessage(t *testing.T) {
 // (same held_id, so the client's next Steer is not held_changed) and must
 // write nothing to the durable transcript (FS-03.R48/R50, TS-03.R39, INV §19).
 func TestRefusedPromotedSteerKeepsTheHoldUnchanged(t *testing.T) {
-	t.Skip("STEER-HOLD-1/2 reproduction; the /fix session un-skips it as the regression test")
 	t.Setenv("FAKEACP_STEERING", "1")
 	t.Setenv("FAKEACP_STEER_OUTCOME", "reject")
 	_, handler, id, _ := busyAttachmentTestServer(t)
@@ -407,6 +406,25 @@ func TestRefusedPromotedSteerKeepsTheHoldUnchanged(t *testing.T) {
 		if got := fieldOf(t, snapshot.Body.Bytes(), "held_id"); got != heldID {
 			t.Fatalf("attempt %d: refusal replaced held_id %s with %s", attempt, heldID, got)
 		}
+	}
+	transcript := serveLocal(t, handler, http.MethodGet, base+"/transcript", nil)
+	if strings.Contains(transcript.Body.String(), requestID) {
+		t.Fatalf("refused Steer reached the durable transcript: %s", transcript.Body)
+	}
+}
+
+// TestRefusedTypedSteerWritesNoTranscriptRow: a typed Steer the adapter refuses
+// was never delivered, so it leaves no ordinary user row (STEER-HOLD-2,
+// FS-03.R50, INV §19).
+func TestRefusedTypedSteerWritesNoTranscriptRow(t *testing.T) {
+	t.Setenv("FAKEACP_STEERING", "1")
+	t.Setenv("FAKEACP_STEER_OUTCOME", "reject")
+	_, handler, id, _ := busyAttachmentTestServer(t)
+	base := "/api/sessions/" + id
+	const requestID = "22222222-2222-4222-8222-222222222222"
+	resp, body := postJSONHandler(t, handler, base+"/steer", map[string]string{"text": "redirect", "request_id": requestID})
+	if resp.StatusCode != http.StatusInternalServerError || !strings.Contains(string(body), "refused") {
+		t.Fatalf("want the adapter refusal, got %d %s", resp.StatusCode, body)
 	}
 	transcript := serveLocal(t, handler, http.MethodGet, base+"/transcript", nil)
 	if strings.Contains(transcript.Body.String(), requestID) {

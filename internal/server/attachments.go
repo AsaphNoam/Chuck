@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"golang.org/x/sys/unix"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -481,6 +482,10 @@ func (s *Server) handleMessageAction(w http.ResponseWriter, r *http.Request, act
 		expectedHoldChanged := req.HeldID != "" && req.HeldID != heldMessage.HeldID
 		legacyHoldChanged := req.HeldID == "" && msg.RequestID != "" && msg.RequestID != heldMessage.RequestID
 		if expectedHoldChanged || legacyHoldChanged {
+			// A stale client and a replaced hold look alike to the person; the
+			// identities tell them apart in the log (STEER-HOLD-5, INV §22).
+			slog.Info("server: steer of a changed hold", "agent", id, "request_id", msg.RequestID,
+				"held_id", req.HeldID, "current_held_id", heldMessage.HeldID)
 			writeAPIError(w, steerError(runtime.ErrHeldChanged))
 			return
 		}

@@ -5,7 +5,7 @@ import type { AnnotationDraft } from "../../api/types";
 import { annotationAnchor } from "../../lib/annotations";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
-import { useUiStore } from "../../store/uiStore";
+import { OUTCOME_TOAST_MS, useUiStore } from "../../store/uiStore";
 import { NewAgentModal } from "../../features/launch/NewAgentModal";
 import { useProjects, useRoles } from "../../api/config";
 import { projectTitle } from "../../lib/labels";
@@ -22,7 +22,7 @@ export function AnnotationTray({ sourceId, sourceActive }: { sourceId: string; s
 export function useDesktopAnnotationDelivery(sourceId: string, sourceActive: boolean) {
   const agents = useAgentStore((state) => state.agents);
   const recipients = Object.values(agents).filter((agent) => agent.agent_id !== sourceId && agent.running && agent.interface === "chat");
-  return useAnnotationDelivery({ sourceId, sourceActive, source: agents[sourceId], recipients, onNotice: (text) => useUiStore.getState().pushNotice(text) });
+  return useAnnotationDelivery({ sourceId, sourceActive, source: agents[sourceId], recipients, onNotice: (text) => useUiStore.getState().pushNotice(text, undefined, undefined, OUTCOME_TOAST_MS) });
 }
 
 export function AnnotationTrayView({ delivery }: { delivery: AnnotationDelivery }) {

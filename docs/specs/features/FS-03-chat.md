@@ -165,7 +165,15 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   When that happens the message is delivered as its own next turn rather than lost, and the person is
   told which of the two happened rather than left to infer it from the transcript. A message the
   runtime refuses — content the current model cannot accept — leaves the composer intact with the
-  reason, and never silently downgrades to a queue.
+  reason, and never silently downgrades to a queue. A refused Steer delivered nothing, so it adds no
+  user message to the transcript, and a refused Steer of the held message leaves that message held
+  exactly as it was, under the same identity, so the person can retry, withdraw, or let it send
+  at turn end without reloading.
+
+  On desktop, the outcome of an accepted Send or Steer — delivered into the running turn, sent as a
+  new turn because that turn had ended, or queued for the assignment — is a toast that lasts three
+  seconds and fades out, not a standing composer line that outlives what it describes. Errors and
+  recovery prompts stay in the composer. The phone has no toast surface and keeps its inline notice.
 
 ### 2.3 Streaming and recovery
 

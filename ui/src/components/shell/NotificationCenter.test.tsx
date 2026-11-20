@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NotificationCenter } from "./NotificationCenter";
 import { ChatPanel } from "../chat/ChatPanel";
 import { useAgentStore } from "../../store/agentStore";
-import { useUiStore } from "../../store/uiStore";
+import { OUTCOME_TOAST_MS, useUiStore } from "../../store/uiStore";
 import type { NotificationPayload } from "../../api/types";
 
 vi.mock("../../api/config", async (importOriginal) => ({
@@ -73,6 +73,26 @@ describe("NotificationCenter per-toast timers", () => {
 
     expect(screen.queryByText("first")).not.toBeInTheDocument();
     expect(screen.getByText("second")).toBeInTheDocument();
+  });
+
+  // STEER-HOLD-3: a Send/Steer outcome is a brief confirmation that fades and
+  // leaves after 3s, rather than a composer line that outlives what it describes.
+  it("removes a Send/Steer outcome toast after 3s while a default toast stays", () => {
+    renderCenter();
+    act(() => {
+      useUiStore.getState().pushError("standing");
+      useUiStore.getState().pushNotice("Delivered into the running turn.", undefined, undefined, OUTCOME_TOAST_MS);
+    });
+    expect(screen.getByText("Delivered into the running turn.").closest("[data-ui=toast]")).toHaveAttribute("data-fade");
+    act(() => {
+      vi.advanceTimersByTime(OUTCOME_TOAST_MS - 1);
+    });
+    expect(screen.getByText("Delivered into the running turn.")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByText("Delivered into the running turn.")).not.toBeInTheDocument();
+    expect(screen.getByText("standing")).toBeInTheDocument();
   });
 });
 

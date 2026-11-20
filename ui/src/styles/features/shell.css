@@ -351,6 +351,21 @@
   border-left-color: var(--ad-action-secondary);
 }
 
+/* A Send/Steer outcome toast fades out over the last part of its 3s life
+   (OUTCOME_TOAST_MS, FS-03.R50). */
+.toast[data-fade] {
+  animation: toast-fade-out 3s linear forwards;
+}
+
+@keyframes toast-fade-out {
+  0%, 75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast[data-fade] { animation: none; }
+}
+
 .error-boundary {
   background: color-mix(in srgb, var(--ad-state-error) 8%, var(--ad-surface-panel));
   border: var(--ad-border-thick) solid var(--ad-state-error);

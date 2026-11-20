@@ -7,6 +7,7 @@ import {
   subscribePendingSendCleared, type DraftAttachment, type PendingAttachmentSend,
 } from "./attachments";
 import { renewDraftRequestId } from "./draftIndex";
+import { OUTCOME_TOAST_MS, useUiStore } from "../../store/uiStore";
 
 function sameAttachmentSet(left: DraftAttachment[], right: DraftAttachment[]) {
   return left.length === right.length && left.every((file) => right.some((candidate) => candidate.id === file.id));
@@ -139,9 +140,14 @@ export function useInputDelivery(agentId: string, projection: Projection, view: 
       }
       if (ownsView()) {
         if (persist) setRetry(null);
-        if (prompt?.delivery === "queued") view.setNotice(QUEUED_FOR_ASSIGNMENT_NOTICE);
+        // Desktop outcomes are brief toasts; the phone, which has no toast
+        // surface, keeps its inline notice (FS-03.R50).
+        const outcome = (text: string) => view.phone
+          ? view.setNotice(text)
+          : useUiStore.getState().pushNotice(text, undefined, undefined, OUTCOME_TOAST_MS);
+        if (prompt?.delivery === "queued") outcome(QUEUED_FOR_ASSIGNMENT_NOTICE);
         else if (view.phone && (prompt?.delivery === "held" || status === "held")) view.setNotice("Held — it will be sent when the current turn ends.");
-        else if (steered) view.setNotice(steered.outcome === "steered"
+        else if (steered) outcome(steered.outcome === "steered"
           ? "Delivered into the running turn."
           : "That turn had already ended — sent as a new turn.");
       }

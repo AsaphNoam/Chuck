@@ -11,7 +11,12 @@ export interface ToastItem {
   type: NotificationPayload["notification_type"] | "error" | "notice";
   // The agent whose conversation the toast opens; absent on error toasts.
   agentId?: string;
+  /** Lifetime before it fades out; the default is 6s. */
+  durationMs?: number;
 }
+
+/** Send/Steer outcome notices are brief confirmations, not standing state (FS-03.R50). */
+export const OUTCOME_TOAST_MS = 3_000;
 
 interface UiStoreState {
   density: { perRow: number; gap: number };
@@ -30,7 +35,7 @@ interface UiStoreState {
   closeContextMenu: () => void;
   pushToast: (notification: NotificationPayload) => void;
   pushError: (title: string, body?: string) => void;
-  pushNotice: (title: string, body?: string, agentId?: string) => void;
+  pushNotice: (title: string, body?: string, agentId?: string, durationMs?: number) => void;
   dismissToast: (id: string) => void;
 }
 
@@ -88,7 +93,7 @@ export const useUiStore = create<UiStoreState>((set) => ({
       };
       return { toasts: [...state.toasts, toast].slice(-4) };
     }),
-  pushNotice: (title, body, agentId) =>
+  pushNotice: (title, body, agentId, durationMs) =>
     set((state) => {
       const toast: ToastItem = {
         id: `notice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -96,6 +101,7 @@ export const useUiStore = create<UiStoreState>((set) => ({
         body,
         type: "notice",
         agentId,
+        durationMs,
       };
       return { toasts: [...state.toasts, toast].slice(-4) };
     }),

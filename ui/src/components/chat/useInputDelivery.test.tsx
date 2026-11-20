@@ -6,6 +6,7 @@ import { getChatDraft, setChatDraft } from "./drafts";
 import { chatDraftRequestId, clearAttachmentDraftCacheForTests, restorePendingAttachmentSend } from "./attachments";
 import { useInputDelivery } from "./useInputDelivery";
 import { reconcileRecoverySettlement } from "../../lib/heldMessage";
+import { OUTCOME_TOAST_MS, useUiStore } from "../../store/uiStore";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -62,7 +63,9 @@ it.each(outcomes.flatMap((outcome) => [false, true].map((phone) => ({ outcome, p
     expect(projectPrompt).toHaveBeenCalledTimes(phone || retained ? 0 : 1);
     if (!phone && !retained) expect(projectPrompt.mock.calls[0][2]).toBe(5);
     expect(refreshRecovery).toHaveBeenCalledTimes(outcome === "queued" || outcome === "uncertain" || outcome === "released" ? 1 : 0);
-    if (outcome === "queued") expect(setNotice).toHaveBeenLastCalledWith(expect.stringContaining("Queued"));
+    if (outcome === "queued" && phone) expect(setNotice).toHaveBeenLastCalledWith(expect.stringContaining("Queued"));
+    // Desktop outcomes are 3s toasts (FS-03.R50).
+    if (outcome === "queued" && !phone) expect(useUiStore.getState().toasts.at(-1)).toMatchObject({ title: expect.stringContaining("Queued"), durationMs: OUTCOME_TOAST_MS });
     if (outcome === "held" && phone) expect(setNotice).toHaveBeenLastCalledWith(expect.stringContaining("Held"));
     if (retained) expect(setError).toHaveBeenLastCalledWith(expect.any(String));
   },

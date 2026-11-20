@@ -417,7 +417,6 @@ type currentTurn struct {
 
 type heldMessage struct {
 	HeldID      string
-	recorded    bool
 	Text        string
 	Attachments []attachment.Descriptor
 	RequestID   string
@@ -807,7 +806,13 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		// concurrent withdraw or turn-end delivery cannot let one message both
 		// steer and run as its own turn (INV §5).
 		if message.HeldID != "" && message.HeldID != as.turn.held.HeldID {
+			current := as.turn.held.HeldID
 			as.mu.Unlock()
+			// A stale client and a replaced hold look alike to the person; the
+			// two identities tell them apart in the log (STEER-HOLD-5).
+			slog.Info("runtime: steer of a changed hold", "agent", boundedMessageIdentity(agentID),
+				"request_id", boundedMessageIdentity(message.RequestID), "held_id", boundedMessageIdentity(message.HeldID),
+				"current_held_id", boundedMessageIdentity(current))
 			return "", ErrHeldChanged
 		}
 		if as.turn.held.message().empty() {
@@ -847,24 +852,24 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 		return "", ErrTurnInFlight
 	}
 	if promoted {
+		// The fallback is the hold itself, so a refusal restores the same
+		// held_id and position the client already has (STEER-HOLD-1).
+		as.turn.steerFallback = as.turn.held
+		as.turn.steerFallback.RequestID = message.RequestID
 		as.turn.held = heldMessage{}
+	} else {
+		as.turn.steerFallback = hold(message, as.seq)
 	}
-	as.turn.steerFallback = hold(message, as.seq)
 	if !as.turn.turnActive {
 		turnID, _ := as.claimTurnLocked()
 		as.turn.steerFallback.TurnID = turnID
 	}
 	as.mu.Unlock()
+	// The durable receipt, not the transcript, carries acceptance across the
+	// native call: the user row is written only once the adapter's answer says
+	// the agent may have it, so a refusal leaves no sent message behind
+	// (FS-03.R50, INV §19).
 	persisted := message.RequestID != "" || len(message.Attachments) > 0
-	if persisted && c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
-		as.resolveSteerFallback("", fmt.Errorf("message persistence failed"), promoted)
-		return "", NewAPIError(CodeAttachmentStorage, "Could not retain accepted message")
-	}
-	if persisted {
-		as.mu.Lock()
-		as.turn.steerFallback.recorded = true
-		as.mu.Unlock()
-	}
 	// Reserve uncertainty durably before the native call. A failed receipt
 	// update after consumption must not leave a replay claiming confirmed success.
 	if err := c.messageTransitionReason(agentID, message.RequestID, "unknown", "steer", "native_call_pending"); err != nil {
@@ -893,6 +898,27 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 	// A lost acknowledgement says nothing about whether the provider consumed
 	// the input, including legacy text without a request receipt.
 	restorePromoted = promoted && refused
+	if rpcErr != nil {
+		// The bounded code tells an unsupported method, invalid parameters and a
+		// content refusal apart; the provider's message text can carry private
+		// input and is not logged (STEER-HOLD-5, INV §22).
+		slog.Warn("runtime: steer rejected by adapter", "agent", boundedMessageIdentity(agentID),
+			"request_id", boundedMessageIdentity(message.RequestID), "held_id", boundedMessageIdentity(message.HeldID),
+			"method", steeringMethod, "rpc_code", rpcErr.Code, "refused", refused)
+	}
+	if !refused && outcome != steerPromptRequired && (err == nil || persisted) {
+		// The agent received it — injected into the running turn or as the turn
+		// the adapter started — or may have (a lost answer), so it belongs in the
+		// durable transcript as an ordinary user message on the same path every
+		// other prompt takes (FS-03.R50/R100, INV §2). A refusal writes nothing,
+		// and a promptRequired fallback turn records the message itself. A failed
+		// append latches the journal's gap notice (FS-03.R99). It is written
+		// before the fallback settles, so a row for a turn this Steer claimed
+		// still carries that turn's ID.
+		if c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
+			slog.Error("runtime: steered message not recorded", "agent", as.agentID)
+		}
+	}
 	nextMessage, nextTurnID := as.resolveSteerFallback(outcome, err, restorePromoted)
 	if !nextMessage.empty() {
 		if runErr := c.runMessageTurn(as, nextMessage, nextTurnID); runErr != nil {
@@ -906,13 +932,6 @@ func (c *ChatRuntime) SteerMessage(ctx context.Context, agentID string, message 
 	}
 	if err == nil && outcome == steerPromptRequired {
 		return SteerNewTurn, nil
-	}
-	if err == nil && !persisted {
-		// The agent really did receive it — injected into the running turn or as
-		// the turn the adapter started — so it belongs in the durable transcript
-		// as an ordinary user message on the same path every other prompt takes
-		// (FS-03.R50, INV §2). A refusal deliberately writes nothing.
-		c.emit(as, EvUserPrompt, message.promptData())
 	}
 	if err != nil {
 		if refused {
@@ -1050,7 +1069,10 @@ func (as *agentState) resolveSteerFallback(outcome SteerOutcome, callErr error, 
 	as.turn.steerFallback = heldMessage{}
 	restoredPromoted := false
 	if callErr != nil && promoted && as.turn.held.message().empty() {
-		as.turn.held = hold(fallback.message(), as.seq)
+		// A promoted fallback is the original hold; restore it unchanged.
+		restored := fallback
+		restored.TurnID, restored.Ready = "", false
+		as.turn.held = restored
 		restoredPromoted = true
 	}
 	if fallback.TurnID == "" {
@@ -1168,7 +1190,7 @@ func (c *ChatRuntime) prepareMessageTurn(as *agentState, message Message, turnID
 	if !as.canStartTurn(turnID) {
 		return turnPrompt{deliveryKey: deliveryKey}, ErrNoHandle
 	}
-	if !message.recorded && c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
+	if c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
 		return turnPrompt{deliveryKey: deliveryKey}, fmt.Errorf("runtime: could not retain the accepted message")
 	}
 	if err := c.messageTransitionReason(as.agentID, message.RequestID, "submitted", "prompt", "provider_submission"); err != nil {
@@ -1578,6 +1600,10 @@ func (as *agentState) restoreRefusedHeld(message Message) bool {
 		return false
 	}
 	as.turn.held = hold(message, as.seq)
+	if message.HeldID != "" {
+		// Nothing reached the provider: the client's held_id stays valid.
+		as.turn.held.HeldID = message.HeldID
+	}
 	return true
 }
 

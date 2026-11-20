@@ -326,6 +326,30 @@ func TestSteerReportsTheAdapterStartedANewTurn(t *testing.T) {
 	}
 }
 
+// TestIdleSteerRowCarriesItsClaimedTurn: a Steer accepted while idle claims a
+// turn, and the adapter starts it. The user row is written after the native
+// answer (a refusal writes none, STEER-HOLD-2) but before the claim is
+// released, so it still belongs to that turn (FS-03.R50).
+func TestIdleSteerRowCarriesItsClaimedTurn(t *testing.T) {
+	var history func() []Event
+	c, h, ch, release, _ := busyAgentRecording(t, &history, "FAKEACP_STEERING=1", "FAKEACP_STEER_OUTCOME=startedNewTurn")
+	release()
+	waitForEvent(t, ch, EvTurnEnd)
+	const requestID = "33333333-3333-4333-8333-333333333333"
+	if _, err := c.SteerMessage(context.Background(), h.AgentID, Message{Text: "late", RequestID: requestID}); err != nil {
+		t.Fatalf("Steer: %v", err)
+	}
+	for _, ev := range history() {
+		if ev.Type == EvUserPrompt && strings.Contains(string(ev.Data), requestID) {
+			if ev.TurnID == "" {
+				t.Fatalf("steered row has no turn: %s", ev.Data)
+			}
+			return
+		}
+	}
+	t.Fatal("started-turn Steer wrote no user row")
+}
+
 // TestSteerPromptRequiredRunsAHostOwnedTurn reproduces FS-03.A38's completion
 // race. The fake releases the original prompt and puts its response on the wire
 // before returning promptRequired without consuming the steer. Chuck then

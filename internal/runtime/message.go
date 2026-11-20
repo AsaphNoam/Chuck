@@ -13,7 +13,6 @@ import (
 
 // Message carries the exact user input; host instructions are assembled separately.
 type Message struct {
-	recorded    bool
 	Text        string                  `json:"text"`
 	Attachments []attachment.Descriptor `json:"attachments,omitempty"`
 	RequestID   string                  `json:"request_id,omitempty"`
@@ -31,10 +30,10 @@ func (m Message) promptData() UserPromptData {
 
 func hold(m Message, seq int64) heldMessage {
 	id := "hold_" + rand.Text()
-	return heldMessage{HeldID: id, Text: m.Text, Attachments: m.Attachments, RequestID: m.RequestID, AfterSeq: seq, recorded: m.recorded}
+	return heldMessage{HeldID: id, Text: m.Text, Attachments: m.Attachments, RequestID: m.RequestID, AfterSeq: seq}
 }
 func (h heldMessage) message() Message {
-	return Message{Text: h.Text, Attachments: h.Attachments, RequestID: h.RequestID, HeldID: h.HeldID, recorded: h.recorded}
+	return Message{Text: h.Text, Attachments: h.Attachments, RequestID: h.RequestID, HeldID: h.HeldID}
 }
 func (c *ChatRuntime) messageTransition(agentID, requestID, outcome string) error {
 	return c.messageTransitionReason(agentID, requestID, outcome, "delivery", "runtime_transition")
