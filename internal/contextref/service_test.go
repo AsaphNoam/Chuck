@@ -984,3 +984,34 @@ func TestReferenceScansAreAdmittedAndCancellable(t *testing.T) {
 		t.Fatalf("read after a slot freed: %v", err)
 	}
 }
+
+// A saved reference names retained bytes; a later Edit that supersedes the
+// span hides it from active history but not from the existing reference
+// (EDIT-REVIEW-6, FS-15.R2, TS-02.R70).
+func TestReadKeepsSharedSpanAfterRevisionSupersedesIt(t *testing.T) {
+	f := newFixture(t)
+	f.agent(t, "a_src", "src")
+	f.agent(t, "a_dst", "dst")
+	f.conversation(t, "a_src")
+	res := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
+	if res.Source.FirstSeq != 5 || res.Source.LastSeq != 6 {
+		t.Fatalf("span = %d..%d, want 5..6", res.Source.FirstSeq, res.Source.LastSeq)
+	}
+	f.appendEvents(t, "a_src",
+		ev(t, runtime.EvTurnEnd, runtime.TurnEndData{StopReason: "end_turn"}),
+		ev(t, runtime.EvConversationRevision, runtime.ConversationRevisionData{RequestID: "r1", Revision: 1, ReplacesFromSeq: 5, ReplacesThroughSeq: 7}),
+		ev(t, runtime.EvUserPrompt, runtime.UserPromptData{Text: "second question, revised"}),
+	)
+	page, err := f.svc.Read(context.Background(), Caller{AgentID: "a_dst"}, res.ContextRefID, "")
+	if err != nil {
+		t.Fatalf("read after revision: %v", err)
+	}
+	if !strings.Contains(page.Text, "the conclusion") || strings.Contains(page.Text, "revised") {
+		t.Fatalf("shared span did not keep its retained bytes: %q", page.Text)
+	}
+	// A new selection still sees only active history.
+	current := mustShare(t, f, Caller{AgentID: "a_src"}, SelectorCurrentTurn, "a_dst")
+	if current.Source.FirstSeq <= 7 {
+		t.Fatalf("new current-turn span starts at %d, inside the superseded range", current.Source.FirstSeq)
+	}
+}

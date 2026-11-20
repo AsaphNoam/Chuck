@@ -9,8 +9,8 @@ import (
 )
 
 // CloneCompletedPrefix is the sole clone builder (TS-02.R35): the source's
-// durable events through a root turn_end, without the source's session
-// metadata or annotation records, which belong to the source alone. The clone's
+// active events through a root turn_end, without the source's session
+// metadata, annotation or revision records, which belong to the source alone. The clone's
 // own session metadata comes from its normal launch path. throughSeq names
 // that turn_end (TS-03.R86); zero means the latest one. The returned boundary
 // is the turn_end itself, zero-Seq when there is no such completed turn.
@@ -33,7 +33,10 @@ func CloneCompletedPrefix(home, sourceAgentID string, throughSeq int64) ([]runti
 		if ev.Seq <= 0 || ev.Seq > boundary.Seq {
 			continue
 		}
-		if ev.Type == runtime.EvSessionMeta || ev.Type == runtime.EvAnnotation {
+		// The read is already folded; a source revision record would name the
+		// source's sequence range and hide the clone's renumbered history
+		// (TS-02.R70).
+		if ev.Type == runtime.EvSessionMeta || ev.Type == runtime.EvAnnotation || ev.Type == runtime.EvConversationRevision {
 			continue
 		}
 		prefix = append(prefix, ev)

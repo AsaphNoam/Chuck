@@ -464,8 +464,11 @@ func (s *Service) renderSpan(ctx context.Context, source state.ContextSource, ou
 	renderer := newTranscriptRenderer(source, out)
 	// The renderer range-filters the span itself and needs the records before it
 	// as stream positions, so this read neither seeks past them nor lets the
-	// reader hide a session boundary from the oversized-record edge rules.
-	opts := transcript.ReadOptions{IncludeMeta: true, OnOversized: renderer.oversized}
+	// reader hide a session boundary from the oversized-record edge rules. A
+	// stored reference already names an exact authorized span, so it reads
+	// retained bytes: a later Edit's revision does not unshare them
+	// (FS-15.R2, TS-02.R70). Selection of a new span stays on active history.
+	opts := transcript.ReadOptions{IncludeMeta: true, Raw: true, OnOversized: renderer.oversized}
 	if cerr := s.scanTranscript(ctx, source.AgentID, opts, renderer.event); cerr != nil {
 		return cerr
 	}

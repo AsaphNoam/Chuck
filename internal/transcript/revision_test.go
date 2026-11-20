@@ -167,3 +167,37 @@ func TestLegacyJournalWithoutRevisionsReadsUnchanged(t *testing.T) {
 		t.Fatalf("missing transcript: %v", err)
 	}
 }
+
+// A clone renumbers the folded prefix, so a copied source revision record
+// would hide the clone's own active turns (EDIT-REVIEW-5, TS-02.R70).
+func TestClonePrefixOmitsSourceRevisionRecords(t *testing.T) {
+	home := revisedJournal(t)
+	prefix, boundary, err := CloneCompletedPrefix(home, "a_test", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if boundary.Seq != 14 {
+		t.Fatalf("boundary = %d, want the revised turn's end 14", boundary.Seq)
+	}
+	w, err := Open(home, "a_clone", &runtime.SessionMetaData{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	for i, ev := range prefix {
+		if ev.Type == runtime.EvConversationRevision {
+			t.Fatalf("prefix copied source revision record %d", ev.Seq)
+		}
+		ev.AgentID, ev.Seq = "a_clone", int64(i+1)
+		if err := w.Append(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := ReadFile(home, "a_clone", ReadOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(prefix) {
+		t.Fatalf("clone active read kept %d of %d copied events", len(got), len(prefix))
+	}
+}
