@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AsaphNoam/Chuck/internal/state"
 	"github.com/AsaphNoam/Chuck/internal/state/statetest"
 )
 
@@ -123,6 +124,80 @@ func TestStopAfterSubmittedBeforeBeginReleasesReceipt(t *testing.T) {
 	defer mu.Unlock()
 	if last["req-a"] != "released" {
 		t.Fatalf("receipt after a refused begin = %q, want released", last["req-a"])
+	}
+}
+
+// QUEUED-TAIL-2 (FS-03.R48, INV §15/§19): an assignment continuation that was
+// stopped while an in-flight Cancel held its send never reached the provider.
+// The person's queued input stays queued for that assignment, and history
+// gets no user row claiming it was sent.
+func TestStopBeforeSendKeepsQueuedAssignmentInputUnsent(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	spec.Generation = "g"
+	ctx := context.Background()
+	st := c.store
+	id := spec.Agent.AgentID
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := st.DB().Exec(`INSERT INTO tasks(task_id, project, display_name, instruction, target_kind, state, created_by_kind, assigned_agent_id, created_at, updated_at)
+VALUES ('tk_q', 'my-app', 'Assignment', '', 'agent', 'waiting', 'pipeline', ?, ?, ?)`, id, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := st.QueueAssignmentInput(state.AttachmentReceipt{AgentID: id, RequestID: "queued-1", PayloadHash: "h", Action: "prompt", MessageJSON: `{"text":"correction"}`}); err != nil || !ok {
+		t.Fatalf("queue = %v %v", ok, err)
+	}
+	if _, err := st.DB().Exec(`UPDATE tasks SET state='running' WHERE task_id='tk_q'`); err != nil {
+		t.Fatal(err)
+	}
+	c.SetMessageOutcomeHandler(func(agentID, requestID, delivery string) error {
+		return st.SetAttachmentDelivery(agentID, requestID, delivery)
+	})
+	history := recordHistory(c)
+	h, err := c.Start(ctx, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	act, err := st.EnsurePendingDependencyActivation(id, "tk_q")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, ok, err := st.ClaimActivation(state.ActivationKindDependency, act.ActivationID)
+	if err != nil || !ok {
+		t.Fatalf("claim activation = %v %v", ok, err)
+	}
+	as.cancelMu.Lock() // an in-flight Cancel holds the send
+	started, err := c.StartActivation(ctx, id, state.ActivationKindDependency, func(turnID string) error {
+		_, err := st.AttemptActivation(state.ActivationKindDependency, act.ActivationID, token, turnID, "g")
+		return err
+	})
+	if err != nil || !started {
+		as.cancelMu.Unlock()
+		t.Fatalf("activation = %v %v", started, err)
+	}
+	as.mu.Lock()
+	decision := as.turn.promptDecided
+	as.mu.Unlock()
+	if err := c.Stop(ctx, id); err != nil {
+		as.cancelMu.Unlock()
+		t.Fatal(err)
+	}
+	as.cancelMu.Unlock()
+	select {
+	case <-decision.ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stopped send did not finish")
+	}
+	rec, err := st.AttachmentReceipt(id, "queued-1")
+	if err != nil || rec.Delivery != "prepared" || rec.AssignmentTaskID != "tk_q" {
+		t.Fatalf("receipt after Stop = %+v %v, want still queued for tk_q", rec, err)
+	}
+	for _, ev := range history() {
+		if ev.Type == EvUserPrompt {
+			t.Fatalf("history recorded %s for input the provider never received", ev.Data)
+		}
 	}
 }
 

@@ -1009,6 +1009,13 @@ ALTER TABLE attachment_receipts ADD COLUMN recovery_attempt_hash TEXT NOT NULL D
 CREATE UNIQUE INDEX idx_edit_transitions_open ON edit_transitions(agent_id)
  WHERE phase IN ('preparing','committing') OR (phase = 'committed' AND dispatched = 0);`,
 	},
+	{
+		// The assignment a claimed queued receipt came from, kept until the
+		// receipt is submitted so the prompt snapshot lists it while its turn
+		// prepares (FS-03.R48/R118, QUEUED-TAIL-1). Additive.
+		version: 81,
+		sql:     `ALTER TABLE attachment_receipts ADD COLUMN claimed_task_id TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func migrateTaskCommitment(tx *sql.Tx) error {

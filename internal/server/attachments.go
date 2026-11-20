@@ -768,9 +768,11 @@ func steerRefusalText(err error) string {
 }
 
 func (s *Server) writeAttachmentAcceptance(w http.ResponseWriter, rec state.AttachmentReceipt) {
-	if rec.Delivery == "prepared" && rec.AssignmentTaskID != "" {
+	if rec.Delivery == "prepared" && (rec.AssignmentTaskID != "" || rec.ClaimedTaskID != "") {
 		// Accepted and retained, not yet delivered: its assignment's
-		// continuation will carry it (FS-14.R100, TS-09.R69).
+		// continuation will carry it, or has claimed it and not yet recorded
+		// it, which the prompt snapshot also shows as queued (FS-14.R100,
+		// TS-09.R69, FS-03.R118).
 		rec.Delivery = "queued"
 	}
 	if rec.Delivery == "prepared" {

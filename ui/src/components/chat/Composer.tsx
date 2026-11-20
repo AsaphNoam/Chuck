@@ -5,7 +5,7 @@ import { cancelTurn } from "../../api/client";
 import { invalidateHeldReads, readHeldRecovery, reconcileSteerRecovery, withdrawHeldMessage } from "../../lib/heldMessage";
 import { useHeldStore } from "../../store/heldStore";
 import { RunningTasks } from "./RunningTasks";
-import { matchesPromptDelivery, useTranscriptStore } from "../../store/transcriptStore";
+import { matchesPromptDelivery, undeliveredQueued, useTranscriptStore } from "../../store/transcriptStore";
 import { bumpChatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "./drafts";
 import { useAutocomplete } from "./autocomplete";
 import { useComposerEditing } from "./useComposerEditing";
@@ -48,7 +48,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   const held = useHeldStore((state) => state.byAgent[agentId]);
   const heldId = useHeldStore((state) => state.heldIdByAgent[agentId]);
   const heldRequestId = useHeldStore((state) => state.requestIdByAgent[agentId]);
-  const queuedInput = useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED;
+  const queuedInput = undeliveredQueued(useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED, useTranscriptStore((state) => state.byAgent[agentId]));
   const hold = useHeldStore((state) => state.acceptHold);
   const releaseHeld = useHeldStore((state) => state.release);
   const append = useTranscriptStore((state) => state.appendMessage);

@@ -23,7 +23,7 @@ import { QueuedInput } from "../components/chat/QueuedInput";
 import type { AgentState, AnnotationDraft, AttachmentDescriptor, TranscriptEvent } from "../api/types";
 import { useAnnotationStore } from "../store/annotationStore";
 import { useReasoningStore } from "../store/reasoningStore";
-import { foldTranscript, normalizeEvent } from "../store/transcriptStore";
+import { foldTranscript, normalizeEvent, undeliveredQueued } from "../store/transcriptStore";
 import { WorkingIndicator } from "../components/chat/WorkingIndicator";
 import { AssistantText } from "../components/chat/renderers/AssistantText";
 import { DiffBlock } from "../components/chat/renderers/DiffBlock";
@@ -697,7 +697,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   };
   const closeTray = () => { setTrayOpen(false); setFocusNewest(0); };
   const heldText = held.data && typeof held.data === "object" && "text" in held.data ? String((held.data as { text?: string }).text ?? "") : "";
-  const queuedInput = held.data && typeof held.data === "object" && Array.isArray((held.data as { queued?: unknown }).queued) ? (held.data as { queued: QueuedPrompt[] }).queued : [];
+  const queuedInput = undeliveredQueued(held.data && typeof held.data === "object" && Array.isArray((held.data as { queued?: unknown }).queued) ? (held.data as { queued: QueuedPrompt[] }).queued : [], events);
   const heldId = held.data && typeof held.data === "object" && "held_id" in held.data ? String((held.data as { held_id?: string }).held_id ?? "") : undefined;
   const heldRequestId = held.data && typeof held.data === "object" && "request_id" in held.data ? String((held.data as { request_id?: string }).request_id ?? "") : "";
   const heldAttachments = held.data && typeof held.data === "object" && Array.isArray((held.data as { attachments?: unknown }).attachments) ? (held.data as { attachments: AttachmentDescriptor[] }).attachments : [];

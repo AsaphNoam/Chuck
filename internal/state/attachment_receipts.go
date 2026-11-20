@@ -22,13 +22,16 @@ type AttachmentReceipt struct {
 	// the original attachment bytes, and its replays still find the receipt
 	// (TS-09.R69).
 	SourceAgentID string
+	// ClaimedTaskID names the assignment a continuation claimed this input
+	// from; while it is still prepared it reads as queued (FS-03.R118).
+	ClaimedTaskID string
 }
 
-const attachmentReceiptColumns = `agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id,source_agent_id,origin_task_id,origin_question`
+const attachmentReceiptColumns = `agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id,source_agent_id,origin_task_id,origin_question,claimed_task_id`
 
 func scanAttachmentReceipt(row *sql.Row) (AttachmentReceipt, error) {
 	var r AttachmentReceipt
-	err := row.Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID, &r.SourceAgentID, &r.OriginTaskID, &r.OriginQuestion)
+	err := row.Scan(&r.AgentID, &r.RequestID, &r.PayloadHash, &r.MessageJSON, &r.Action, &r.Delivery, &r.Outcome, &r.AssignmentTaskID, &r.SourceAgentID, &r.OriginTaskID, &r.OriginQuestion, &r.ClaimedTaskID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNotFound
 	}
@@ -244,7 +247,9 @@ WHERE `+predicate+` ORDER BY a.updated_at, a.rowid LIMIT 1`, args...).Scan(&r.Ag
 	if target != r.AgentID {
 		source = r.AgentID
 	}
-	if _, err := tx.Exec(`UPDATE attachment_receipts SET agent_id=?, source_agent_id=?, assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=?`,
+	// claimed_task_id keeps the claimed input listed as queued until its turn
+	// records it, so no read sees it in neither place (FS-03.R118).
+	if _, err := tx.Exec(`UPDATE attachment_receipts SET agent_id=?, source_agent_id=?, claimed_task_id=assignment_task_id, assignment_task_id='', updated_at=? WHERE agent_id=? AND request_id=?`,
 		target, source, formatTime(time.Now().UTC()), r.AgentID, r.RequestID); err != nil {
 		return AttachmentReceipt{}, false, err
 	}
@@ -345,9 +350,13 @@ RETURNING agent_id, request_id`, now)
 // QueuedAssignmentInput lists, oldest first and bounded, the input a person
 // sent this conversation that is still retained for an assignment's next turn,
 // so supervision can show it after navigation or restart (TS-09.R69/R71).
+// Input claimed by a continuation stays listed, first, until that turn records
+// it and marks it submitted (FS-03.R118).
 func (s *Store) QueuedAssignmentInput(agentID string) ([]AttachmentReceipt, error) {
-	rows, err := s.db.Query(`SELECT agent_id,request_id,payload_hash,message_json,action,delivery,outcome,assignment_task_id FROM attachment_receipts
-WHERE agent_id = ? AND assignment_task_id <> '' AND delivery = 'prepared' ORDER BY updated_at, rowid LIMIT 16`, agentID)
+	rows, err := s.db.Query(`SELECT agent_id,request_id,payload_hash,message_json,action,delivery,outcome,
+  CASE WHEN assignment_task_id <> '' THEN assignment_task_id ELSE claimed_task_id END FROM attachment_receipts
+WHERE agent_id = ? AND (assignment_task_id <> '' OR claimed_task_id <> '') AND delivery = 'prepared'
+ORDER BY assignment_task_id <> '', updated_at, rowid LIMIT 16`, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("state: list queued assignment input: %w", err)
 	}

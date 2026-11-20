@@ -50,6 +50,18 @@ function kindOf(event: TranscriptEvent) {
   return event.kind ?? event.type;
 }
 
+// Queued assignment input leaves the tail once history holds the sequenced
+// user_text carrying its own request ID, whichever of the prompt snapshot and
+// that event arrived first (FS-03.R48/R118).
+export function undeliveredQueued<T extends { request_id: string }>(queued: T[], events: TranscriptEvent[] | undefined): T[] {
+  if (!queued.length || !events?.length) return queued;
+  const sent = new Set<string>();
+  for (const event of events) {
+    if (kindOf(event) === "user_text" && event.seq != null && event.request_id) sent.add(event.request_id);
+  }
+  return queued.some((item) => sent.has(item.request_id)) ? queued.filter((item) => !sent.has(item.request_id)) : queued;
+}
+
 function textOf(event: TranscriptEvent) {
   return event.text ?? event.delta ?? "";
 }

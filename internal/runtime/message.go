@@ -75,24 +75,31 @@ func (c *ChatRuntime) SetMessageOutcomeHandler(fn func(string, string, string) e
 // assignment continuation that carries it (TS-09.R69, FS-14.R100).
 const queuedInputPreamble = "The person sent this message for your assignment while it was waiting. Treat it as an instruction or correction; it does not approve a permission request or a pipeline checkpoint:"
 
-func (c *ChatRuntime) appendQueuedAssignmentInput(as *agentState, prompt []map[string]any) ([]map[string]any, Message) {
+// The third result is false when the turn could no longer reach the provider
+// after the claim; the claimed input is then released for recovery before any
+// history row is written (FS-03.R48, INV §19).
+func (c *ChatRuntime) appendQueuedAssignmentInput(as *agentState, turnID string, prompt []map[string]any) ([]map[string]any, Message, bool) {
 	message, content, question, ok := c.takeQueuedAssignmentInput(as)
 	if !ok {
-		return prompt, Message{}
+		return prompt, Message{}, true
+	}
+	if !as.canStartTurn(turnID) {
+		_ = c.messageTransitionReason(as.agentID, message.RequestID, "released", "prompt", "stopped_before_send")
+		return prompt, Message{}, false
 	}
 	if c.emit(as, EvUserPrompt, message.promptData()).Seq == 0 {
 		_ = c.messageTransition(as.agentID, message.RequestID, "released")
-		return prompt, Message{}
+		return prompt, Message{}, true
 	}
 	if err := c.messageTransition(as.agentID, message.RequestID, "submitted"); err != nil {
-		return prompt, Message{}
+		return prompt, Message{}, true
 	}
 	preamble := queuedInputPreamble
 	if question != "" {
 		preamble = "The pipeline owner asked: " + question + "\n\n" + preamble
 	}
 	prompt = append(prompt, map[string]any{"type": "text", "text": preamble})
-	return append(prompt, content...), message
+	return append(prompt, content...), message, true
 }
 
 // takeQueuedAssignmentInput claims the oldest input a person queued for the

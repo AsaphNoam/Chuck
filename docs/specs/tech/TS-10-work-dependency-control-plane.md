@@ -302,8 +302,11 @@ parallel copy of them.
   prepared continuation, is being admitted or is yielding is accepted, not refused: one statement
   writes its receipt bound to that open assignment (`attachment_receipts.assignment_task_id`) before
   the waiting assignment is readied, and the response reports `delivery: "queued"`. The admitted
-  dependency activation claims the oldest queued input after its attempt boundary, records it as the
-  person's transcript message and carries it in that same provider turn (`submitted`); further input
+  dependency activation claims the oldest queued input after its attempt boundary and after any
+  in-flight Cancel write, once the turn can still reach the provider, records it as the person's
+  transcript message and carries it in that same provider turn (`submitted`). A Stop that lands
+  before the claim leaves it queued; one between the claim and its record releases it for
+  recovery; neither writes a transcript message. Further input
   readies the next continuation once the assignment waits again. Input whose assignment is already
   executing with no turn is delivered as an ordinary follow-up; input for an assignment that ended is
   released to explicit recovery, never redirected to other work. Restart keeps queued input; a replay

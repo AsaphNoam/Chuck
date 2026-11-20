@@ -100,8 +100,6 @@ They are not queued for `/fix`. The recorded text is in
   post-decision failure now stops the unpublished candidate and runs restart recovery in
   process, which bears on EDIT-REVIEW-4's reproduction; recheck it there.
   Packaged live provider receipts remain owed in ACCEPTANCE-GATES.
-- **Assignment-queued input at the transcript tail** (WITHDRAW-SEND-3/STEER-HOLD-4; FS-03.R48):
-  reviewed at `b16c722f` for implementation `c02083df`; open findings QUEUED-TAIL-1–4 below.
 
 ## Investigations awaiting evidence
 
@@ -159,34 +157,6 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
-
-### QUEUED-TAIL — assignment-queued input at the transcript tail (2026-11-20) — **Fix model:** difficult — Codex Sol.
-
-- **Must fix** — QUEUED-TAIL-1 (medium; FS-03.R48/R118, TS-09.R69/R71, INV §1/§19). The card
-  follows the latest prompt snapshot independently of the matching transcript event. The runtime
-  publishes busy before claiming the receipt (`internal/runtime/chat.go:1250–1271`). A read after
-  claim returns `queued:[]` while the receipt is still `prepared`, before content preparation or
-  any `user_text` (`internal/state/attachment_receipts.go:247,348–351`). A read before claim can
-  instead leave a stale queued card after that same request enters history; desktop reconciles
-  runtime holds only (`ui/src/components/chat/useHeldProjection.ts:28–42`,
-  `TranscriptView.tsx:88,275`). A server probe paused at the real claim and confirmed the message
-  was absent from the prompt snapshot, recovery and transcript. Chromium reproduced disappearance
-  on desktop and phone and duplicate pending/sent copies on the agent screen and expanded dashboard.
-  Exercise both snapshot/event orders with exact request identity and a reload during claim.
-- **Must fix** — QUEUED-TAIL-2 (difficult; FS-03.R48, INV §15/§19). The continuation records a
-  durable `user_text` before the provider write (`internal/runtime/message.go:79–90`,
-  `internal/runtime/chat.go:1270–1294`). A controlled fake-provider run held the send at the
-  existing Cancel lock, stopped the agent, and verified that no provider prompt was written. The
-  receipt was released for recovery, but the journal still contained the ordinary user row for
-  that exact request. The history therefore says the message was sent while the receipt offers it
-  back as unsent. Keep the durable acceptance and recovery guarantees while making the transcript
-  and search reflect the actual handoff. Use the controlled Stop schedule as a regression.
-- **Worth fixing** — QUEUED-TAIL-4 (medium; workflow §7, INV §19). The same subsystem received
-  `119880aa` (moved assignment receipt and attachments) and `de246a42` (prompt identity and
-  held-tail reconciliation) within 30 days. Before patching, inventory the writers and entry
-  points from assignment acceptance, claim and provider submission through Stop, refusal,
-  replacement, restart and recovery. Include the prompt snapshot, transcript, search and each
-  browser projection, and identify which existing rule governs each handoff.
 
 ### EDIT-REVIEW — Message hover actions and current-conversation Edit (2026-11-20) — **Fix model:** difficult — Codex Sol.
 

@@ -403,6 +403,24 @@ describe("TranscriptView pending follow-up", () => {
     expect(useTranscriptStore.getState().byAgent.a1).toBeUndefined();
   });
 
+  // FS-03.R118 (QUEUED-TAIL-1): a prompt read taken before the continuation
+  // claimed the input still lists it; once history holds the user_text with
+  // that request ID, the card goes, and an equal text under another ID does not
+  // clear it.
+  it("drops queued input once its own sent message is in the transcript", () => {
+    useHeldStore.getState().setQueued("a1", [
+      { request_id: "req-q", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] },
+      { request_id: "req-r", text: "and rerun the tests", assignment_task_id: "task_1", attachments: [] },
+    ]);
+    const sent = [...events, { agent_id: "a1", seq: 90, kind: "user_text", text: "and rerun the tests", request_id: "other", ts: "2026-11-20T00:00:00Z" },
+      { agent_id: "a1", seq: 91, kind: "user_text", text: "use opus for the fix", request_id: "req-q", ts: "2026-11-20T00:00:00Z" }] as TranscriptEvent[];
+    renderTranscript(true, sent, true);
+
+    const queued = document.querySelector('[data-variant="queued"]');
+    expect(queued?.textContent).not.toContain("use opus for the fix");
+    expect(queued?.textContent).toContain("and rerun the tests");
+  });
+
   it("keeps the message visible when withdrawing it fails", async () => {
     useHeldStore.getState().hold("a1", "still queued");
     const failing = vi.spyOn(client, "withdrawPrompt").mockRejectedValue(new Error("gone"));

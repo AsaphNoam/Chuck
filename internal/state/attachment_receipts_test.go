@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/attachment"
 )
@@ -197,7 +198,7 @@ func TestAttachmentReceiptForwardMigrationPreservesCheckpointDatabase(t *testing
 	if err = s.WriteAgent(testAgent("a_migrate", timeNow())); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.db.Exec(`DROP TABLE attachment_receipts; DELETE FROM schema_migrations WHERE version IN (51, 65, 69, 76, 79)`); err != nil {
+	if _, err = s.db.Exec(`DROP TABLE attachment_receipts; DELETE FROM schema_migrations WHERE version IN (51, 65, 69, 76, 79, 81)`); err != nil {
 		t.Fatal(err)
 	}
 	var priorSchema string
@@ -243,5 +244,67 @@ func TestAttachmentReceiptForwardMigrationPreservesCheckpointDatabase(t *testing
 	recovery, err := s.AttachmentRecovery("a_migrate")
 	if err != nil || recovery.RequestID != "new" {
 		t.Fatalf("prepared recovery not migrated: %+v %v", recovery, err)
+	}
+}
+
+// QUEUED-TAIL-1 (FS-03.R48/R118, INV §19): input a continuation has claimed but
+// not yet recorded stays listed as queued, so no read finds it in neither the
+// queued list nor history. It leaves the list once submitted, and a restart
+// that releases it for recovery removes it too.
+func TestClaimedQueuedInputStaysListedUntilSubmitted(t *testing.T) {
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a := Agent{AgentID: "a_queued", Name: "Queued", Project: "p", Role: "r", Backend: "b", Model: "m", Interface: "chat"}
+	if err = s.WriteAgent(a); err != nil {
+		t.Fatal(err)
+	}
+	now := formatTime(time.Now().UTC())
+	if _, err = s.db.Exec(`INSERT INTO tasks(task_id, project, display_name, instruction, target_kind, state, created_by_kind, assigned_agent_id, created_at, updated_at)
+VALUES ('tk_q', 'p', 'Assignment', '', 'agent', 'waiting', 'pipeline', ?, ?, ?)`, a.AgentID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	listed := func() []string {
+		t.Helper()
+		queued, err := s.QueuedAssignmentInput(a.AgentID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := []string{}
+		for _, q := range queued {
+			out = append(out, q.RequestID+"@"+q.AssignmentTaskID)
+		}
+		return out
+	}
+	for _, id := range []string{"first", "second"} {
+		if _, ok, err := s.QueueAssignmentInput(AttachmentReceipt{AgentID: a.AgentID, RequestID: id, PayloadHash: "h", Action: "prompt", MessageJSON: `{"text":"x"}`}); err != nil || !ok {
+			t.Fatalf("queue %s = %v %v", id, ok, err)
+		}
+	}
+	if _, err = s.db.Exec(`UPDATE tasks SET state='running' WHERE task_id='tk_q'`); err != nil {
+		t.Fatal(err)
+	}
+	if rec, ok, err := s.TakeQueuedAssignmentInput(a.AgentID); err != nil || !ok || rec.RequestID != "first" {
+		t.Fatalf("take = %+v %v %v", rec, ok, err)
+	}
+	if got := strings.Join(listed(), ","); got != "first@tk_q,second@tk_q" {
+		t.Fatalf("listed during claim = %s, want the claimed input first, then the rest", got)
+	}
+	if err = s.SetAttachmentDelivery(a.AgentID, "first", "submitted"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(listed(), ","); got != "second@tk_q" {
+		t.Fatalf("listed after submit = %s", got)
+	}
+	if _, ok, err := s.TakeQueuedAssignmentInput(a.AgentID); err != nil || !ok {
+		t.Fatalf("second take = %v %v", ok, err)
+	}
+	if err = s.ReleaseRestartedAttachments(); err != nil {
+		t.Fatal(err)
+	}
+	if got := listed(); len(got) != 0 {
+		t.Fatalf("listed after restart = %v, want the released claim gone", got)
 	}
 }

@@ -833,6 +833,10 @@ Migration 69 adds `attachment_receipts.source_agent_id` (default empty): a claim
 receipt to the assignment's new owner records the accepting conversation in the same statement.
 Replays to that conversation find the moved receipt; startup copies any of its attachments the new
 owner lacks and keeps the accepting conversation's originals (TS-09.R69).
+Migration 81 adds `attachment_receipts.claimed_task_id` (default empty): the claim copies the
+assignment there, and the prompt snapshot keeps listing a still-`prepared` claimed receipt as
+queued until its turn records the transcript message and marks it `submitted` (FS-03.R118).
+Startup release still releases it for recovery.
 
 Command reservation, mail/task effects and receipt state use existing SQLite transactions where
 they share this database. Canonical log append and native provider work are not falsely treated as

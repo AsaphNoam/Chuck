@@ -26,7 +26,7 @@ import { ThinkingDisclosure } from "./renderers/ThinkingDisclosure";
 import { ChildActivity } from "./renderers/ChildActivity";
 import { hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "./runtimeActivity";
 import { useReasoningStore } from "../../store/reasoningStore";
-import { useTranscriptStore } from "../../store/transcriptStore";
+import { undeliveredQueued, useTranscriptStore } from "../../store/transcriptStore";
 import { projectTurns } from "./turnActivity";
 import { RevealTaskContext, TurnList, useFocusReturn, useTurnChoices } from "./TurnList";
 import { AnnotationContextMenu, type AnnotationMenuState } from "./AnnotationContextMenu";
@@ -85,7 +85,7 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   // server sends no event for a message it has not delivered (TS-08.R56).
   const held = useHeldStore((state) => state.byAgent[agentId]);
   const heldAttachments = useHeldStore((state) => state.attachmentsByAgent[agentId] ?? []);
-  const queuedInput = useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED;
+  const queuedInput = undeliveredQueued(useHeldStore((state) => state.queuedByAgent[agentId]) ?? NO_QUEUED, events);
   const recovery = useHeldStore((state) => state.recoveryByAgent[agentId]);
   const recoveryUnread = useHeldStore((state) => state.recoveryUnreadByAgent[agentId]);
   const reasoning = useReasoningStore((state) => state.byAgent[agentId]?.spans);

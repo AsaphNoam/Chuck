@@ -420,6 +420,11 @@ func TestMovedInputReplayDoesNotSendAnotherProviderTurn(t *testing.T) {
 	if err != nil || !ok || rec.SourceAgentID != oldID {
 		t.Fatalf("successor claim: %+v %v %v", rec, ok, err)
 	}
+	// Claimed but not yet recorded: a replay says queued, as the prompt
+	// snapshot does, not that it may already have reached the agent (FS-03.R118).
+	if resp, body := post(t, ts.URL+"/api/sessions/"+oldID+"/prompt", command); resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"delivery":"queued"`) {
+		t.Fatalf("replay during claim: %d %s, want queued", resp.StatusCode, body)
+	}
 	before := promptCount(t, promptLog)
 	if _, err := srv.registry.SendMessageOrHold(context.Background(), newID, runtime.Message{Text: "Use SQLite", RequestID: "moved-input"}); err != nil {
 		t.Fatal(err)

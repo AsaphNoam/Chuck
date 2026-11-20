@@ -1291,10 +1291,6 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 	if prompt.mailNotice != nil {
 		c.emit(as, EvNotice, *prompt.mailNotice)
 	}
-	var carried Message
-	if prompt.assignment {
-		prompt.content, carried = c.appendQueuedAssignmentInput(as, prompt.content)
-	}
 	go func() {
 		// Every return without a settlement claim tells a waiting exit that
 		// this prompt will not end the turn.
@@ -1303,13 +1299,19 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		// same provider session.
 		as.cancelMu.Lock()
 		as.cancelMu.Unlock()
-		if !as.canStartTurn(turnID) {
+		live := as.canStartTurn(turnID)
+		// Input queued for the assignment is claimed and recorded only once the
+		// provider can still receive it: a Stop that wins the Cancel wait leaves
+		// it queued for the assignment, with no history row (QUEUED-TAIL-2).
+		var carried Message
+		if live && prompt.assignment {
+			prompt.content, carried, live = c.appendQueuedAssignmentInput(as, turnID, prompt.content)
+		}
+		if !live {
 			// Exit/Stop owns the turn's terminal settlement, but nothing was
-			// written to the provider: the already-submitted receipts are
+			// written to the provider: the already-submitted receipt is
 			// released for recovery, never left submitted (TS-01.R45, INV §19).
-			for _, requestID := range []string{prompt.requestID, carried.RequestID} {
-				_ = c.messageTransitionReason(as.agentID, requestID, "released", "prompt", "stopped_before_send")
-			}
+			_ = c.messageTransitionReason(as.agentID, prompt.requestID, "released", "prompt", "stopped_before_send")
 			return
 		}
 		as.logTurnFast(turnID)

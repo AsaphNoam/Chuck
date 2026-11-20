@@ -380,6 +380,19 @@ describe("AgentScreen", () => {
     await waitFor(() => expect(screen.queryByText("use opus for the fix")).not.toBeInTheDocument());
   });
 
+  // FS-03.R118 (QUEUED-TAIL-1): a prompt read that still lists the input does
+  // not show it beside its own sent message.
+  it("hides queued input whose sent message is already in the transcript", async () => {
+    const sent = { agent_id: "a1", seq: 50, type: "user_text", text: "use opus for the fix", request_id: "q1", ts: "2026-05-11T00:00:00Z" };
+    live = { ...fullWindow, events: [...events, sent] };
+    server.use(http.get("/api/sessions/a1/prompt", () => HttpResponse.json({ agent_id: "a1", text: "", after_seq: 0,
+      queued: [{ request_id: "q1", text: "use opus for the fix", assignment_task_id: "task_1", attachments: [] }] })));
+    renderScreen();
+    expect(await screen.findByText("use opus for the fix")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Queued for the assignment’s next turn")).not.toBeInTheDocument());
+    expect(screen.getAllByText("use opus for the fix")).toHaveLength(1);
+  });
+
   it("withdraw returns the held text to the message box (FS-03.A70)", async () => {
     let held = "rerun the linter";
     let recovery: { request_id: string; text: string; delivery: string } | undefined;

@@ -291,6 +291,43 @@ the relevant feature and technical specifications; it does not change product co
   begin, with the receipt and transcript write each makes and their order, including when a
   Steer's `user_text` is written (open as STEER-HOLD-7). Coordinate with the entry above and the
   QUEUED-TAIL review's inventory.
+- **One transition table for assignment-queued input.** From the QUEUED-TAIL review's inventory
+  (QUEUED-TAIL-4, 2026-11-20). QUEUED-TAIL-1–3 were patched: a claimed receipt stays listed as
+  queued until `submitted`, every surface hides a card whose own `user_text` is in history, the
+  continuation claims and records it only after the Cancel wait and stop check, and the card wraps
+  long tokens. Writers of `attachment_receipts` for this input: acceptance
+  (`QueueAssignmentInput`, `bindAssignmentInput` for pipeline continue-from-owner), owner
+  replacement (`pipeline_tasks.go` moves `assignment_task_id`, not `agent_id`), claim
+  (`TakeQueuedAssignmentInput` at continuation, `ClaimQueuedInputForTurn` in the sweep),
+  content-preparation failure (`failed`), runtime `submitted`/`released`/`unknown`, the sweep's
+  refusal (`released`), ended-assignment release (`releaseEndedAssignmentInput`) and startup
+  release. Readers: the prompt snapshot's `queued`, history and search (only after `user_text`),
+  the desktop held projection and the phone screen. FS-03.R48/R118, TS-09.R69, TS-10.R29 and INV
+  §19 state outcomes but no transition table. Missing or divergent rules (code-confirmed unless
+  marked):
+  - no event is published on claim, submit, release or failure, so a card leaves only on a
+    snapshot refetch or its own `user_text`; a release or failure stays visible until the next
+    state change or recovery event;
+  - Stop, Cancel, task cancel and run stop do not touch queued receipts; release waits for the next
+    `QueuedInputWork` pass and only when the assignment ended;
+  - failures before the provider write end `failed` (refused, send again deliberately) on content
+    preparation but `released` on refusal, emit failure or a Stop after claim;
+  - `SetAttachmentDelivery` has no from-state guard, and the runtime and the sweep both write it;
+  - a claim rewrites `agent_id` to the assignment's current agent, so recovery for a moved receipt
+    is offered in the new owner's conversation, and owner replacement leaves it unlisted for the
+    new owner until claimed (suspected end to end);
+  - only a person's prompt queues; Steer, annotation Steer and Edit dispatch never check a waiting
+    assignment, and queued input has no withdraw or replace;
+  - one receipt is claimed per continuation; the order between the two claim paths is unspecified;
+  - the ordinary Send path, which also carries queued input the sweep claims for an idle running
+    assignment, still writes its `user_text` before the Cancel wait, so a Stop that lands there
+    releases the receipt for recovery while history keeps the row (the QUEUED-TAIL-2 sibling,
+    found by the fix's independent check; the same write-ahead choice as STEER-HOLD-7);
+  - a Stop after the final start check but before the provider write leaves the row with an
+    `unknown` receipt, for every prompt kind (suspected window, not reproduced).
+  Define acceptance, claim, record, provider write, Stop, Cancel, refusal, owner replacement,
+  restart and recovery with the receipt and transcript write each makes and their order.
+  Coordinate with the two entries above.
 - **5-hour and weekly subscription quota views.** Added by the operator on 2026-10-10 alongside
   the approved [quota continuation design](ready-changes/continue-chats-after-quota-reset.md).
   Prepare separate Claude/Codex 5-hour and Weekly percentages, reset times and last-checked state;
