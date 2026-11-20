@@ -34,8 +34,9 @@ function errorText(err: unknown) {
 export function MessageEditor({ agentId, event }: { agentId: string; event: TranscriptEvent }) {
   const { close } = useContext(MessageEditContext);
   const seq = event.seq as number;
-  // An earlier edit of this message that did not apply seeds the editor; the
-  // editor now holds its text, so the recovery offer ends (FS-01.R61).
+  // An earlier edit of this message that did not apply seeds the editor. Its
+  // offer ends only when a resubmission is accepted (or on Discard), so Cancel
+  // or a reload never loses the text (FS-01.R61).
   const recovered = useAgentStore((state) => {
     const offer = state.agents[agentId]?.edit_recovery;
     return offer?.message_seq === seq ? offer : undefined;
@@ -44,9 +45,6 @@ export function MessageEditor({ agentId, event }: { agentId: string; event: Tran
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(recovered ? recovered.reason || "The earlier edit did not apply." : null);
   const recoveredId = useRef(recovered?.request_id);
-  useEffect(() => {
-    if (recoveredId.current) void acknowledgeEdit(agentId, recoveredId.current).catch(() => undefined);
-  }, [agentId]);
   const [conflict, setConflict] = useState(false);
   const requestId = useRef<string | null>(null);
   const savedRevision = useRef(0);
@@ -61,12 +59,17 @@ export function MessageEditor({ agentId, event }: { agentId: string; event: Tran
   const apply = (result: EditResult) => {
     if (!alive.current) return;
     if (result.phase === "aborted") {
-      // The open editor keeps the text, so no reload offer is needed.
-      void acknowledgeEdit(agentId, result.request_id).catch(() => undefined);
+      // The offer stays until a later save is accepted, surviving a reload.
+      recoveredId.current = result.request_id;
       requestId.current = null;
       setPhase("idle");
       setError(result.reason || "The edit did not apply.");
     } else {
+      const superseded = recoveredId.current;
+      if (superseded && superseded !== result.request_id) {
+        recoveredId.current = undefined;
+        void acknowledgeEdit(agentId, superseded).catch(() => undefined);
+      }
       setError(null);
       setPhase("waiting");
     }

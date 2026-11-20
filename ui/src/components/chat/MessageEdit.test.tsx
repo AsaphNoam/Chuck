@@ -242,10 +242,28 @@ describe("Edit recovery after a reload (FS-01.R61)", () => {
     const editor = screen.getByRole("textbox", { name: "Edit message" }) as HTMLTextAreaElement;
     expect(editor.value).toBe("second, revised");
     expect(container.querySelector("[data-seq=\"4\"]")).not.toBeNull();
-    await waitFor(() => expect(ack).toHaveBeenCalledWith("a1", "lost"));
-    const post = vi.spyOn(client, "editLastMessage").mockReturnValue(new Promise(() => undefined));
+    // Opening and cancelling keeps the offer; only an accepted resubmission ends it.
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Edit again" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit again" }));
+    expect(ack).not.toHaveBeenCalled();
+    const post = vi.spyOn(client, "editLastMessage").mockResolvedValue(result({ request_id: "new", phase: "committing" }));
     fireEvent.click(screen.getByRole("button", { name: "Save and regenerate" }));
     expect(post).toHaveBeenCalledWith("a1", expect.objectContaining({ message_seq: 4, expected_revision: 3, text: "second, revised" }));
+    await waitFor(() => expect(ack).toHaveBeenCalledWith("a1", "lost"));
+  });
+
+  it("keeps an edit that aborts in an open editor offered until a later save is accepted", async () => {
+    const ack = vi.spyOn(client, "acknowledgeEdit").mockResolvedValue();
+    const { container } = renderChat();
+    openEditor(container);
+    vi.spyOn(client, "editLastMessage").mockResolvedValueOnce(result({ request_id: "first", phase: "aborted", reason: "The agent could not rewind." }));
+    fireEvent.click(screen.getByRole("button", { name: "Save and regenerate" }));
+    await screen.findByText("The agent could not rewind.");
+    expect(ack).not.toHaveBeenCalled();
+    vi.spyOn(client, "editLastMessage").mockResolvedValueOnce(result({ request_id: "second", phase: "committing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save and regenerate" }));
+    await waitFor(() => expect(ack).toHaveBeenCalledWith("a1", "first"));
   });
 
   it("discards the offer, and keeps the text visible when the message is no longer editable", async () => {

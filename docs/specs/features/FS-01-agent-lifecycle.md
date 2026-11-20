@@ -215,7 +215,7 @@ orphaned processes.
   Acceptance is shown promptly as editing in progress. Before the replacement commits, failure
   restores the original active conversation and keeps the edited text recoverable, including
   after a reload: the conversation offers the edit back with **Edit again** (when the message
-  is still editable) and **Discard** until the person takes or discards it. After the
+  is still editable) and **Discard** until the person saves it again or discards it. After the
   replacement commits, Stop retains the revised conversation and stops its response. A quota
   hold follows the normal recovery rules for the revised turn. A delivery whose outcome is
   unknown explains that uncertainty and requires explicit recovery before another submission.

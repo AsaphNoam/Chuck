@@ -327,6 +327,44 @@ Example:
   Define acceptance, claim, record, provider write, Stop, Cancel, refusal, owner replacement,
   restart and recovery with the receipt and transcript write each makes and their order.
   Coordinate with the two entries above.
+- **One commit point for an Edit's history, session and replacement.** From the EDIT-REVIEW
+  inventory (EDIT-REVIEW-10, 2026-11-20). EDIT-REVIEW-1–3, 5–9, 11 and 12 were patched: fork-point
+  lineage across committed edits, one-transaction dispatch, reservation decided under the turn
+  lock with background/held/Steer/task refusals, clone and saved-link reads, follow's reset
+  boundary, a durable offer for an aborted edit, and the later-turn refusal. Phases are enforced
+  only by `WHERE phase=` guards in `state/edits.go`; TS-01.R51 and TS-02.R69 state outcomes, not
+  a transition table. Entry points: Send, Steer, held promotion, activations (mail, quota, think
+  tank), owner continuation, task dispatch, Resume/Start, Stop, turn Cancel, peer Stop, group
+  release, switch and clone. Admission is excluded by the lifecycle claim (held for the worker's
+  life) and the runtime reservation. Writers of the native selection: `FinishEdit`,
+  `ApplyHook` SessionStart (ignored only while preparing), `RestoreSwitchSource`,
+  `DeleteRunningRetainingSession`, `appendRestoredSessionMeta`, `PublishStaged` and reindex. The
+  revision becomes visible in three steps: `DecideEdit` (HistoryRevision), the journal append
+  (fold), then `FinishEdit` (selection). Missing or divergent rules (code-confirmed unless marked):
+  - EDIT-REVIEW-4 (Must fix, carried here): between the journal append and `FinishEdit`, history
+    shows revision N while `last_session_id` names the old session; the transcript handler samples
+    native session, revision and history separately and does not consult the open edit. A
+    `FinishEdit` fault left revision 1 visible with the old selection, and Resume returned "agent is
+    already running." Readers must reconcile or report editing, and no ordinary work may be
+    admitted while they disagree; exercise read, stream and Resume on both sides of the decision;
+  - if `DispatchEdit` fails the committed edit stays open, but the reservation and lifecycle claim
+    are released, so activations, mail and task paths can run on the revised conversation before
+    its replacement until restart;
+  - a Stop landing after `completeEditRevision` but before `dispatchEdit` still dispatches
+    (`ctl.stop` is not re-read);
+  - TS-02.R69 says recovery may submit an undispatched replacement once; the code only releases it;
+  - `editReasonNotStarted`/`SearchUnavailable` are set on an edit that dispatch then closes, so
+    `EditOperation.Reason` stops projecting them (suspected; UI not checked);
+  - a room waking a member during Edit fails on the lifecycle claim and is dropped to the next
+    sweep with no hold or reason; no explicit room-ownership refusal exists despite TS-01.R51;
+  - owner continuation's `decide(settled)` may record a disposition before a claim the
+    reservation then refuses (suspected);
+  - `quotaTranscriptCounters` reads active history although TS-02.R70 lists audit counters as Raw
+    (suspected);
+  - EDIT-EDGE-4 (carried here): group release interrupts an editing member before its other
+    claims can fail, so a later 409 leaves that Edit aborted.
+  Define acceptance, decision, journal append, selection, publication, dispatch, Stop, Cancel,
+  restart and repair with the reader view and admission rule at each step.
 
 ## Ideas being defined
 

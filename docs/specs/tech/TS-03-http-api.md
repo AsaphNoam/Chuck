@@ -1484,8 +1484,9 @@ TS-02.R69's edit-aware receipt handoff; a precommit aborted edit cannot become a
 ordinary Send, and postcommit recovery cannot apply a second revision. The agent snapshot's
 edit_recovery {request_id, message_seq, text, reason?} names the newest aborted edit not yet
 acknowledged, so a client without the request id finds it after reload. POST
-.../edit-last/{request_id}/acknowledge (204, 404 for no such aborted edit) ends the offer once
-the client holds the text; reopening the editor revalidates the message like any new Edit.
+.../edit-last/{request_id}/acknowledge (204, 404 for no such aborted edit) ends the offer
+only when a later Edit of the text is accepted or the person discards it; opening, cancelling
+or reloading keeps it. Reopening the editor revalidates the message like any new Edit.
 
 **R91 (implemented 2026-11-20) — Message actions and revision reads share server-owned eligibility.** For
 FS-01.R60–R62, transcript responses carry an active history_revision (zero for legacy history).

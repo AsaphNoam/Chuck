@@ -81,6 +81,7 @@ var remoteDenied = map[string]bool{
 	// Last-message Edit belongs to the local operator; the phone gains no
 	// message actions (FS-01.R61, TS-03.R90).
 	"POST /api/sessions/{id}/edit-last": true, "GET /api/sessions/{id}/edit-last/{request_id}": true,
+	"POST /api/sessions/{id}/edit-last/{request_id}/acknowledge":       true,
 	"PUT /api/think-tanks/{id}/sources/{source_id}/file":               true,
 	"POST /api/sessions/{id}/file/open-browser":                        true,
 	"POST /api/think-tanks/{id}/sources/{source_id}/file/open-browser": true,
