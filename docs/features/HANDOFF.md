@@ -112,6 +112,30 @@ They are not queued for `/fix`. The recorded text is in
 
 ## Investigations awaiting evidence
 
+### TASK-PROMPT — reporting paragraph after a skill invocation (investigated 2026-11-21)
+
+**Report (verbatim):** “I specifically told you to only trigger the instruction skill and yet
+you still wrote an entire wall of text”. The annotation quotes transcript event 1 of
+`a_06bd8f`: `/fix` followed by “This is your Chuck task” and the reporting/coordination paragraph.
+The request was to launch one Claude Opus Medium agent at a time with only the fix skill.
+No separate diagnostic log or exact installed version was supplied.
+
+**Confirmed — works as specified, not a code defect.** The durable task
+`tk_e67d15ecd4cbe7df` stores `instruction: "/fix"`, `backend: "claude"`, `model: "opus"`,
+`effort: "medium"`. The orchestrator supplied no extra assignment prose. Chuck appends it:
+`Registry.StartLaunchedTask` (`internal/runtime/registry_message.go:22`) calls
+`LaunchedTaskPrompt` (`internal/runtime/activation_kinds.go:32`), which preserves the instruction
+and adds the shared `taskReportContract`. FS-16.R49 explicitly requires this paragraph and A33
+requires it in the first prompt. `TestALaunchSpecTaskStartsItselfAndBecomesRunning`
+(`internal/server/task_dispatch_test.go`) covers the delivered instruction and reporting contract;
+it was inspected, not rerun. The annotation itself is the live reproduction. History traces the
+contract to `4ddedff1` and the expanded coordination guidance to `a674e6bc`.
+
+No fix finding or model recommendation: the behavior matches FS-16.R49 and INV §21. Product
+question for the operator: should skill-only launches omit or shorten this mandatory paragraph?
+That would require a deliberate requirement change, rather than an investigation fix. No product
+code, specifications or tests changed; the pre-existing generated UI diff remains untouched.
+
 ### TAB-BLANK — Chrome shows only the theme background on tab return (2026-11-17)
 
 Cause undetermined; native Chrome painting is unverified. Its findings were fixed: desktop browser
