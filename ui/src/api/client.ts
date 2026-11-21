@@ -112,6 +112,7 @@ export interface TranscriptWindow {
   has_more: boolean;
   pending_permission: TranscriptEvent | null;
   latest_assistant: string;
+  history_revision?: number;
 }
 
 export function getTranscriptWindow(agentId: string, window: { limit: number; beforeSeq?: number; sinceSeq?: number }) {

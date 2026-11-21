@@ -1832,8 +1832,12 @@ under the same replay fingerprint proof, so the replacement message can be edite
 For the first user turn, prepare a fresh native session with exactly the source's frozen
 initial configuration and startup context, including HistoryPrimer and guidance-delivery
 semantics. Use the existing fresh-start composer and preparation-purpose rules rather than a
-fabricated empty fork or current mutable defaults. An unavailable original startup artifact
-makes the context unprovable and returns an unavailable-context reason. Candidate setup/load
+fabricated empty fork or current mutable defaults. No active turn precedes a first message, so
+outside a forked conversation its original bridge is empty: a backend switch after the message
+rebuilt the stored HistoryPrimer from that message, and one before it held no active turn, so
+neither is reused. A fork's bridge is reused only when no backend switch followed the message.
+An unavailable original startup artifact makes the context unprovable and returns an
+unavailable-context reason. Candidate setup/load
 replay is private, turn-free and bounded by ordinary startup deadlines. It must not write a new Chuck agent,
 copy or discard the source transcript, perform work, or add a user-visible clone marker.
 After the lifecycle transition commits, its ordinary person turn receives the revised text

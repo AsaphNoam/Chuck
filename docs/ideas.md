@@ -404,6 +404,24 @@ Example:
     claims can fail, so a later 409 leaves that Edit aborted.
   Define acceptance, decision, journal append, selection, publication, dispatch, Stop, Cancel,
   restart and repair with the reader view and admission rule at each step.
+- **One revision rule for history-derived contexts and readers.** From the ARCH-v025 inventory
+  (ARCH-REVISION-2, 2026-11-22). ARCH-EDIT-CONTEXT-1 (first-message Edit reused a switch bridge
+  built from the replaced turn) and ARCH-REVISION-1 (phone kept superseded older pages after a
+  missed revision) were patched. Startup contexts: `sessions.history_primer` has no revision or
+  provenance; writers are the forked launch (`launch.go`), the switch rebuild (`switch.go`,
+  persisted before its `backend_switch` marker, which may fail and only log), switch restore
+  (`RestoreSwitchSource`), reindex from the latest `session_meta`, and a committed Edit's
+  candidate. Clone copies the source's bridge and reads prefix and snapshot separately with no
+  revision check. Readers use three revision authorities: the `history_revision` integer
+  (transcript HTTP, phone window and reconnect), the journal boundary record (CLI follow) and the
+  live `conversation_revision` event (desktop SSE, whose `lastAgentSeq` gap check resets only on
+  that event). The MCP `read_agent_transcript` cursor pins agent and prefix only and continues
+  across an Edit with no reset; search and quota counters read the fold without a revision; the
+  phone reasoning fence keys on its own counter. Raw versus folded is chosen per call site
+  without one list. State, per context and reader, the legal move when the revision changes
+  (reuse, rebuild, reset or refuse) and the one revision authority it consults; record bridge
+  provenance instead of inferring it from transcript markers. Coordinate with the entry above,
+  which owns commit ordering and the reader view during an Edit.
 - **One owner rule for the file reader, its menus and focus.** From the Browse project files
   review's inventory (PROJECT-FILES-7, 2026-11-20). PROJECT-FILES-1–6 were patched: the dialog
   keeps its requested scope, a project switch remounts the scoped dashboard, Close/Escape return

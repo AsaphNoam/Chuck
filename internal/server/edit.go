@@ -49,6 +49,7 @@ const (
 	editReasonLaterTurn  = "The agent took another turn after this message, so editing it would hide that turn."
 	editReasonNoProof    = "This agent's adapter cannot prove a complete earlier turn; update to the supported package to edit later messages."
 	editReasonNoMessage  = "This conversation has no sent message to edit."
+	editReasonNoContext  = "Chuck cannot recover the context this message was sent in after the backend switch. Send a new message instead."
 	// editReasonSearchUnavailable is the committed edit's attention reason
 	// when its search rebuild failed (TS-02.R70).
 	editReasonSearchUnavailable = "The edit was applied, but search cannot find this conversation until `chuck reindex` repairs it."
@@ -268,6 +269,37 @@ func (s *Server) interruptEdit(ctx context.Context, id string, mode editInterrup
 type editPlan struct {
 	from, through int64
 	fork          *runtime.ForkPlan
+	// primer is the first-message candidate's startup bridge: the one the
+	// message was sent under, never a later switch's rebuilt bridge.
+	primer string
+}
+
+// firstMessagePrimer returns the bridge a first message was sent under
+// (TS-04.R113). No active turn precedes a first message, so outside a fork the
+// original bridge carries no active conversation: a fresh launch writes none,
+// and a switch's bridge from then held no turn or only superseded ones. The
+// stored bridge may have been rebuilt from this message by a later switch,
+// even one whose marker was lost, so it is never reused there. A fork's
+// bridge is kept only while no switch after the message replaced it;
+// otherwise the original context is unavailable.
+func firstMessagePrimer(events []runtime.Event, messageSeq int64, current string) (string, bool) {
+	forked, switched := false, false
+	for _, ev := range events {
+		switch {
+		case ev.Type == runtime.EvForkBoundary && ev.Seq < messageSeq:
+			forked = true
+		case ev.Type == runtime.EvBackendSwitch && ev.Seq > messageSeq:
+			switched = true
+		}
+	}
+	switch {
+	case !forked:
+		return "", true
+	case !switched:
+		return current, true
+	default:
+		return "", false
+	}
 }
 
 // validateEdit checks the agent gate and the selected message against the
@@ -368,7 +400,13 @@ func (s *Server) validateEdit(agent state.Agent, req editRequest) (editPlan, run
 		return none, runtime.Message{}, snap, apiError(runtime.CodeInternal, "read the selected message")
 	}
 	plan := editPlan{from: latest.Seq, through: tail}
-	if previousEnd != nil {
+	if previousEnd == nil {
+		primer, ok := firstMessagePrimer(events, latest.Seq, snap.HistoryPrimer)
+		if !ok {
+			return none, runtime.Message{}, snap, editUnavailable(editReasonNoContext)
+		}
+		plan.primer = primer
+	} else {
 		if aff := forkAffordance(*previousEnd, s.forkSessionsFor(id, snap.LastSessionID)); !aff.Available {
 			return none, runtime.Message{}, snap, editUnavailable(aff.Reason)
 		}
@@ -503,6 +541,9 @@ func (s *Server) prepareEditCandidate(ctx context.Context, agent state.Agent, sn
 	ae, stopErr := s.startRuntimeClaimed(ctx, false, func() (runtime.LaunchSpec, *runtime.APIError) {
 		return s.composeSwitchSpecFrom(ctx, agent, "", snap, nil)
 	}, func(spec *runtime.LaunchSpec) *runtime.APIError {
+		if plan.fork == nil {
+			spec.HistoryPrimer = plan.primer
+		}
 		spec.Fork = plan.fork
 		spec.EditStaged = true
 		return nil

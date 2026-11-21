@@ -393,12 +393,23 @@ export function AgentScreen({ agentId }: { agentId: string }) {
 
   // Older windows cover seqs before `anchor`; while they are shown, the live
   // window reads from the anchor so the two stay contiguous.
-  const [earlier, setEarlier] = useState<{ anchor: number; events: TranscriptEvent[]; pages: number; hasMore: boolean; recoveredLiveStart?: number; recoveryPages?: number } | null>(null);
+  // `revision` is the conversation revision the older pages were read under.
+  const [earlier, setEarlier] = useState<{ anchor: number; revision: number; events: TranscriptEvent[]; pages: number; hasMore: boolean; recoveredLiveStart?: number; recoveryPages?: number } | null>(null);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [gapRetry, setGapRetry] = useState(0);
   const loadingEarlierRef = useRef(false);
   const scrollAnchor = useRef<{ height: number; top: number } | null>(null);
   const generation = useRef(0);
+  // A revised conversation drops older windows and any read still in flight,
+  // then reads from the latest (TS-03.R91).
+  const dropEarlier = () => {
+    generation.current++;
+    setEarlier(null);
+    setGapRetry(0);
+    setLoadingEarlier(false);
+    loadingEarlierRef.current = false;
+    scrollAnchor.current = null;
+  };
 
   const transcript = useQuery({
     queryKey: ["transcript", agentId, rev, earlier?.anchor, epoch],
@@ -408,7 +419,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     placeholderData: (prev, previousQuery) => prev?.agent_id === agentId && previousQuery?.queryKey[4] === epoch ? prev : undefined,
   });
   const liveStart = transcript.data?.events[0]?.seq;
-  const gap = !!earlier && !transcript.isPlaceholderData && !!transcript.data?.has_more && earlier.recoveredLiveStart !== liveStart;
+  // Older pages read under another revision never join the authoritative window.
+  const staleEarlier = !!earlier && !!transcript.data && !transcript.isPlaceholderData && (transcript.data.history_revision ?? 0) !== earlier.revision;
+  const gap = !!earlier && !staleEarlier && !transcript.isPlaceholderData && !!transcript.data?.has_more && earlier.recoveredLiveStart !== liveStart;
   const held = useQuery({
     queryKey: ["held", agentId, rev, heldRev, agent?.state],
     queryFn: async ({ signal }) => {
@@ -422,9 +435,9 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   // Fold the joined windows as the desktop does, so streamed deltas coalesce
   // into one message even across a window edge (TS-08.R73).
   const events = useMemo(() => {
-    const joined = [...(earlier?.events ?? []), ...(gap ? [] : (transcript.data?.events ?? []))];
+    const joined = [...(staleEarlier ? [] : earlier?.events ?? []), ...(gap ? [] : (transcript.data?.events ?? []))];
     return foldTranscript([...new Map(joined.map((event) => [event.seq, event])).values()].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0)));
-  }, [earlier, gap, transcript.data]);
+  }, [earlier, staleEarlier, gap, transcript.data]);
   // Live reasoning arrives on the same authenticated stream as the desktop's and
   // shares its bounded store (TS-08.R104). The phone's window slides as the
   // conversation grows, so a span anchors after the last seq it saw rather than
@@ -468,6 +481,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     const anchor = earlier?.anchor ?? transcript.data?.events[0]?.seq;
     const before = earlier?.events[0]?.seq ?? anchor;
     if (!anchor || !before) return;
+    const revision = earlier?.revision ?? transcript.data?.history_revision ?? 0;
     const requestGeneration = generation.current;
     loadingEarlierRef.current = true;
     setLoadingEarlier(true);
@@ -475,8 +489,14 @@ export function AgentScreen({ agentId }: { agentId: string }) {
     try {
       const page = await getTranscriptWindow(agentId, { limit: TRANSCRIPT_PAGE, beforeSeq: before });
       if (requestGeneration !== generation.current) return;
+      if ((page.history_revision ?? 0) !== revision) {
+        dropEarlier();
+        refresh();
+        return;
+      }
       setEarlier((prev) => ({
         anchor,
+        revision,
         events: retainEarlier([...page.events, ...(prev?.events ?? []), ...(!prev ? transcript.data?.events.slice(0, 1) ?? [] : [])]),
         pages: (prev?.pages ?? 0) + 1,
         hasMore: page.has_more,
@@ -582,6 +602,11 @@ export function AgentScreen({ agentId }: { agentId: string }) {
         const beforeSeq = bridge[0]?.seq ?? liveStart;
         const page = await getTranscriptWindow(agentId, { limit: TRANSCRIPT_PAGE, beforeSeq });
         if (requestGeneration !== generation.current) return;
+        if ((page.history_revision ?? 0) !== earlier.revision) {
+          dropEarlier();
+          refresh();
+          return;
+        }
         setEarlier((prev) => prev && ({
           ...prev,
           events: retainEarlier([...prev.events, ...page.events.filter((event) => (event.seq ?? 0) >= prev.anchor)]),
@@ -606,13 +631,14 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   useEffect(() => {
     if (seenEpoch.current === epoch) return;
     seenEpoch.current = epoch;
-    generation.current++;
-    setEarlier(null);
-    setGapRetry(0);
-    setLoadingEarlier(false);
-    loadingEarlierRef.current = false;
-    scrollAnchor.current = null;
+    dropEarlier();
   }, [epoch]);
+
+  // A window read under a newer revision than the retained pages replaces them,
+  // even when the revision event itself was missed.
+  useEffect(() => {
+    if (staleEarlier) dropEarlier();
+  }, [staleEarlier]);
 
   useEffect(() => {
     generation.current++;

@@ -324,7 +324,14 @@ function open(gen: number) {
           fenceRev.set(id, transcriptRev[id]);
         }
         const heldRev = Object.fromEntries(Object.entries(state.heldRev).filter(([id]) => agents[id]));
-        return { agents, transcriptRev, heldRev };
+        // A revision committed while disconnected replaces the active view as the
+        // live revision event does (TS-03.R91): retained older pages are dropped.
+        const revisionEpoch = { ...state.revisionEpoch };
+        for (const [id, next] of Object.entries(agents)) {
+          const prev = state.agents[id];
+          if (prev && (prev.history_revision ?? 0) !== (next.history_revision ?? 0)) revisionEpoch[id] = (revisionEpoch[id] ?? 0) + 1;
+        }
+        return { agents, transcriptRev, heldRev, revisionEpoch };
       });
       admitting = true;
       if (visible()) armLiveness();

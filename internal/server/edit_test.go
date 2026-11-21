@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -206,8 +207,89 @@ func TestEditFirstMessageStartsFreshContext(t *testing.T) {
 	if rec := waitEdit(t, srv, id, "edit-1", settled); rec.Phase != state.EditCommitted {
 		t.Fatalf("edit = %+v", rec)
 	}
+	// The decision settles before the replacement is dispatched.
+	deadline = time.Now().Add(5 * time.Second)
+	for len(promptTexts(readEvents(t, srv, id))) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
 	if got := promptTexts(readEvents(t, srv, id)); len(got) != 1 || got[0] != "a better start" {
 		t.Fatalf("active prompts = %v", got)
+	}
+}
+
+// A backend switch after the first message rebuilt the bridge from that
+// message; editing it must start the provider from the original pre-message
+// context, on whichever backend is current (ARCH-EDIT-CONTEXT-1, TS-04.R113).
+func TestEditFirstMessageAfterBackendSwitchOmitsSupersededBridge(t *testing.T) {
+	for name, switches := range map[string][]map[string]string{
+		"codex":          {{"backend": "codex", "model": "gpt-5.5"}},
+		"back-to-claude": {{"backend": "codex", "model": "gpt-5.5"}, {"backend": "claude", "model": "sonnet"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("FAKEACP_CAPS", "1")
+			dump := filepath.Join(t.TempDir(), "new-session.json")
+			t.Setenv("FAKEACP_NEW_RAW_DUMP", dump)
+			srv, ts := switchTestServer(t)
+			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+			oldText := "SUPERSEDED_FIRST_INPUT_63815"
+			resp, raw := post(t, ts.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": oldText})
+			if resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("prompt = %d %s", resp.StatusCode, raw)
+			}
+			waitStatus(t, srv, id, "idle")
+			waitTurnReleased(t, srv, id)
+			for _, target := range switches {
+				if resp, raw = post(t, ts.URL+"/api/sessions/"+id+"/switch-runtime", target); resp.StatusCode != http.StatusOK {
+					t.Fatalf("switch = %d %s", resp.StatusCode, raw)
+				}
+			}
+			if snap, err := srv.stateStore.ReadSession(id); err != nil || !strings.Contains(snap.HistoryPrimer, oldText) {
+				t.Fatalf("switch bridge does not carry the first message (fixture drift): %v", err)
+			}
+			first, _ := lastRootPrompt(t, readEvents(t, srv, id))
+			resp, raw = post(t, ts.URL+"/api/sessions/"+id+"/edit-last", map[string]any{"request_id": "edit-1", "message_seq": first.Seq, "expected_revision": 0, "text": "REPLACEMENT"})
+			if resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("edit = %d %s", resp.StatusCode, raw)
+			}
+			if rec := waitEdit(t, srv, id, "edit-1", settled); rec.Phase != state.EditCommitted {
+				t.Fatalf("edit = %+v", rec)
+			}
+			waitStatus(t, srv, id, "idle")
+			waitTurnReleased(t, srv, id)
+			startup, err := os.ReadFile(dump)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(startup), oldText) || strings.Contains(string(startup), "Sure, I'll do that.") {
+				t.Fatal("candidate startup context carries the superseded first turn")
+			}
+			if snap, err := srv.stateStore.ReadSession(id); err != nil || snap.HistoryPrimer != "" {
+				t.Fatalf("committed bridge = %q, %v", snap.HistoryPrimer, err)
+			}
+		})
+	}
+}
+
+// Outside a fork a first message starts from no bridge, whatever switches or
+// lost switch markers surround it; a fork's bridge survives only while no
+// later switch replaced it (TS-04.R113).
+func TestFirstMessagePrimerProvenance(t *testing.T) {
+	ev := func(seq int64, typ string) runtime.Event { return runtime.Event{Seq: seq, Type: typ} }
+	for _, c := range []struct {
+		name   string
+		events []runtime.Event
+		want   string
+		ok     bool
+	}{
+		{"rebuilt after a fresh launch", []runtime.Event{ev(2, runtime.EvUserPrompt), ev(5, runtime.EvBackendSwitch)}, "", true},
+		{"rebuilt with its marker lost", []runtime.Event{ev(2, runtime.EvUserPrompt)}, "", true},
+		{"switches kept through an earlier edit", []runtime.Event{ev(1, runtime.EvBackendSwitch), ev(2, runtime.EvUserPrompt), ev(5, runtime.EvBackendSwitch)}, "", true},
+		{"fork bridge unchanged", []runtime.Event{ev(1, runtime.EvForkBoundary), ev(2, runtime.EvUserPrompt)}, "current", true},
+		{"fork bridge replaced", []runtime.Event{ev(1, runtime.EvForkBoundary), ev(2, runtime.EvUserPrompt), ev(5, runtime.EvBackendSwitch)}, "", false},
+	} {
+		if got, ok := firstMessagePrimer(c.events, 2, "current"); got != c.want || ok != c.ok {
+			t.Errorf("%s: got %q %v, want %q %v", c.name, got, ok, c.want, c.ok)
+		}
 	}
 }
 

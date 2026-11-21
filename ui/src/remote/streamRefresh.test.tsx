@@ -63,8 +63,98 @@ afterEach(() => {
   cleanup();
   disconnect();
   vi.unstubAllGlobals();
+  server.resetHandlers();
 });
 afterAll(() => server.close());
+
+// A long conversation whose latest user turn crosses the first older-page
+// boundary; `revise()` commits a desktop edit that replaces seqs 150–900.
+function revisableConversation(olderPage: () => Promise<void> = async () => undefined) {
+  let revised = false;
+  const oldTail = Array.from({ length: 750 }, (_, index) => ({
+    agent_id: "a1", seq: 151 + index, type: "assistant_text", ts: "t", data: { text: index === 0 ? "Old reply tail" : "" },
+  }));
+  server.use(http.get("/api/sessions/a1/transcript", async ({ request }) => {
+    const url = new URL(request.url);
+    if (url.searchParams.has("before_seq")) {
+      await olderPage();
+      return HttpResponse.json({ agent_id: "a1", history_revision: 0, has_more: false, events: [
+        { agent_id: "a1", seq: 150, type: "user_text", ts: "t", data: { text: "Superseded user question" } },
+      ] });
+    }
+    if (!revised && url.searchParams.has("since_seq")) return HttpResponse.json({ agent_id: "a1", history_revision: 0, has_more: false, events: oldTail.slice(1) });
+    return HttpResponse.json({ agent_id: "a1", history_revision: revised ? 1 : 0, has_more: !revised, events: revised ? [
+      { agent_id: "a1", seq: 901, type: "conversation_revision", ts: "t", data: { revision: 1, replaces_from_seq: 150, replaces_through_seq: 900 } },
+      { agent_id: "a1", seq: 902, type: "user_text", ts: "t", data: { text: "Revised user question" } },
+      { agent_id: "a1", seq: 903, type: "assistant_text", ts: "t", data: { text: "Revised reply" } },
+    ] : oldTail });
+  }));
+  return { revise: () => { revised = true; } };
+}
+
+async function openConversation() {
+  start();
+  await waitFor(() => expect(FakeEventSource.current).toBeDefined());
+  const stream = FakeEventSource.current!;
+  await act(async () => {
+    stream.onopen?.();
+    stream.emit("state_update", { data: agent });
+    stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+  });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  render(<QueryClientProvider client={queryClient}><AgentScreen agentId="a1" /></QueryClientProvider>);
+  expect(await screen.findByText("Old reply tail")).toBeInTheDocument();
+  return { stream, queryClient };
+}
+
+function scrollToTop() {
+  Object.defineProperty(window, "scrollY", { configurable: true, value: 100 });
+  act(() => window.dispatchEvent(new Event("scroll")));
+  Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+  act(() => window.dispatchEvent(new Event("scroll")));
+}
+
+async function reconnectRevised(stream: FakeEventSource) {
+  await act(async () => {
+    stream.onopen?.();
+    stream.emit("state_update", { data: { ...agent, history_revision: 1 } });
+    stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
+  });
+}
+
+describe("phone revised conversation after older pages (TS-03.R91, FS-01.R61)", () => {
+  it.each(["reconnect", "event"])("drops older cached pages after %s discovers a revised conversation", async (trigger) => {
+    const conversation = revisableConversation();
+    const { stream, queryClient } = await openConversation();
+    scrollToTop();
+    expect(await screen.findByText("Superseded user question")).toBeInTheDocument();
+    conversation.revise();
+    if (trigger === "reconnect") await reconnectRevised(stream);
+    else await act(async () => {
+      stream.emit("new_message", { agent_id: "a1", data: { type: "conversation_revision", seq: 901, data: { revision: 1 } } });
+    });
+    expect(await screen.findByText("Revised reply")).toBeInTheDocument();
+    expect(screen.queryByText("Superseded user question")).not.toBeInTheDocument();
+    queryClient.clear();
+  });
+
+  it("discards an older-page read that started before a reconnect revealed a revision", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let olderStarted = false;
+    const conversation = revisableConversation(async () => { olderStarted = true; await gate; });
+    const { stream, queryClient } = await openConversation();
+    scrollToTop();
+    await waitFor(() => expect(olderStarted).toBe(true));
+    conversation.revise();
+    await reconnectRevised(stream);
+    expect(await screen.findByText("Revised reply")).toBeInTheDocument();
+    await act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(screen.queryByText("Superseded user question")).not.toBeInTheDocument();
+    expect(screen.getByText("Revised reply")).toBeInTheDocument();
+    queryClient.clear();
+  });
+});
 
 describe("phone streamed transcript refresh", () => {
   it("bounds transcript and prompt reads during a message burst and renders the final fetched reply", async () => {
