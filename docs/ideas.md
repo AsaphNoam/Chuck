@@ -418,9 +418,15 @@ the relevant feature and technical specifications; it does not change product co
   existing-agent task activations retain their short assignment-discovery trigger but lose the
   reporting/communication paragraph. Replace the shared context's vague outcome-reporting
   sentence with the essential assigned-task lookup and explicit result-reporting rule, delivered
-  only to aware agents. Shorten the skill entry to basic choices and a reading map. Separate
-  assignment and messaging basics from coordinator-only delegation, scheduling, child waiting,
-  repair and peer-history guidance within the same skill package. No persona copies or new
+  only to aware agents. Proposed wording: “For assigned Chuck tasks, read your assignment through
+  `get_assigned_task`. Finish through `report_task_result` with success, failure or blocked and a
+  short summary.” The operator removed the proposed extra sentence about chat replies not
+  completing tasks. Shorten the skill entry to basic choices and a reading map. Separate
+  assignment and messaging basics from delegation, scheduling, child waiting, repair and
+  peer-history guidance within the same skill package. These are job-based reading routes, not
+  role or parent/child restrictions: any agent considering authorized delegation sees that
+  capability in the shared context and skill entry and follows the coordination reference when
+  needed. No persona copies or new
   awareness exceptions. Product-specific instructions for pipeline decisions and Think Tank
   contributions remain outside this cleanup. Pending confirmation of this concrete feature
   delta before technical design and planned FS/TS authoring; no ready change yet. Governing
