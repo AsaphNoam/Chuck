@@ -401,6 +401,22 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Concise task instructions and guidance loaded by job.** Selected by the operator on
+  2026-11-21 with `/design-feature`, following TASK-PROMPT's investigation. Remove repeated
+  communication procedure from task prompts; give ordinary workers the essentials of assigned
+  tasks and inter-agent communication through shared Chuck context and the existing
+  `operating-chuck` skill. Keep personas focused on their purpose. Assess progressive reference
+  boundaries before introducing separate skills: the current entry is about 400 words and routes
+  four references; the complete package is about 6,000 words, not automatically loaded in full.
+  `coordinate-work.md` mixes worker essentials with task creation, scheduling, repair, waiting
+  on children and peer-history reads. Proposed direction: one short skill entry, worker-relevant
+  guidance separately readable from coordinator/operator/pipeline/room details, and no repeated
+  manual in assignment prompts. Preserve actual reporting, messaging, authority and recovery
+  behavior. Pending feature confirmation: exact instruction-only delivery for Chuck-aware task
+  launches; what minimal reporting guidance unaware assignees still receive; acceptance for
+  task completion and useful escalation without redundant messages. No technical design or
+  ready change yet. Governing existing scope: FS-18.R3–R6/R15/R20, FS-16.R26/R49.
+
 ## ACP Wait-list
 
 These are capabilities AgentDeck implements above ACP, or has deliberately deferred, because the
