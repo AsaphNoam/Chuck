@@ -133,6 +133,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		s.logSwitchFailure(id, runtime.CodeInternal, "read running: "+err.Error())
 		writeAPIError(w, apiError(runtime.CodeInternal, err.Error()))
 		return
 	}
@@ -142,6 +143,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		s.logSwitchFailure(id, runtime.CodeInternal, "read previous session: "+err.Error())
 		writeAPIError(w, apiError(runtime.CodeInternal, "read previous session: "+err.Error()))
 		return
 	}
@@ -186,23 +188,33 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	// the target/rollback resumes re-run the now-succeeding, idempotent refresh.
 	if s.backendType(agent.Backend) == "codex-acp" || s.backendType(target.Backend) == "codex-acp" {
 		if err := config.RefreshCodexProfile(config.CodexProfileDir(s.configStore.Home())); err != nil {
+			s.logSwitchFailure(id, runtime.CodeInternal, "prepare codex profile: "+err.Error())
 			writeAPIError(w, apiError(runtime.CodeInternal, "prepare codex profile: "+err.Error()))
 			return
 		}
 	}
 
+	// From here the switch tears down the source and must run to an outcome
+	// (target live, rolled back, or error status) even if the client goes away:
+	// a request-scoped cancel would abort the target start and force a rollback.
+	ctx := context.WithoutCancel(r.Context())
+
 	// 1. Cancel any in-flight turn and let it settle (streamed events already
 	//    persisted), then stop the old runtime (removes running row, status done).
-	s.cancelAndWait(r.Context(), id, switchCancelTimeout)
-	if err := s.registry.Stop(r.Context(), id); err != nil {
+	s.cancelAndWait(ctx, id, switchCancelTimeout)
+	if err := s.registry.Stop(ctx, id); err != nil {
 		if !errors.Is(err, runtime.ErrNoHandle) {
-			writeAPIError(w, orphanReapAPIError("stop current runtime: ", err))
+			ae := orphanReapAPIError("stop current runtime: ", err)
+			s.logSwitchFailure(id, ae.Code, ae.Message)
+			writeAPIError(w, ae)
 			return
 		}
 		// ErrNoHandle: no handler in registry, but check for orphan runtimes (invariant §4).
 		// An unreaped orphan must not gain a second process (FS-01.R21/R54).
 		if rerr := s.reapOrphanRuntime(id); rerr != nil {
-			writeAPIError(w, orphanReapAPIError("reap orphan runtime: ", rerr))
+			ae := orphanReapAPIError("reap orphan runtime: ", rerr)
+			s.logSwitchFailure(id, ae.Code, ae.Message)
+			writeAPIError(w, ae)
 			return
 		}
 	}
@@ -221,8 +233,8 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 	// so it must roll back to the previous identity (re-register + re-resume) rather
 	// than leave the agent dead with no running row — the same recovery step 5 uses.
 	var worktreeNotice worktreeStartNotice
-	ae, stopErr := s.startRuntimeClaimed(r.Context(), false, func() (runtime.LaunchSpec, *runtime.APIError) {
-		return s.composeSwitchSpecContext(r.Context(), target, resumeID, &worktreeNotice)
+	ae, stopErr := s.startRuntimeClaimed(ctx, false, func() (runtime.LaunchSpec, *runtime.APIError) {
+		return s.composeSwitchSpecContext(ctx, target, resumeID, &worktreeNotice)
 	}, func(spec *runtime.LaunchSpec) *runtime.APIError {
 		spec.Driver = req.Driver
 		// Preserve the frozen selection on interface-only switches. Record
@@ -235,7 +247,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if usePrimer {
-			primer, err := s.buildHistoryPrimer(r.Context(), *spec, s.switchPrimerTokenBudget())
+			primer, err := s.buildHistoryPrimer(ctx, *spec, s.switchPrimerTokenBudget())
 			if err != nil {
 				return apiError(runtime.CodeInternal, "build history primer: "+err.Error())
 			}
@@ -252,7 +264,7 @@ func (s *Server) handleSwitchRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ae != nil {
-		s.rollbackSwitch(r.Context(), w, agent, prev.SessionID, previousSnapshot, errors.New(ae.Message))
+		s.rollbackSwitch(ctx, w, agent, prev.SessionID, previousSnapshot, errors.New(ae.Message))
 		return
 	}
 	if usePrimer {
@@ -320,7 +332,14 @@ func (s *Server) rollbackSwitch(_ context.Context, w http.ResponseWriter, prevAg
 		s.failSwitch(w, prevAgent.AgentID, ae.Message)
 		return
 	}
+	s.logSwitchFailure(prevAgent.AgentID, runtime.CodeSwitchFailedRolledBack, cause.Error())
 	writeAPIError(w, apiError(runtime.CodeSwitchFailedRolledBack, "switch failed, rolled back to previous runtime: "+cause.Error()))
+}
+
+// logSwitchFailure writes the one correlated record for a switch that answers
+// with a server-side failure (INV 22): agent, operation, typed code, bounded reason.
+func (s *Server) logSwitchFailure(agentID, code, reason string) {
+	s.log.Warn("switch runtime failed", "agent_id", agentID, "operation", "switch-runtime", "code", code, "reason", clipDetail(reason))
 }
 
 // appendRestoredSessionMeta commits the previous selection as the stopped
@@ -348,6 +367,7 @@ func (s *Server) appendRestoredSessionMeta(a state.Agent, snap state.SessionSnap
 // failSwitch records the unrecoverable state (status error) and returns 500
 // switch_failed; the agent is recoverable via archive resume (§5.4).
 func (s *Server) failSwitch(w http.ResponseWriter, agentID, detail string) {
+	s.logSwitchFailure(agentID, runtime.CodeSwitchFailed, detail)
 	if st, err := s.stateStore.ReadStatus(agentID); err == nil {
 		st.State = state.ComposeChatStatus(state.ChatProcessFailed, state.ConversationTurn{}, false)
 		st.Detail = "switch failed: " + clipDetail(detail)

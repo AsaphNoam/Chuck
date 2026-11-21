@@ -34,7 +34,8 @@ function renderRun() {
 
 it("renders only durable stage-task provenance", async () => {
   renderRun();
-  expect(await screen.findByText("Standing")).toBeInTheDocument();
+  // The owner strip and the attempt's stage-agent card both name the owner.
+  expect(await screen.findAllByText("Standing")).toHaveLength(2);
   expect(screen.getByText("1 task")).toBeInTheDocument();
 });
 
@@ -75,7 +76,9 @@ it("labels a deleted owner and coordinator as unavailable without showing their 
   const gone = { agent_id: "a_deleted_owner", name: "", state: "unknown", route: "unavailable" };
   server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, stage_tasks: [{ ...stageTask, standing_owner: gone, coordinator: { ...gone, task_id: "task_c", agent_id: "a_deleted_coordinator" } }] })));
   renderRun();
-  expect(await screen.findAllByText("Unavailable agent")).toHaveLength(2);
+  // Owner strip, coordinator strip, and the attempt's non-linking stage-agent card.
+  expect(await screen.findAllByText("Unavailable agent")).toHaveLength(3);
+  expect(screen.getAllByText("Unavailable agent").every((node) => node.closest("a") === null)).toBe(true);
   expect(screen.getByText(/^Unavailable agent · step 1/)).toBeInTheDocument();
   expect(screen.queryByText(/a_deleted/)).toBeNull();
 });
@@ -151,6 +154,25 @@ it("links stage-work cards to their agents by live or archive route", async () =
   expect(screen.getByText("Lost").closest("a")).toBeNull();
   act(() => useAgentStore.getState().applyStateUpdate({ agent_id: "a_run", running: false } as AgentState));
   expect(screen.getByRole("link", { name: /Builder/ }).getAttribute("href")).toBe("/archive/a_run");
+});
+
+// FS-14.R39/A17: each attempt carries its own stage-agent card, so a replaced
+// owner stays reachable from its attempt; delegation is followed one hop.
+it("keeps each attempt's stage agent card after Replace and shows one card per delegated task", async () => {
+  const replaced = { ...stageTask, state: "cancelled", standing_owner: { agent_id: "a_old", name: "First owner", state: "stopped", route: "archive", runtime: stageTask.standing_owner.runtime }, work: [
+    { task_id: "w1", display_name: "Builder", state: "running", agent_id: "a_build", route: "live" },
+    { task_id: "w2", display_name: "Reviewer", state: "finished", agent_id: "a_review", route: "archive", children: [{ task_id: "w3", display_name: "Grandchild", state: "running", agent_id: "a_grand", route: "live" }] },
+  ] };
+  const current = { ...stageTask, task_id: "task_2", attempt_number: 2, standing_owner: { ...stageTask.standing_owner, agent_id: "a_new", name: "Second owner" } };
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, current_task_id: "task_2", current_agent_id: "a_new" }, stage_tasks: [replaced, current] })));
+  useAgentStore.setState({ agents: {} });
+  const { container } = renderRun();
+  expect((await screen.findByRole("link", { name: /First owner/ })).getAttribute("href")).toBe("/archive/a_old");
+  expect(screen.getByRole("link", { name: /Second owner/ }).getAttribute("href")).toBe("/agent/a_new");
+  const [first, second] = Array.from(container.querySelectorAll('[data-slot="attempt"]'));
+  expect(Array.from(first.querySelectorAll(".pipeline-agent-card")).map((card) => card.querySelector("strong")?.textContent)).toEqual(["First owner", "Builder", "Reviewer"]);
+  expect(Array.from(second.querySelectorAll(".pipeline-agent-card")).map((card) => card.querySelector("strong")?.textContent)).toEqual(["Second owner"]);
+  expect(screen.queryByText("Grandchild")).toBeNull();
 });
 
 it("loads retained run pages to an exact complete-history state", async () => {

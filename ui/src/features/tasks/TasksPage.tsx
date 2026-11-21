@@ -233,15 +233,17 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
       {stage.runID && (
         <p className="task-row-meta">
           <span><Link to={`/pipelines/runs/${encodeURIComponent(stage.runID)}`}>{stage.runName || "Pipeline run"}</Link></span>
-          {stage.owned && <span>Stage work: record, re-arm and delete from its run.</span>}
+          {stage.owned && <span>Stage work: continue, retry or stop it from its run.</span>}
           {!stage.known && (stage.failed
-            ? <span>Stage ownership could not be loaded; record, re-arm and delete are withheld. Use the run.</span>
-            : <span>Checking stage ownership; record, re-arm and delete are withheld until it loads.</span>)}
+            ? <span>Stage ownership could not be loaded; task controls are withheld. Use the run.</span>
+            : <span>Checking stage ownership; task controls are withheld until it loads.</span>)}
         </p>
       )}
+      {/* The server refuses every generic control on a stage task; its run
+          settles it (FS-14.A42/R73). */}
       <div className="task-row-actions" data-slot="actions">
-        {actions.cancel && <Button onClick={() => act(() => cancel.mutateAsync(task.task_id))}>Cancel</Button>}
-        {actions.retry && <Button onClick={() => act(() => retry.mutateAsync(task.task_id))}>Retry</Button>}
+        {actions.cancel && !restricted && <Button onClick={() => act(() => cancel.mutateAsync(task.task_id))}>Cancel</Button>}
+        {actions.retry && !restricted && <Button onClick={() => act(() => retry.mutateAsync(task.task_id))}>Retry</Button>}
         {!restricted && <Button variant="danger" onClick={() => act(() => remove.mutateAsync(task.task_id))}>Delete</Button>}
       </div>
       {actions.recordResult && !restricted && <RecordResultForm task={task} onError={setError} />}

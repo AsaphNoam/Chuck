@@ -30,6 +30,7 @@ export function CardContextMenu() {
   const [group, setGroup] = useState("");
   const [runtime, setRuntime] = useState({ interface: "chat", backend: "", model: "", effort: "" });
   const [dialogError, setDialogError] = useState("");
+  const [switching, setSwitching] = useState(false);
   const [terminalAvailable, setTerminalAvailable] = useState(true);
   const placement = useMenuPlacement(menu);
 
@@ -111,7 +112,12 @@ export function CardContextMenu() {
 		setDialogError("Choose an interface, backend, model, or effort that differs from the current runtime.");
       return;
     }
-    switchRuntime(dialog.agent.agent_id, runtime).then(closeDialog).catch((err) => reportError("Switch runtime failed", err));
+    setDialogError("");
+    setSwitching(true);
+    switchRuntime(dialog.agent.agent_id, runtime)
+      .then(closeDialog)
+      .catch((err) => reportError("Switch runtime failed", err))
+      .finally(() => setSwitching(false));
   };
 
   const menuView = menu && agent ? createPortal(
@@ -215,8 +221,9 @@ export function CardContextMenu() {
                       <button type="button" className="ad-button-secondary" onClick={() => void refetchBackends()} disabled={backendsFetching}>{backendsFetching ? "Retrying…" : "Retry"}</button>
                     </div>
                   )}
-                  {dialogError && <p className="form-error">{dialogError}</p>}
-                  <div className="form-actions" data-slot="actions"><button type="button" onClick={closeDialog}>Cancel</button><button type="submit" className="ad-button-primary" disabled={!runtime.backend || !runtime.model || terminalUnverified}>Switch runtime</button></div>
+                  {switching && <p className="form-hint" role="status">Stopping the current runtime and starting the new one…</p>}
+                  {dialogError && <p className="form-error" role="alert">{dialogError}</p>}
+                  <div className="form-actions" data-slot="actions"><button type="button" onClick={closeDialog}>Cancel</button><button type="submit" className="ad-button-primary" disabled={switching || !runtime.backend || !runtime.model || terminalUnverified}>{switching ? "Switching…" : "Switch runtime"}</button></div>
                 </form>
               )}
             </Dialog.Content>

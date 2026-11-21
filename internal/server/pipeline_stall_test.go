@@ -287,3 +287,48 @@ func TestStalledOwnerIsContinuedThenPaused(t *testing.T) {
 		t.Fatalf("assignment plus continuation prompts = %d, want %d", got, state.MaxOwnerStallTurns)
 	}
 }
+
+// FS-14.A42/R73 — a person cannot settle a paused dedicated-stage owner's task
+// through the generic task controls: each is refused, names the run controls,
+// and leaves the task and the run unchanged, so Continue/Retry/Replace stay
+// available (INV §19/§21).
+func TestPersonCannotSettleDedicatedStageTask(t *testing.T) {
+	srv := testServer(t, true)
+	task := createPipelineSnapshotTask(t, srv, "pr_person", "tk_person", stallSnapshot)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = 'running' WHERE task_id = ?`, task.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := srv.stateStore.InterruptPipelineOwner(task.TaskID, "", "the run owner ended several turns without reporting or waiting", "owner_not_reporting"); err != nil || !ok {
+		t.Fatalf("interrupt owner = %v %v", ok, err)
+	}
+	srv.pauseInterruptedOwner(task.TaskID, "owner_not_reporting")
+	beforeRun, err := srv.stateStore.ReadPipelineRun("pr_person")
+	if err != nil || beforeRun.State != "paused" {
+		t.Fatalf("run before = %+v, %v", beforeRun, err)
+	}
+	beforeTask, err := srv.stateStore.ReadTask(task.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, req := range []struct{ method, path, body string }{
+		{"POST", "/result", `{"outcome":"success","summary":"done by hand"}`},
+		{"POST", "/result", `{"outcome":"failure","summary":"failed by hand"}`},
+		{"POST", "/cancel", `{}`},
+		{"POST", "/retry", `{}`},
+		{"POST", "/rearm", `{"arms":[]}`},
+		{"DELETE", "", ``},
+	} {
+		rec := doJSON(t, srv.routes(), req.method, "/api/tasks/"+task.TaskID+req.path, req.body)
+		if rec.Code != 409 || !strings.Contains(rec.Body.String(), "pipeline run") {
+			t.Fatalf("%s %s = %d %s", req.method, req.path, rec.Code, rec.Body.String())
+		}
+	}
+	afterTask, err := srv.stateStore.ReadTask(task.TaskID)
+	if err != nil || afterTask.State != beforeTask.State || afterTask.Revision != beforeTask.Revision {
+		t.Fatalf("task changed: before %+v after %+v, %v", beforeTask, afterTask, err)
+	}
+	afterRun, err := srv.stateStore.ReadPipelineRun("pr_person")
+	if err != nil || afterRun.State != "paused" || afterRun.Revision != beforeRun.Revision {
+		t.Fatalf("run changed: before %+v after %+v, %v", beforeRun, afterRun, err)
+	}
+}

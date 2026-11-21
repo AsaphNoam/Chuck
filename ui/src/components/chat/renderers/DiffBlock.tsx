@@ -15,7 +15,10 @@ export function DiffBlock({ event, onAnnotate, onOpenFile, selectHint = "Click l
 }) {
   const [selection, setSelection] = useState<{ side: "old" | "new"; start: number; end: number } | null>(null);
   const chooseLine = (lineId: string) => {
-    const match = /^([LR])-(\d+)$/.exec(lineId);
+    // In unified mode the viewer gives an added (or changed new-side) row's
+    // gutter no prefix, so its id arrives as `undefined-N`; that column is
+    // always the new side (FS-13.R1).
+    const match = /^([LR]|undefined)-(\d+)$/.exec(lineId);
     if (!match) return;
     const side = match[1] === "L" ? "old" : "new";
     const line = Number(match[2]);

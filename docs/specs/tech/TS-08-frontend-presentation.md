@@ -934,7 +934,7 @@ R146 replaces the tail task-list slot with a composer-side running indicator.
   set. The shared feature state/action projection consumes server `retry_eligible` and preserves
   stage ownership restrictions; mere run lineage does not mean a task is the authoritative stage.
   When detail opens for work with run lineage, reuse the existing run-detail query and match its
-  `stage_tasks[].task_id` before exposing stage-restricted Record result, Re-arm or Delete controls;
+  `stage_tasks[].task_id` before exposing stage-restricted Cancel, Retry, Record result, Re-arm or Delete controls;
   during unavailable ownership data show the run link and the reason those controls are withheld.
   Do not load every run merely to render project rows. Keep unavailable metadata explicit and server
   refusals visible rather than broadening eligibility.

@@ -206,30 +206,10 @@ specs, live user state or unrelated dirty files changed.
 ### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Repros and evidence: [run record](../archive/reviews/usability-review-run-2026-11-21.md). Homes
-remain under `/tmp/chuck-ur-2026-11-21/work/` while that directory lasts.
+remain under `/tmp/chuck-ur-2026-11-21/work/` while that directory lasts. Its Must-fix items
+closed on 2026-11-21 by the usability fix commit; only Worth-fixing items remain (trivial/easy).
+The per-attempt run cards are proven in jsdom only, not re-checked in a real browser.
 
-- **Must fix** (medium) — J14. A person-authored stage success is accepted: `chuck task result
-  <stage task> --outcome success` on a paused "owner not reporting" dedicated-stage run finishes the
-  stage task, but the run stays paused with Continue/Retry/Replace ineligible — only Stop run
-  remains. Refuse it as FS-14.A42/R67 require; test the person path on a stage task.
-  Related to the task/pipeline settlement inventory routed to "One rule for task execution across
-  continuations".
-- **Must fix** (medium) — J14. Run timeline entries show no stage-agent or delegated-agent cards
-  (FS-14.R39/A17). After Replace, attempt 1's agent has no link anywhere on the run page; only the
-  run-level Open agent to the current owner exists. Render per-attempt cards; verify with a stage
-  agent that created two tasks.
-- **Must fix** (trivial/easy) — J13. Added (`+`) diff lines cannot be annotated
-  (`ui/src/components/chat/renderers/DiffBlock.tsx:17`): react-diff-viewer's unified mode passes
-  `undefined-N` for added rows, which the `^[LR]-\d+$` check rejects, so no `side: "new"` anchor is
-  ever created (FS-13.R1/R2) (no invariant class). Map added-row ids to the new side; test a click on
-  an added line.
-- **Must fix** (trivial/easy) — J3. A Markdown link whose target is a bare file name plus line
-  (`README.md:3`) renders as an `<a>` with no href and does nothing; `./README.md:3` and
-  `src/main.go:2` work (FS-03.A34/R51) (no invariant class).
-- **Must fix** (medium, unconfirmed) — J7. One Claude→Codex Switch runtime returned 500 after 3.1 s
-  with no server log line; the dialog stayed open silently and the record was already codex/stopped
-  while the card read claude opus. Three retries succeeded. Find the 500 path, surface switch errors
-  in the dialog, and keep record and card consistent on failure.
 - **Worth fixing** (trivial/easy) — J2 onboarding: each Check again PUTs backends and makes the last
   checked backend (e.g. OpenHands) the default; reloading mid-wizard drops the remaining steps once a
   backend passes (onboarding stays incomplete); Launch lands on Projects instead of the agent; a

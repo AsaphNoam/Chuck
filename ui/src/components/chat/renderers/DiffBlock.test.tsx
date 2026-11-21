@@ -5,7 +5,11 @@ import { DiffBlock } from "./DiffBlock";
 
 vi.mock("react-diff-viewer-continued", () => ({
   default: ({ onLineNumberClick }: { onLineNumberClick: (lineId: string) => void }) => (
-    <button type="button" onClick={() => onLineNumberClick("L-2")}>Old line 2</button>
+    <>
+      <button type="button" onClick={() => onLineNumberClick("L-2")}>Old line 2</button>
+      {/* The real unified viewer passes an added row's id with an undefined prefix. */}
+      <button type="button" onClick={() => onLineNumberClick("undefined-1")}>Added line 1</button>
+    </>
   ),
 }));
 
@@ -34,6 +38,21 @@ describe("DiffBlock", () => {
       excerpt: "second",
       instruction: "",
     });
+  });
+
+  it("anchors an added line on the new side", () => {
+    const onAnnotate = vi.fn();
+    render(
+      <DiffBlock
+        event={{ seq: 7, path: "main.go", old_text: "first", new_text: "replacement\nsecond" }}
+        onAnnotate={onAnnotate}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Added line 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Annotate lines 1–1" }));
+
+    expect(onAnnotate).toHaveBeenCalledWith(expect.objectContaining({ side: "new", start_line: 1, end_line: 1, excerpt: "replacement" }));
   });
 });
 

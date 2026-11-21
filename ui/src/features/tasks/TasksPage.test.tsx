@@ -381,7 +381,7 @@ describe("Tasks work in motion", () => {
     expect(await within(row).findByText(/Stage ownership could not be loaded/)).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Record result" })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 
   it("routes a signal wait to the explicit signal control without firing it", async () => {

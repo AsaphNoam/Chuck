@@ -199,29 +199,40 @@ function StageTask({ task, tasks, titles, title, current }: { task: PipelineRunD
         {task.coordinator && <section><h4>Coordinator report to standing owner</h4><p>{task.coordinator.report_summary || "No coordinator report recorded."}</p></section>}
         {task.result?.details && <section><h4>Result details</h4><pre>{task.result.details}</pre></section>}
         {Object.entries(task.result?.outputs ?? {}).map(([name, value]) => <section key={name}><h4>Output · {name}</h4><pre>{value}</pre></section>)}
-        {task.work.length > 0 && <TaskWork items={task.work} />}
+        {(task.work.length > 0 || (!room && task.standing_owner.agent_id)) && <TaskWork task={task} />}
         {task.cleanup?.state && <p className="pipeline-unreported">Cleanup: {humanize(task.cleanup.state)}{task.cleanup.reason ? ` · ${humanize(task.cleanup.reason)}` : ""}</p>}
       </div>
     </details>
   </li>;
 }
 
-function TaskWork({ items }: { items: PipelineRunDetail["stage_tasks"][number]["work"] }) {
-  return <section className="pipeline-attempt-agents" data-slot="agents"><div className="pipeline-agent-heading"><h4>Stage work</h4></div><div className="pipeline-agent-grid">{items.map((item) => <TaskWorkCard key={item.task_id} item={item} />)}</div></section>;
+/** TaskWork shows the attempt's own stage agent, then one card per agent the
+ *  stage agent assigned directly during that attempt. The stage agent comes from
+ *  this attempt's record, so a replaced owner stays reachable from its own entry
+ *  (FS-14.R39, A17). */
+function TaskWork({ task }: { task: PipelineRunDetail["stage_tasks"][number] }) {
+  const owner = task.standing_owner;
+  const ownerCard = !task.room && owner.agent_id
+    ? { task_id: task.task_id, display_name: pipelineAgentLabel(owner, "Stage agent"), state: owner.state || task.state, summary: task.result?.summary ?? "", agent_id: owner.agent_id, route: owner.route }
+    : null;
+  return <section className="pipeline-attempt-agents" data-slot="agents"><div className="pipeline-agent-heading"><h4>Stage work</h4></div><div className="pipeline-agent-grid">
+    {ownerCard && <TaskWorkCard item={ownerCard} role="Stage agent" tone={task.state} />}
+    {task.work.map((item) => <TaskWorkCard key={item.task_id} item={item} />)}
+  </div></section>;
 }
 
 /** TaskWorkCard opens the task agent's live chat while it runs and its archived
  *  transcript once it stops; an agent with no known identity stays a non-linking
  *  card (FS-14.R39, A17, A23). The live store overrides the detail's route so a
  *  stop seen over the event stream re-routes the card in place. */
-function TaskWorkCard({ item }: { item: PipelineRunDetail["stage_tasks"][number]["work"][number] }) {
+function TaskWorkCard({ item, role, tone }: { item: PipelineRunDetail["stage_tasks"][number]["work"][number]; role?: string; tone?: string }) {
   const live = useAgentStore((state) => (item.agent_id ? state.agents[item.agent_id] : undefined));
   const route = live ? (live.running ? "live" : "archive") : item.route;
   const href = !item.agent_id || route === "unavailable" ? null : route === "live" ? `/agent/${encodeURIComponent(item.agent_id)}` : `/archive/${encodeURIComponent(item.agent_id)}`;
-  const content = <><span className="pipeline-agent-dot" aria-hidden="true" /><span><strong>{item.display_name}</strong><small>{humanize(item.state)}{item.outcome ? ` · ${humanize(item.outcome)}` : ""}</small><em>{item.summary || "No result summary"}</em></span><span aria-hidden="true">{href ? "↗" : "—"}</span></>;
+  const content = <><span className="pipeline-agent-dot" aria-hidden="true" /><span><strong>{item.display_name}</strong><small>{role ? `${role} · ` : ""}{humanize(item.state)}{item.outcome ? ` · ${humanize(item.outcome)}` : ""}</small><em>{item.summary || "No result summary"}</em></span><span aria-hidden="true">{href ? "↗" : "—"}</span></>;
   return href
-    ? <Link className="pipeline-agent-card" data-task-state={item.state} to={href}>{content}</Link>
-    : <div className="pipeline-agent-card pipeline-agent-unavailable" data-task-state={item.state}>{content}</div>;
+    ? <Link className="pipeline-agent-card" data-task-state={tone ?? item.state} to={href}>{content}</Link>
+    : <div className="pipeline-agent-card pipeline-agent-unavailable" data-task-state={tone ?? item.state}>{content}</div>;
 }
 
 function RunsSkeleton() { return <div className="pipeline-ledger pipeline-skeleton" aria-label="Loading runs"><span /><span /><span /><span /></div>; }

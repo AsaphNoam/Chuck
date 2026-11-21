@@ -43,6 +43,29 @@ function transformUrl(url: string): string {
   return classifyFileLink(url) ? url : defaultUrlTransform(url);
 }
 
+// A bare file name citing a line (`README.md:3`) is a file link, but the
+// sanitizer reads `README.md:` as an unknown protocol and drops the href before
+// the URL transform runs. This step runs ahead of the sanitizer and prefixes
+// `./`, which names the same file and puts a slash before the colon, so the
+// sanitizer no longer sees a protocol (FS-03.A34/R51).
+const SCHEME_LIKE = /^[a-z][a-z0-9+.-]*:/i;
+
+function keepBareFileLinks() {
+  return (tree: Root) => {
+    const walk = (node: Root | Element) => {
+      for (const child of node.children) {
+        if (child.type !== "element") continue;
+        const href = child.tagName === "a" ? child.properties?.href : undefined;
+        if (typeof href === "string" && SCHEME_LIKE.test(href) && !/^file:/i.test(href) && classifyFileLink(href)) {
+          child.properties.href = `./${href}`;
+        }
+        walk(child);
+      }
+    };
+    walk(tree);
+  };
+}
+
 // A fence still being streamed is not valid diagram source, so a `mermaid` block becomes a diagram
 // only once its closing fence has arrived (FS-03.R37). The block's source span carries that
 // closing line; an open fence ends on its last content line.
@@ -163,7 +186,7 @@ export function SanitizedMarkdown({ text, onOpenFile, agentId, sourcePath, onOpe
   const markdown = useMemo(() => (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      rehypePlugins={[[rehypeSanitize, IMAGE_SCHEMA], searchPlugin]}
+      rehypePlugins={[keepBareFileLinks, [rehypeSanitize, IMAGE_SCHEMA], searchPlugin]}
       urlTransform={transformUrl}
       components={components}
     >

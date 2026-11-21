@@ -510,13 +510,23 @@ type personResultRequest struct {
 	Details string `json:"details,omitempty"`
 }
 
-// refuseRoomStageTask keeps generic result, cancel, retry, re-arm and delete
-// controls from bypassing a room-backed stage's pipeline/room authority. Its
-// target kind is immutable, so this pre-read cannot race (FS-16.R48, TS-10.R38).
-func (s *Server) refuseRoomStageTask(next http.HandlerFunc) http.HandlerFunc {
+// refusePipelineStageTask keeps generic result, cancel, retry, re-arm and delete
+// controls from bypassing a stage's pipeline (and room) authority: a person
+// cannot mark a stage passed or settle it outside the run controls, and a
+// retained run keeps its stage tasks (FS-14.R67/R73/A42, FS-16.R48, TS-10.R38).
+// A task's target kind and stage association are written with the task and
+// never change, so this pre-read cannot race, and a refusal writes nothing.
+func (s *Server) refusePipelineStageTask(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if task, err := s.stateStore.ReadTask(r.PathValue("id")); err == nil && task.TargetKind == state.TargetThinkTank {
+		id := r.PathValue("id")
+		if task, err := s.stateStore.ReadTask(id); err == nil && task.TargetKind == state.TargetThinkTank {
 			writeAPIError(w, apiError(runtime.CodeConflict, "this Think Tank stage task is managed by its pipeline run and room; use their controls"))
+			return
+		}
+		if _, err := s.stateStore.ReadPipelineStageTaskByTask(id); err == nil {
+			ae := apiError(runtime.CodeConflict, "this stage task is managed by its pipeline run; only its orchestrator's report settles it. Use the run's Continue, Retry, Replace orchestrator or Stop controls")
+			ae.Details = map[string]any{"code": "pipeline_stage_task"}
+			writeAPIError(w, ae)
 			return
 		}
 		next(w, r)

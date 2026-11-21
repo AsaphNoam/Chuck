@@ -127,6 +127,36 @@ describe("CardContextMenu error surfacing", () => {
     );
   });
 
+  // UR-2026-11-21 J7: a multi-second switch read as a silent, still-open
+  // dialog. It shows progress while the request runs, then the rolled-back
+  // reason inside the dialog with the submit available again.
+  it("shows switch progress, then the server failure inside the dialog", async () => {
+    let answer: (() => void) | undefined;
+    server.use(
+      http.get("/api/backends", () => HttpResponse.json(switchBackends())),
+      http.get("/api/capabilities", () => HttpResponse.json({ terminal: { available: true } })),
+      http.post("/api/sessions/:id/switch-runtime", async () => {
+        await new Promise<void>((resolve) => { answer = resolve; });
+        return HttpResponse.json({ error: { code: "switch_failed_rolled_back", message: "switch failed, rolled back to previous runtime: target did not start" } }, { status: 500 });
+      }),
+    );
+
+    renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: /Switch runtime/i }));
+    fireEvent.change(await screen.findByLabelText("Interface"), { target: { value: "terminal" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Switch runtime$/i }));
+
+    const pending = await screen.findByRole("button", { name: /Switching/i });
+    expect(pending).toBeDisabled();
+    await waitFor(() => expect(answer).toBeDefined());
+    answer?.();
+
+    const dialog = await screen.findByRole("dialog");
+    expect(await screen.findByText(/rolled back to previous runtime: target did not start/)).toBeInTheDocument();
+    expect(dialog).toContainElement(screen.getByText(/rolled back to previous runtime/));
+    expect(screen.getByRole("button", { name: /^Switch runtime$/i })).toBeEnabled();
+  });
+
   // FS-09.A31 / R63: the Switch runtime dialog's Terminal comes from the
   // server's launch support plus host availability.
   it("offers Terminal only for a backend whose launch support reports it", async () => {
