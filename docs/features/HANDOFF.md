@@ -114,15 +114,8 @@ They are not queued for `/fix`. The recorded text is in
   ACCEPTANCE-GATES.
 
 - **Inline task assignments and concise guidance** (FS-16.R60–R61, FS-18.R22–R23, TS-01.R52,
-  TS-10.R63–R65, TS-11.R25–R26): `c872c240` and the commit closing it. **Available for review.**
-  Reviewer notes: (1) `prepareTaskTurn` (`internal/server/task_assignment.go`) confirms inside
-  `beginTurn` after its status write and before the provider goroutine; a Stop winning between
-  confirm and send leaves a running task for the exit path to interrupt. (2) TS-10.R65's ceiling
-  gives code-owned values with no authoring limit (ids, states, attention reasons) a 1,000-rune
-  allowance; confirm that is truthful. (3) A42–A43 are partly covered (launch, borrowed, woken,
-  yielded continuation, refused binding, confirm-before-provider); attachment/pipeline facts vs
-  explicit lookup, retry and quota/restart interleavings have no new fixtures, so A42–A44 and
-  A18–A19 stay planned. Provider smokes are in ACCEPTANCE-GATES.
+  TS-10.R63–R65, TS-11.R25–R26): reviewed `c872c240` and `7965a17c` at `7965a17c`.
+  Findings below. The packaged Claude/Codex gate remains owed.
 
 ## Investigations awaiting evidence
 
@@ -203,6 +196,62 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### Inline task assignments and concise guidance (2026-11-21) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** (medium) — INLINE-TASK-1. Task-owned quota resumptions still enter the generic
+  `ActivationKindQuotaContinue` route (`internal/server/quota_dispatch.go`, `internal/runtime/chat.go`).
+  A fake-provider wire probe resumed the same task and captured only “Continue the work interrupted
+  by the provider quota…” with neither the assignment nor its current handle. The pipeline stall
+  nudge (`internal/server/pipeline_stall.go`) also starts a task continuation with a compulsory
+  lookup. Rebuild current context for these task continuations, retaining the valid handle, quota
+  ownership and queued-input rules. Verify the emitted frame after quota and a pipeline stall,
+  including the distinction from ordinary chat and room quota turns (TS-10.R65, TS-01.R52,
+  FS-16.R60–R61, INV §1/§2/§17/§19/§21).
+- **Must fix** (medium) — INLINE-TASK-2. `prepareTaskTurn` confirms the task before calling
+  `bindPipelineOwner`, which logs and swallows binding errors (`internal/server/task_assignment.go`,
+  `internal/server/task_dispatcher.go`). An injected SQLite write failure left the task running
+  with an empty standing owner and returned success to the turn gate. A dedicated-stage owner can
+  be prompted before its coordinator is released or it has authority to manage that child. Make
+  task and applicable pipeline binding succeed together before submission, with recoverable state
+  on failure. Exercise the provider boundary with an injected binding failure and check the next
+  admission (TS-10.R64, FS-16.R61, INV §5/§15/§17/§18/§22).
+- **Must fix** (trivial/easy) — INLINE-TASK-3. Fresh agent-authored work has no creator attribution
+  in `renderTaskAssignment` (`internal/server/task_assignment.go`). A real `CreateAgentTask` through
+  fake ACP kept `$review` first, but neither the heading nor the JSON identified the delegator.
+  Preserve the verbatim leading instruction and add the creator in the labelled context, so a
+  worker can distinguish delegated work from the person's authorization (FS-16.R61, TS-10.R63,
+  INV §17/§21).
+- **Must fix** (trivial/easy) — INLINE-TASK-4. `worker-basics.md` repeats the standing completion
+  sentence and reintroduces “A final chat reply records no result”; `package_test.go` requires
+  both. `SKILL.md` also repeats the standing concision sentence. Keep worker-specific judgment
+  about refreshing state, tool refusals and when to contact peers. Give the generic completion
+  rule one source and stop snapshotting the duplicate wording (FS-18.R22–R23, TS-11.R25–R26,
+  INV §10/§17/§21).
+- **Worth fixing** (trivial/easy) — INLINE-TASK-5. Pipeline agents now see decision guidance twice
+  in the same prompt: `internal/pipeline/assignment.go` describes reporting and points to a tool
+  read for the plan and contract that `internal/messaging/task_tools.go` already adds inline.
+  The pipeline reference and missing-handle refusal still frame the lookup as the source. Point
+  to the supplied plan and current handle, keep stage-specific outputs and ownership rules, and
+  leave lookup for refresh. Check composed prompts and guidance together (FS-16.R60, TS-10.R63,
+  FS-18.A19, INV §2/§10/§21).
+- **Worth fixing** (medium) — INLINE-TASK-6. The max-size fixture exercises a fabricated render
+  map, caps the instruction at the ordinary 16,000-rune limit, and checks only the count of top-level
+  keys. Pipeline instructions have a separate 48,000-rune budget, and the stated 1,000-rune
+  allowance for code-owned values is represented by a byte estimate with no source bound
+  on every variable-length reason. The existing test does not establish the claimed maximum.
+  Derive the bound from actual ordinary and pipeline producers, document how variable reasons
+  are bounded, and verify decoded facts at the legal boundary with mail supplied (TS-10.R65,
+  TS-06.R35, INV §16/§17).
+- **Worth fixing** (medium) — INLINE-TASK-7. This is a repeat round for task and pipeline turn
+  settlement (`95779e0c` quota admission, `0a8bda69` pipeline pause and recovery). Inventory the
+  task execution and standing-owner writers and every assignment launch/continuation entry
+  point. Identify which owner controls each legal move and where failed binding, cancellation,
+  or restart settles it before changing the shared turn path (workflow §7, INV §2/§5/§15/§23).
+
+Focused package, messaging, runtime, server and state tests passed with loopback access. Temporary
+probes reproduced INLINE-TASK-1 on quota, INLINE-TASK-2 under a write failure, and INLINE-TASK-3 on
+fresh launch. Stall and guidance findings are source-verified. Packaged provider behavior is unverified.
 
 ### QUOTA-RELOAD-FLAKE — stopped quota continuation's reloaded transcript differs once (2026-11-21) — **Fix model:** medium — Codex Terra or Claude Opus.
 
