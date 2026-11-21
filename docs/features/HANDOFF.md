@@ -264,35 +264,6 @@ fresh launch. Stall and guidance findings are source-verified. Packaged provider
   (quota continuations keep their fixed instruction). Close only with a cause: which events
   differ, and whether the read races transcript indexing (INV §5/§17).
 
-### STOP-CARD — successful chat Stop leaves the dashboard card looking live (2026-11-21)
-
-**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-**Report (verbatim):** “clicking 'stop agent' (via the right click menu or stop group) doesn't
-update the agent appearance to stopped in the UI. This might have already been investigated and
-solved recently, not sure, check before you investigate”. No incident timestamp, running build,
-agent identity or logs were supplied.
-
-- **Must fix — confirmed, trivial/easy (STOP-CARD-1).** From either desktop Stop action, the
-  normal owned chat path removes the running row and returns success. Before the delete,
-  `ChatRuntime.Stop` calls `endTurn`, whose status mutation publishes a full card update while
-  the row still exists. The fallback touch also precedes the delete. No final touch follows it,
-  so the dashboard's last update is `state:"done", running:true` and `AgentCard` keeps the live
-  styling. The regression dates to `bb903498` (included in v0.24.0), which correctly moved
-  durable status settlement before row deletion but also moved the final publication ahead of that
-  deletion. The Nov 20 Edit fixes cover stop coordination during Edit. Preserve the settlement
-  order and publish the stopped projection after successful row deletion in the shared chat
-  runtime path (FS-01.R6/R34, FS-02.R6/R75, TS-03.R8, INV §1/§15).
-  `TestChatStopPublishesStoppedCard`, now skipped, reproduced both HTTP actions twice on macOS
-  with fake ACP at `c872c240` plus unrelated in-progress edits. Both succeeded and removed the
-  row while the event bus still delivered `running:true`. The browser rendering and the exact
-  reported session were unverified.
-- **Worth fixing — confirmed, trivial/easy (STOP-CARD-2).** Extend the existing TURN-STOP-3
-  inventory under “One settlement rule for a stopped or exited process” in `docs/ideas.md` to
-  name each stop/exit entry point's final card publication and where it occurs relative to the
-  running-row change. That inventory covered durable settlement and missed the publication order
-  regression. Use it to check the scope of the localized fix.
-
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution

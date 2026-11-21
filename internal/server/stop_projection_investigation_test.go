@@ -11,7 +11,6 @@ import (
 )
 
 func TestChatStopPublishesStoppedCard(t *testing.T) {
-	t.Skip("STOP-CARD-1: Stop clears the running row after publishing its final card update")
 	fake := buildFakeACP(t)
 	t.Setenv("FAKEACP_SCENARIO", "stream_text")
 

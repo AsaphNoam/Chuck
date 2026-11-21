@@ -193,6 +193,14 @@ Example:
   - `reapOrphanRuntime` treats any running-row read error as "already gone";
   - `Registry.Stop` forgets the claim on errors other than unverified or unsettled;
   - `failSwitch` and terminal `scheduleInitialIdle` write status outside any fence.
+  The card publication inventory is part of that rule. Individual Stop, group Stop and guarded
+  idle Stop enter the owned chat runtime, which publishes after deleting the running row.
+  Ordinary chat transport exit also touches after deletion. The server's orphan reap and the
+  runtimes' recorded-row fallback touch after attempting settlement. Startup hydration rebuilds
+  the projection from storage, and the liveness sweep touches rows it reaps. Owned terminal Stop
+  and its exit watcher touch after attempting deletion and final status. The next design should
+  specify which successful settlement owns the final publication and what gets published or
+  retried when deletion or settlement fails.
   Define, per exit (Stop, guarded idle stop, reap, crash, reconcile, terminal), which store
   transaction settles the running row, turn row and final status, its order, and how a failed write
   is retried. Coordinate with the claimed-turn exit rule above.

@@ -1741,16 +1741,13 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 	// final write fences late writers even when it fails; the running row is kept
 	// then, so a retried Stop settles it as a recorded row (TS-01.R44).
 	defer as.hub.Close()
-	ended, err := c.endTurn(as, turnID, TurnProcessEnded, "done", "", "")
-	if err != nil {
+	if _, err := c.endTurn(as, turnID, TurnProcessEnded, "done", "", ""); err != nil {
 		return fmt.Errorf("%w: %w", ErrStopNotSettled, err)
-	}
-	if !ended {
-		c.touchState(agentID)
 	}
 	if err := c.store.DeleteRunning(agentID); err != nil {
 		return fmt.Errorf("%w: %w", ErrStopNotSettled, err)
 	}
+	c.touchState(agentID)
 	return nil
 }
 
@@ -3251,7 +3248,10 @@ func (c *ChatRuntime) mutateTurnStatus(as *agentState, final bool, end *state.Tu
 		slog.Error("runtime: write status", "agent", as.agentID, "err", err)
 		return err
 	}
-	c.touchState(as.agentID)
+	// Stop publishes after deleting the running row.
+	if !final {
+		c.touchState(as.agentID)
+	}
 	return nil
 }
 
