@@ -327,9 +327,10 @@ func (s *Server) startLaunchedTask(ctx context.Context, task state.Task) {
 		return
 	}
 	// The task's instruction is the assignment input FS-00.R14–R15 permits, sent
-	// as an ordinary turn exactly as a pipeline stage's assignment is, with the
-	// shared reporting paragraph after it (FS-16.R49).
-	if err := s.registry.StartLaunchedTask(task.AssignedAgentID, task.TaskID, task.Instruction); err != nil {
+	// as an ordinary turn exactly as a pipeline stage's assignment is. The turn's
+	// preparer builds the current assignment and confirms the start before the
+	// provider can act on it (FS-16.R60–R61, TS-10.R64).
+	if err := s.registry.StartLaunchedTask(task.AssignedAgentID, task.TaskID); err != nil {
 		// The claim is already held, so use the unclaimed stop core.
 		if stopErr := s.stopStageLocked(ctx, task.AssignedAgentID); stopErr != nil {
 			s.log.Debug("stop failed task runtime failed", "agent", task.AssignedAgentID, "err", stopErr)
@@ -340,8 +341,6 @@ func (s *Server) startLaunchedTask(ctx context.Context, task state.Task) {
 		s.failTaskStart(task, "assignment was not delivered: "+err.Error())
 		return
 	}
-	s.recordTaskExecutionTurn(task)
-	s.confirmTaskStart(task)
 }
 
 // startExistingAgentTask crosses into an agent's existing conversation with one
@@ -424,9 +423,6 @@ func (s *Server) startExistingAgentTask(ctx context.Context, task state.Task) {
 			task = updated
 		}
 		attempted, started := s.runActivationTurn(ctx, state.ActivationKindDependency, activation, token)
-		if started {
-			s.recordTaskExecutionTurn(task)
-		}
 		s.settleActivationStart(task, activation, token, attempted, started)
 		return
 	}
@@ -442,54 +438,25 @@ func (s *Server) startExistingAgentTask(ctx context.Context, task state.Task) {
 		s.parkTaskStart(task, "the target agent cannot be woken for work")
 		return
 	}
+	// The woken generation and its turn are bound by the turn's own confirmation,
+	// before the provider can act (TS-10.R64).
 	attempted, wakeErr := s.wakeForActivation(ctx, state.ActivationKindDependency, activation, token)
-	if wakeErr == nil {
-		generation := s.taskGeneration(task.AssignedAgentID)
-		if generation == "" {
-			s.log.Debug("woken task runtime has no generation", "task", task.TaskID)
-			s.settleActivationStart(task, activation, token, attempted, false)
-			return
-		}
-		if _, ok, err := s.stateStore.SetTaskStartGeneration(task.TaskID, task.StartAttemptID, generation); err != nil || !ok {
-			s.log.Debug("record woken task generation failed", "task", task.TaskID, "err", err)
-			s.settleActivationStart(task, activation, token, attempted, false)
-			return
-		}
-		task, _ = s.stateStore.ReadTask(task.TaskID)
-		s.recordTaskExecutionTurn(task)
-	}
 	s.settleActivationStart(task, activation, token, attempted, wakeErr == nil)
-}
-
-// recordTaskExecutionTurn captures the provider turn while it is still the
-// task's active assignment turn. A later cleanup may cancel only this exact
-// borrowed turn, never a human follow-up that starts after it settles.
-func (s *Server) recordTaskExecutionTurn(task state.Task) {
-	budget, err := s.stateStore.CurrentTurnBudget(task.AssignedAgentID, 1)
-	if err != nil || budget.TurnID == "" {
-		s.log.Debug("read task execution turn", "task", task.TaskID, "err", err)
-		return
-	}
-	if _, ok, err := s.stateStore.SetTaskExecutionTurn(task.TaskID, task.StartAttemptID, task.AssignedGeneration, budget.TurnID); err != nil {
-		s.log.Debug("record task execution turn", "task", task.TaskID, "err", err)
-	} else if !ok {
-		s.log.Debug("task execution turn became stale", "task", task.TaskID)
-	}
 }
 
 // settleActivationStart resolves the task and its activation together. A turn
 // that never crossed the attempt boundary spent nothing: both go back. A turn
 // that crossed it consumed the opportunity, so the row is retired either way and
-// only the task's fate differs (TS-10.R5, FS-16.R25).
+// only the task's fate differs (TS-10.R5, FS-16.R25). A started turn was
+// already confirmed by its preparer; a turn that did not start spends an
+// attempt, and that write is a no-op when confirmation already happened.
 func (s *Server) settleActivationStart(task state.Task, activation state.Activation, token string, attempted, started bool) {
 	if !attempted {
 		s.releaseDependencyActivation(activation, token)
 		s.deferTaskStart(task, "the activation turn did not start")
 		return
 	}
-	if started {
-		s.confirmTaskStart(task)
-	} else {
+	if !started {
 		s.failTaskStart(task, "the assignment turn did not complete")
 	}
 	if err := s.stateStore.RetireActivation(state.ActivationKindDependency, activation.ActivationID, token); err != nil {

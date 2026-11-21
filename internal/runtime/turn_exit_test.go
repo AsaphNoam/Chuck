@@ -133,6 +133,7 @@ func TestStopAfterSubmittedBeforeBeginReleasesReceipt(t *testing.T) {
 // gets no user row claiming it was sent.
 func TestStopBeforeSendKeepsQueuedAssignmentInputUnsent(t *testing.T) {
 	c, spec := newChatTest(t, "stream_text")
+	c.SetTaskTurnPreparer(stubTaskTurn("assignment"))
 	spec.Generation = "g"
 	ctx := context.Background()
 	st := c.store

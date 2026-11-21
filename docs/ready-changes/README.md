@@ -51,10 +51,6 @@ implementation plan. A large change may have a temporary plan in `docs/plans/` f
 
 ## Changes waiting to start
 
-- [`inline-task-assignments-and-concise-guidance.md`](inline-task-assignments-and-concise-guidance.md)
-  — supply current assignments inline, consolidate generic task guidance in awareness-gated
-  context, and split worker basics from coordination details within the operating skill.
-
 - [`message-hover-actions-and-current-conversation-edit.md`](message-hover-actions-and-current-conversation-edit.md)
   — subtle Copy/Fork icons on every desktop message, last-message Edit in the current
   conversation, and revision-aware recovery and readers.

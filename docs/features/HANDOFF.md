@@ -31,20 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**In progress:** [`inline-task-assignments-and-concise-guidance.md`](../ready-changes/inline-task-assignments-and-concise-guidance.md)
-(FS-16.R60–R61, FS-18.R22–R23, TS-01.R52, TS-10.R63–R65, TS-11.R25–R26).
-
-- Slice 1 done: skill package split (`worker-basics.md`, narrowed `coordinate-work.md`, shorter
-  entry) and the shared-context completion sentence in `launch.go`. Checked by
-  `go test ./internal/agentknowledge/` and the server overlay tests.
-- Slice 2 next: share `handleGetAssignedTask`'s projection (`internal/messaging/task_tools.go`);
-  a server task-turn preparer, called from runtime turn preparation, builds the inline assignment
-  and confirms task/attempt/generation/turn in one `ConfirmTaskStart` update before
-  `beginTurn` starts the provider goroutine; remove `taskReportContract`, the fixed dependency
-  prompt and the dispatcher's post-start `recordTaskExecutionTurn`/`confirmTaskStart`.
-- Slice 3: TS-10.R65's derived byte ceiling with maximum-escaping fixtures.
-- Owed at closure: `make test`, `make build`, focused `-race` on runtime/server dispatch; the
-  pinned-provider smokes (FS-16.A44, FS-18.A19 sample) go to ACCEPTANCE-GATES.
+None.
 
 ## Decisions needing input
 
@@ -52,11 +39,9 @@ None.
 
 ## Resolved decisions
 
-- Inline task delivery and guidance cleanup is ready in
-  [inline-task-assignments-and-concise-guidance.md](../ready-changes/inline-task-assignments-and-concise-guidance.md)
-  (FS-16.R60–R61, FS-18.R22–R23). Fresh-context design review closed on 2026-11-21 after
-  preserving native-command handling on fresh launches and attributed content on continuations.
-  No open material findings; implementation is waiting to start.
+- Inline task delivery and guidance cleanup (FS-16.R60–R61, FS-18.R22–R23) keeps native-command
+  handling on fresh launches and attributed content on continuations. Implemented 2026-11-21;
+  in the review queue.
 - Project Files starts with all shared folders and offers a folder selector. HTML opens in a
   sandboxed viewer in a new browser tab. The shared folder is desktop-only and symbolic links
   cannot be followed. Shipped 2026-11-20 (FS-11.R11–R16).
@@ -128,6 +113,17 @@ They are not queued for `/fix`. The recorded text is in
   Packaged live provider receipts, including two successive edits per adapter, remain owed in
   ACCEPTANCE-GATES.
 
+- **Inline task assignments and concise guidance** (FS-16.R60–R61, FS-18.R22–R23, TS-01.R52,
+  TS-10.R63–R65, TS-11.R25–R26): `c872c240` and the commit closing it. **Available for review.**
+  Reviewer notes: (1) `prepareTaskTurn` (`internal/server/task_assignment.go`) confirms inside
+  `beginTurn` after its status write and before the provider goroutine; a Stop winning between
+  confirm and send leaves a running task for the exit path to interrupt. (2) TS-10.R65's ceiling
+  gives code-owned values with no authoring limit (ids, states, attention reasons) a 1,000-rune
+  allowance; confirm that is truthful. (3) A42–A43 are partly covered (launch, borrowed, woken,
+  yielded continuation, refused binding, confirm-before-provider); attachment/pipeline facts vs
+  explicit lookup, retry and quota/restart interleavings have no new fixtures, so A42–A44 and
+  A18–A19 stay planned. Provider smokes are in ACCEPTANCE-GATES.
+
 ## Investigations awaiting evidence
 
 ### TASK-PROMPT — reporting paragraph after a skill invocation (investigated 2026-11-21)
@@ -149,9 +145,9 @@ requires it in the first prompt. `TestALaunchSpecTaskStartsItselfAndBecomesRunni
 it was inspected, not rerun. The annotation itself is the live reproduction. History traces the
 contract to `4ddedff1` and the expanded coordination guidance to `a674e6bc`.
 
-No investigation fix finding: the shipped behavior matches FS-16.R49 and INV §21. The operator
-approved the replacement design in `docs/ready-changes/inline-task-assignments-and-concise-guidance.md`.
-That planned requirement change owns the cleanup; this investigation made no product-code change.
+No investigation fix finding: the shipped behavior matched FS-16.R49 and INV §21. The approved
+replacement (FS-16.R60, FS-18.R22) was implemented on 2026-11-21 and removed the appended
+paragraph; see the “Inline task assignments” review unit.
 
 ### TAB-BLANK — Chrome shows only the theme background on tab return (2026-11-17)
 
@@ -207,6 +203,17 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### QUOTA-RELOAD-FLAKE — stopped quota continuation's reloaded transcript differs once (2026-11-21) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** (undetermined) — QUOTA-RELOAD-FLAKE-1: during the inline-assignment closure
+  `make test` on macOS, `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed at
+  `quota_dispatch_test.go:118` with `reloaded transcript differs:` (the unsuffixed live read),
+  after its session-index wait had matched. Ten focused reruns passed. Another session was
+  running server tests concurrently. ACCEPTANCE-GATES already mentions a "known quota-dispatch
+  FTS5 transcript flake" with no cause. The changed task-turn path is not on this route
+  (quota continuations keep their fixed instruction). Close only with a cause: which events
+  differ, and whether the read races transcript indexing (INV §5/§17).
 
 ### STOP-CARD — successful chat Stop leaves the dashboard card looking live (2026-11-21)
 

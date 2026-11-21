@@ -855,7 +855,7 @@ Time-bounded preparation uses the existing startup deadline,
 and late callbacks recheck both operation and launch generation (INV §1/§2/§4/§5/§15/§19/§23).
 Verify FS-01.A43 through failure injection on both sides of the decision and send boundary.
 
-**R52 (planned) — Task activation records stay small; task prompts carry current work.** For
+**R52 — Task activation records stay small; task prompts carry current work.** For
 FS-16.R60–R61 and TS-10.R63–R65, extend R21/R45's existing claimed-turn preparation with a
 task-specific assignment read and pre-submission confirmation. This supersedes only the
 payload-free model-prompt/fixed-fetch-instruction clauses for dependency/task continuations;

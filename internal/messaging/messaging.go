@@ -253,7 +253,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	}, s.handleProposePipelineRun)
 	addTool(s, &mcp.Tool{
 		Name:        "get_assigned_task",
-		Description: "Read the task you are currently assigned: its instruction, the context references attached to it, and observed_changes for the tasks your last wait_for_tasks watched. Returns assigned=false when you have none.",
+		Description: "Refresh the task you are currently assigned; a task turn already supplies it inline. Returns its instruction, current execution_handle, the context references attached to it, and observed_changes for the tasks your last wait_for_tasks watched. Returns assigned=false when you have none.",
 	}, s.handleGetAssignedTask)
 	addTool(s, &mcp.Tool{
 		Name:        "create_task",
@@ -297,7 +297,7 @@ func New(store *state.Store, log *slog.Logger) *Server {
 	}, s.handleRearmTask)
 	addTool(s, &mcp.Tool{
 		Name:        "wait_for_tasks",
-		Description: "Observe changes to tasks you created or durably yield this assignment until one changes. Requires the current execution handle from get_assigned_task.",
+		Description: "Observe changes to tasks you created or durably yield this assignment until one changes. Requires the current execution handle from your assignment.",
 	}, s.handleWaitForTasks)
 	addTool(s, &mcp.Tool{
 		Name:        "report_task_result",

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -2049,8 +2050,101 @@ func TestStartActivationRefusesAKindWithNoRegisteredContract(t *testing.T) {
 	if dependency.Instruction == mail.Instruction || dependency.StatusDetail == mail.StatusDetail {
 		t.Fatalf("dependency inherited mail's contract: %+v", dependency)
 	}
-	if !strings.Contains(dependency.Instruction, "get_assigned_task") {
-		t.Fatalf("dependency instruction = %q, want it to name the tool that reads the assignment",
+	// FS-16.R60: its prompt is the inline assignment, never a fixed lookup.
+	if dependency.Instruction != "" {
+		t.Fatalf("dependency instruction = %q, want none: the task turn preparer supplies the assignment",
 			dependency.Instruction)
+	}
+}
+
+// TS-10.R64 / FS-16.A43: the task binds before the provider sees the prompt,
+// so an immediate tool callback finds a confirmed execution; a refused binding
+// sends nothing and leaves the turn not started.
+func TestTaskTurnConfirmsBeforeProviderAndRefusalSendsNothing(t *testing.T) {
+	for _, refuse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("refuse=%v", refuse), func(t *testing.T) {
+			c, spec := newChatTest(t, "stream_text")
+			spec.Generation = "g"
+			ctx := context.Background()
+			dump := filepath.Join(t.TempDir(), "prompt.json")
+			spec.Env = append(spec.Env, "FAKEACP_PROMPT_DUMP="+dump)
+			var gotGeneration, gotTurn string
+			confirmed := false
+			c.SetTaskTurnPreparer(func(_, generation, turnID string, launched bool) (TaskTurn, error) {
+				gotGeneration, gotTurn = generation, turnID
+				return TaskTurn{Prompt: "assigned text", Confirm: func() error {
+					if _, err := os.Stat(dump); !os.IsNotExist(err) {
+						t.Errorf("provider saw the prompt before confirmation: %v", err)
+					}
+					confirmed = true
+					if refuse {
+						return errors.New("stale attempt")
+					}
+					return nil
+				}}, nil
+			})
+			h, err := c.Start(ctx, spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { c.Stop(ctx, h.AgentID) })
+			act, err := c.store.EnsurePendingDependencyActivation(h.AgentID, "tk_confirm")
+			if err != nil {
+				t.Fatal(err)
+			}
+			token, ok, err := c.store.ClaimActivation(state.ActivationKindDependency, act.ActivationID)
+			if err != nil || !ok {
+				t.Fatalf("claim activation = %v %v", ok, err)
+			}
+			var claimed string
+			started, err := c.StartActivation(ctx, h.AgentID, state.ActivationKindDependency, func(turnID string) error {
+				claimed = turnID
+				_, err := c.store.AttemptActivation(state.ActivationKindDependency, act.ActivationID, token, turnID, "g")
+				return err
+			})
+			if !confirmed || gotGeneration != "g" || gotTurn == "" || gotTurn != claimed {
+				t.Fatalf("confirm=%v generation=%q turn=%q claimed=%q started=%v err=%v", confirmed, gotGeneration, gotTurn, claimed, started, err)
+			}
+			if refuse {
+				if started || err == nil {
+					t.Fatalf("refused binding = %v, %v; want not started with its error", started, err)
+				}
+				time.Sleep(100 * time.Millisecond)
+				if _, statErr := os.Stat(dump); !os.IsNotExist(statErr) {
+					t.Fatalf("a refused binding reached the provider: %v", statErr)
+				}
+				return
+			}
+			if !started || err != nil {
+				t.Fatalf("activation = %v, %v", started, err)
+			}
+			var raw []byte
+			for deadline := time.Now().Add(5 * time.Second); len(raw) == 0 && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+				raw, _ = os.ReadFile(dump)
+			}
+			if !strings.Contains(string(raw), `"assigned text"`) {
+				t.Fatalf("provider prompt = %s, want the prepared assignment", raw)
+			}
+		})
+	}
+}
+
+// TS-10.R64 / INV §24: a dependency activation with no installed preparer
+// refuses its turn rather than sending an assignment nobody built or bound.
+func TestDependencyActivationWithoutPreparerSendsNothing(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	spec.Generation = "g"
+	ctx := context.Background()
+	dump := filepath.Join(t.TempDir(), "prompt.json")
+	spec.Env = append(spec.Env, "FAKEACP_PROMPT_DUMP="+dump)
+	if _, err := c.Start(ctx, spec); err != nil {
+		t.Fatal(err)
+	}
+	started, err := c.StartActivation(ctx, spec.Agent.AgentID, state.ActivationKindDependency, func(string) error { return nil })
+	if started || !errors.Is(err, errNoTaskPreparer) {
+		t.Fatalf("activation = %v, %v; want refused for no preparer", started, err)
+	}
+	if _, statErr := os.Stat(dump); !os.IsNotExist(statErr) {
+		t.Fatalf("a prompt reached the provider: %v", statErr)
 	}
 }

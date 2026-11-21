@@ -699,7 +699,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   per-pass batch and R57's per-pass enumeration cap only pace processing, and a schedule left
   behind by a cap catches up on later passes.
 
-- **R63 (planned) — Inline and explicit assignment reads share one projection.** For FS-16.R60–R61,
+- **R63 — Inline and explicit assignment reads share one projection.** For FS-16.R60–R61,
   factor the current `handleGetAssignedTask` projection into a shared service over `internal/state`;
   do not duplicate instruction, attachment, wait-change or pipeline builders in the runtime.
   The tool resolves its caller as today. Turn preparation resolves the claimed task/attempt,
@@ -714,7 +714,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   transcripts/results behind their existing bounded reads. `get_assigned_task` remains a refresh
   path, not a mandatory step before acting on a delivered assignment.
 
-- **R64 (planned) — Confirm the admitted execution before provider tools can run.** Extend the
+- **R64 — Confirm the admitted execution before provider tools can run.** Extend the
   existing claimed-turn preparation/pre-submission seam, not a parallel dispatcher or handshake.
   After lifecycle, Edit, quota and turn admission and successful assignment preparation, bind the
   exact task, existing start-attempt id, actual runtime generation and claimed turn id through
@@ -728,7 +728,7 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   species or schema is introduced. Restart and retry retain the same assignee and existing claim-
   specific uncertainty policy; a newly admitted execution uses its new attempt's handle.
 
-- **R65 (planned) — Preparation is current, bounded and generation-fenced.** Reuse TS-01.R45's
+- **R65 — Preparation is current, bounded and generation-fenced.** Reuse TS-01.R45's
   turn gate and preparation path across launch, existing/wake, retry, yielded wait and task-owned
   quota continuation. Rebuild the current assignment/observed changes/pipeline facts for each
   admitted execution; a continuing turn of the same execution retains its valid handle. Never
@@ -740,7 +740,9 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   changes and the existing bounded pipeline assignment/step projection. Encode an explicit finite
   derived byte ceiling and guard its derivation with maximum legal Unicode/escaping fixtures;
   do not reuse mail's smaller byte allowance, silently clip required fields or reduce existing
-  legal authoring limits. The prepared envelope lives only for its turn and its existing transcript
+  legal authoring limits. Code-owned values with no authoring limit (ids, states, attention
+  reasons) receive a stated allowance of 1,000 escaped runes each; a rendered turn over the
+  ceiling is refused through the start-failure path. The prepared envelope lives only for its turn and its existing transcript
   representation; no additional retained snapshot/store or delivery log is added. Read/validation
   failure sends nothing and logs bounded task/attempt/generation/operation/reason identifiers,
   never payloads. Extend dispatch, turn, wait, pipeline and quota tests for immediate callbacks,

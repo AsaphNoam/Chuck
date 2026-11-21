@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -46,6 +47,47 @@ func promptCount(t *testing.T, promptLog string) int {
 	}
 	// The fake adapter writes one newline-free line per session/prompt frame.
 	return len(strings.Split(trimmed, "\n"))
+}
+
+// promptTextAt decodes the n-th session/prompt frame the fake adapter logged
+// and returns its first text block: the bytes the provider received.
+func promptTextAt(t *testing.T, raw []byte, n int) string {
+	t.Helper()
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if n >= len(lines) {
+		t.Fatalf("prompt %d not logged; have %d", n, len(lines))
+	}
+	var frame struct {
+		Prompt []struct {
+			Text string `json:"text"`
+		} `json:"prompt"`
+	}
+	if err := json.Unmarshal([]byte(lines[n]), &frame); err != nil || len(frame.Prompt) == 0 {
+		t.Fatalf("decode prompt frame %q: %v", lines[n], err)
+	}
+	return frame.Prompt[0].Text
+}
+
+func firstPromptText(t *testing.T, raw []byte) string { return promptTextAt(t, raw, 0) }
+
+// assignmentFacts checks that text opens with lead and ends with one labelled
+// assignment-context JSON block, and decodes that block independently of the
+// renderer (FS-16.A42, INV §17).
+func assignmentFacts(t *testing.T, text, lead string) map[string]any {
+	t.Helper()
+	const label = "Chuck assignment context:\n"
+	if !strings.HasPrefix(text, lead) {
+		t.Fatalf("assignment prompt = %q, want it to open with %q", text, lead)
+	}
+	i := strings.LastIndex(text, label)
+	if i < len(lead) || strings.Count(text, label) != 1 {
+		t.Fatalf("assignment prompt has no single context block after its lead: %q", text)
+	}
+	var facts map[string]any
+	if err := json.Unmarshal([]byte(text[i+len(label):]), &facts); err != nil {
+		t.Fatalf("decode assignment context: %v in %q", err, text)
+	}
+	return facts
 }
 
 // waitPrompts blocks until exactly want prompts have been seen, failing if more

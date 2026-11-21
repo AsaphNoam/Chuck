@@ -242,7 +242,7 @@ not claim which progressive references the model read. Older conversations remai
 unknown; no raw prompts, environment values, credentials or native file bodies are newly exposed,
 and no model call is made to create the manifest.
 
-**R22 (planned) — Completion guidance belongs to the shared context.** Replace R15's vague
+**R22 — Completion guidance belongs to the shared context.** Replace R15's vague
 outcome-reporting sentence with: “For assigned Chuck tasks, finish through `report_task_result`
 with success, failure or blocked and a short summary.” Do not append the sentence about chat
 replies not completing a task or restore it through task boilerplate. FS-16.R60 supplies assignments
@@ -437,7 +437,7 @@ file layout alone ensures behavior. No fixed word-count oracle is required.
 
 ## 6. Deviations & open decisions
 
-- **Concise guidance and inline tasks (planned):** R22–R23/A18–A19 supersede conflicting
+- **Concise guidance and inline tasks (implemented 2026-11-21):** R22–R23 supersede conflicting
   completion-text, core-content and reference-inventory clauses in R3–R5/R15/R19 and A2/A4/A15,
   plus R12's fetch-on-activation clause, when implemented. R20's awareness boundary remains:
   assignment data is not standing awareness

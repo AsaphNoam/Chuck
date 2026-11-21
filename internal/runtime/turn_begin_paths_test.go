@@ -26,9 +26,18 @@ type beginPathAgent struct {
 	generation string
 }
 
+// stubTaskTurn stands in for the server's assignment preparer: it supplies a
+// fixed prompt and confirms nothing durable.
+func stubTaskTurn(prompt string) TaskTurnPreparer {
+	return func(string, string, string, bool) (TaskTurn, error) {
+		return TaskTurn{Prompt: prompt, Confirm: func() error { return nil }}, nil
+	}
+}
+
 func newBeginPathAgent(t *testing.T, env ...string) *beginPathAgent {
 	t.Helper()
 	c, spec := newChatTest(t, "hold_turn")
+	c.SetTaskTurnPreparer(stubTaskTurn("do the work"))
 	spec.Generation = "g"
 	dir := t.TempDir()
 	a := &beginPathAgent{c: c, id: spec.Agent.AgentID, generation: "g",
@@ -197,7 +206,7 @@ func TestBeginTurnRecordsOriginForEveryEntryPath(t *testing.T) {
 		{
 			name: "launched_task_first_prompt",
 			drive: func(t *testing.T, a *beginPathAgent) (outcome, string) {
-				if err := a.r.StartLaunchedTask(a.id, "task_launch", "do the work"); err != nil {
+				if err := a.r.StartLaunchedTask(a.id, "task_launch"); err != nil {
 					t.Fatalf("StartLaunchedTask: %v", err)
 				}
 				return outcome{kind: state.TurnOriginTask, id: "task_launch"}, ""

@@ -75,6 +75,8 @@ type ChatRuntime struct {
 	touch           func(string)
 	quotaSettlement func(agentID, generation, turnID string, quota *QuotaEvidence, successful bool) error
 	quotaManualBind func(agentID, generation, turnID string) error
+	// taskTurn builds and binds the inline assignment of every task turn.
+	taskTurn TaskTurnPreparer
 	// quota is the in-memory backend-scope subscription snapshot store (TS-04.R109).
 	quota *quotaStore
 
@@ -1216,6 +1218,16 @@ func (c *ChatRuntime) prepareMessageTurn(as *agentState, message Message, turnID
 	if err := as.journal.Admit(); err != nil {
 		return turnPrompt{}, err
 	}
+	// A task's launch prompt is its current assignment, built for this
+	// admitted execution rather than when the launch was planned (FS-16.R61).
+	var task TaskTurn
+	if origin.Kind == state.TurnOriginTask {
+		var err error
+		if task, err = c.prepareTaskTurn(as, turnID, true); err != nil {
+			return turnPrompt{}, err
+		}
+		message.Text = task.Prompt
+	}
 	content, err := c.messageContent(as, message)
 	if err != nil {
 		return turnPrompt{}, err
@@ -1259,6 +1271,7 @@ func (c *ChatRuntime) prepareMessageTurn(as *agentState, message Message, turnID
 		content: content, deliveryKey: deliveryKey, mailNotice: mailNotice,
 		detail: "thinking", trace: "UserPromptSubmit", requestID: message.RequestID,
 		assignment: origin.Kind == state.TurnOriginTask, allowStatusFailure: true,
+		confirm: task.Confirm,
 	}, nil
 }
 
@@ -1269,6 +1282,9 @@ type turnPrompt struct {
 	mailNotice             *NoticeData
 	assignment             bool
 	allowStatusFailure     bool // direct Send historically relies on its retained prompt and receipt
+	// confirm binds a task assignment to this execution; beginTurn runs it
+	// after its last refusal point and before the provider goroutine.
+	confirm func() error
 }
 
 // beginTurn owns the provider boundary for both prepared user messages and
@@ -1325,6 +1341,15 @@ func (c *ChatRuntime) beginTurn(as *agentState, turnID string, quotaContinuation
 		return true
 	}); err != nil && !prompt.allowStatusFailure {
 		return false, fmt.Errorf("runtime: write turn status: %w", err)
+	}
+	// A task becomes running here, bound to this generation and turn, before
+	// any provider frame can carry a tool call. A Stop that wins after this
+	// point is the running task's interruption, not an unbound start
+	// (TS-10.R64).
+	if prompt.confirm != nil {
+		if err := prompt.confirm(); err != nil {
+			return false, err
+		}
 	}
 	as.mu.Lock()
 	if as.turnUnavailableLocked() || as.turn.execTurnID != turnID {
@@ -2165,12 +2190,21 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 		if err := before(turnID); err != nil {
 			return turnPrompt{}, err
 		}
-		return c.prepareActivationTurn(as, kind, contract)
+		return c.prepareActivationTurn(as, turnID, kind, contract)
 	})
 }
 
-func (c *ChatRuntime) prepareActivationTurn(as *agentState, kind string, contract ActivationKind) (turnPrompt, error) {
-	promptText, deliveryKey, hasWakingMail, mailNotice, err := c.prepareTurnPrompt(as.agentID, contract.Instruction, kind == state.ActivationKindMail)
+func (c *ChatRuntime) prepareActivationTurn(as *agentState, turnID, kind string, contract ActivationKind) (turnPrompt, error) {
+	instruction := contract.Instruction
+	var task TaskTurn
+	if kind == state.ActivationKindDependency {
+		var err error
+		if task, err = c.prepareTaskTurn(as, turnID, false); err != nil {
+			return turnPrompt{}, err
+		}
+		instruction = task.Prompt
+	}
+	promptText, deliveryKey, hasWakingMail, mailNotice, err := c.prepareTurnPrompt(as.agentID, instruction, kind == state.ActivationKindMail)
 	if err != nil {
 		return turnPrompt{}, err
 	}
@@ -2187,6 +2221,7 @@ func (c *ChatRuntime) prepareActivationTurn(as *agentState, kind string, contrac
 		content:     []map[string]any{{"type": "text", "text": promptText}},
 		deliveryKey: deliveryKey, mailNotice: mailNotice, detail: contract.StatusDetail,
 		trace: contract.LastTrace, assignment: kind == state.ActivationKindDependency,
+		confirm: task.Confirm,
 	}, nil
 }
 

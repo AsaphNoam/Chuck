@@ -359,7 +359,7 @@ same digest Steer's proof compares, and is empty for a PATH adapter. Delivery is
 `requested`, adoption `unknown`; every text field clips to 128 bytes and sets `truncated`, and a
 serialized record over 16 KiB drops its layers with `truncated`.
 
-**R25 (planned) — One awareness-gated source owns generic completion guidance.** For FS-18.R22,
+**R25 — One awareness-gated source owns generic completion guidance.** For FS-18.R22,
 edit `operatingContextPrompt` through `applyKnowledgeOverlay`; replace its outcome-reporting
 sentence with R22's concise completion rule, leaving the rest of the established context intact.
 Remove `taskReportContract` and the `LaunchedTaskPrompt` reporting suffix from task delivery and

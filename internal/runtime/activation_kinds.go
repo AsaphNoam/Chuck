@@ -1,6 +1,10 @@
 package runtime
 
-import "github.com/AsaphNoam/Chuck/internal/state"
+import (
+	"errors"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
 
 // ActivationKind is the code-owned contract for one host-owned turn kind: the
 // fixed instruction the provider receives and the status the dashboard shows
@@ -19,19 +23,24 @@ type ActivationKind struct {
 	LastTrace    string
 }
 
-// taskReportContract is how every assignment ends, for a new agent and an
-// existing one alike, including when coordination needs earlier mail (FS-16.R49).
-// An assignee that only answers in chat records nothing (FS-16.R3).
-const taskReportContract = "When the work is finished or cannot continue, call report_task_result with outcome success, failure, or blocked and a short summary; a final chat message records no result. " +
-	"Keep routine progress and user-requested adjustments in that result; do not send separate acknowledgements or duplicate completion mail. " +
-	"Act on direct user instructions without routinely forwarding them. Message the requester earlier only when they or another agent must act, a coordination risk needs attention, or their decision is required; use deferred mail (wake: false) when no immediate action is needed."
-
-// LaunchedTaskPrompt is the first prompt of an agent launched for a task. The
-// instruction stays first and verbatim, so a leading command or skill the author
-// chose still reaches the provider as written (FS-16.R49).
-func LaunchedTaskPrompt(instruction string) string {
-	return instruction + "\n\nThis is your Chuck task; get_assigned_task returns it with any attached context. " + taskReportContract
+// TaskTurn is a task assignment prepared for one admitted turn. Prompt is the
+// whole provider text; Confirm binds the task to this execution and runs after
+// every runtime admission check but before the provider goroutine exists, so no
+// tool callback can see an unbound execution (FS-16.R61, TS-10.R64). A Confirm
+// error sends nothing.
+type TaskTurn struct {
+	Prompt  string
+	Confirm func() error
 }
+
+// TaskTurnPreparer builds the current assignment for the task this agent's
+// admitted turn executes. launched is true only for a task's own first launch
+// prompt; every other route is an existing-agent assignment or continuation.
+type TaskTurnPreparer func(agentID, generation, turnID string, launched bool) (TaskTurn, error)
+
+// errNoTaskPreparer refuses a task turn rather than sending an assignment
+// nobody built or confirmed (INV §24).
+var errNoTaskPreparer = errors.New("runtime: no task turn preparer")
 
 // activationKinds is the closed registry. An activation whose kind is absent
 // here cannot start, so an unregistered kind fails loudly at its first use
@@ -50,12 +59,11 @@ var activationKinds = map[string]ActivationKind{
 		StatusDetail: "checking messages",
 		LastTrace:    "MailActivation",
 	},
-	// An agent told to check its messages will do exactly that and never find its
-	// task, so dependent work has its own instruction and its own status. It
-	// carries no task id, arm set, or assignment text: the agent reads all of that
-	// through get_assigned_task (FS-16.R26, R11).
+	// Dependent work has its own status. Its prompt is not a fixed instruction:
+	// the task turn preparer supplies the current assignment for the admitted
+	// execution, while the activation row stays a payload-free signal
+	// (FS-16.R60, TS-01.R52).
 	state.ActivationKindDependency: {
-		Instruction:  "You have been assigned a task. Call the get_assigned_task tool to read your assignment, then carry it out. " + taskReportContract,
 		StatusDetail: "starting assigned task",
 		LastTrace:    "TaskActivation",
 	},

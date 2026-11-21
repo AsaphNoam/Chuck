@@ -463,6 +463,7 @@ func New(cfgStore *config.Store, stateStore *state.Store, registry *runtime.Regi
 			s.log.Error("release held attachments after restart", "err", s.attachmentStartupErr)
 		}
 		registry.SetQuotaManualBind(s.stateStore.BindQuotaManualTurn)
+		registry.SetTaskTurnPreparer(s.prepareTaskTurn)
 		registry.SetQuotaScopeResolver(s.quotaScope)
 		registry.SetActivitySink(func(notice runtime.ActivityNotice) {
 			agentID := notice.AgentID

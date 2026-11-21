@@ -1462,6 +1462,15 @@ WHERE task_id = ? AND state = ?
 // (TS-10.R4, FS-16.R6). The attempt id is required, so a start abandoned and
 // re-admitted cannot be confirmed by its predecessor's late success.
 func (s *Store) ConfirmTaskStart(taskID, attemptID string) (Task, bool, error) {
+	return s.ConfirmTaskExecution(taskID, attemptID, "", "")
+}
+
+// ConfirmTaskExecution is the one transition into running for an admitted task
+// turn: in a single update it binds the live runtime generation and the claimed
+// turn and copies the reserved attempt id into the execution handle, before the
+// provider can call any tool (TS-10.R64). An empty generation or turn keeps the
+// recorded value. It confirms a staged assignment, not provider receipt.
+func (s *Store) ConfirmTaskExecution(taskID, attemptID, generation, turnID string) (Task, bool, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return Task{}, false, fmt.Errorf("state: begin confirm task start: %w", err)
@@ -1470,9 +1479,11 @@ func (s *Store) ConfirmTaskStart(taskID, attemptID string) (Task, bool, error) {
 	now := formatTime(timeNow())
 	res, err := tx.Exec(`
 UPDATE tasks SET state = ?, started_at = ?, execution_handle = ?,
+  assigned_generation = CASE WHEN ? = '' THEN assigned_generation ELSE ? END,
+  execution_turn = CASE WHEN ? = '' THEN execution_turn ELSE ? END,
   continuation_pending = 0, resume_needed = 0, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
-		TaskRunning, now, attemptID, now, taskID, TaskStarting, attemptID)
+		TaskRunning, now, attemptID, generation, generation, turnID, turnID, now, taskID, TaskStarting, attemptID)
 	if err != nil {
 		return Task{}, false, fmt.Errorf("state: confirm task start: %w", err)
 	}
@@ -1489,7 +1500,7 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 		return Task{}, false, fmt.Errorf("state: settle pipeline recovery effect: %w", err)
 	}
 	// The saved wait set stays as this execution's continuation context: the
-	// resumed agent reads it through get_assigned_task after confirmation. A
+	// resumed turn carries it inline and get_assigned_task refreshes it. A
 	// running task without a pending yield is never woken by it, and the next
 	// wait, terminal result or deletion replaces it (TS-10.R29/R33/R53).
 	if err := tx.Commit(); err != nil {
@@ -1509,30 +1520,6 @@ func (s *Store) SetTaskStartGeneration(taskID, attemptID, generation string) (Ta
 UPDATE tasks SET assigned_generation = ?, revision = revision + 1, updated_at = ?
 WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 		[]any{generation}, "set task start generation")
-}
-
-// SetTaskExecutionTurn records the exact provider turn that a borrowed task
-// may later cancel. The start attempt and generation fence make a late writer a
-// harmless no-op rather than authority over a continuation (TS-10.R32).
-func (s *Store) SetTaskExecutionTurn(taskID, attemptID, generation, turnID string) (Task, bool, error) {
-	if generation == "" || turnID == "" {
-		return Task{}, false, nil
-	}
-	res, err := s.db.Exec(`UPDATE tasks SET execution_turn = ?, revision = revision + 1, updated_at = ?
-WHERE task_id = ? AND state = ? AND start_attempt_id = ? AND assigned_generation = ?`,
-		turnID, formatTime(timeNow()), taskID, TaskStarting, attemptID, generation)
-	if err != nil {
-		return Task{}, false, fmt.Errorf("state: set task execution turn: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return Task{}, false, fmt.Errorf("state: set task execution turn rows: %w", err)
-	}
-	if n == 0 {
-		return Task{}, false, nil
-	}
-	task, err := s.ReadTask(taskID)
-	return task, err == nil, err
 }
 
 // keepConfirmedAssignee clears only a start's reservation. An assignee an

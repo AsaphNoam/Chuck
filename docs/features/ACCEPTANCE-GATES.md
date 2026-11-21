@@ -4,6 +4,13 @@ Live list of native, provider, device and hosted checks that have not been run. 
 gate; remove an entry when its receipt exists. A gate that was run and failed is a finding in
 [HANDOFF.md](HANDOFF.md#review-findings), not an entry here (workflow §4).
 
+- **Inline task assignments (FS-16.A44, FS-18.A19 sample):** pinned Claude and Codex smokes:
+  a fresh task launch with project-skill syntax and no reporting prose; an existing-agent and a
+  resumed task whose heading keeps the instruction from replaying as a native command; an aware
+  worker reporting from the inline assignment with no lookup; an unaware worker given the same
+  data with no fallback advice; one worker-then-delegate reading sample. Only the fake-adapter
+  delivery tests exist so far.
+
 - **Project Files and Finder (FS-11.A10, FS-03.A94):** on a Mac with the built binary, reveal a
   project file from Files and a chat file from its transcript link and tracked row, and confirm
   Finder selects the exact file. Also run the Files journey against the real server with real

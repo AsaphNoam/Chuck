@@ -36,8 +36,8 @@ var statusTableWriters = map[string]map[string]int{
 		"internal/state/quota_admission.go":     2,
 		"internal/state/task_time.go":           2,
 		"internal/state/task_waits.go":          4,
-		"internal/state/tasks.go":               17,
-		"internal/state/schema.go":              1, // Migration clears historic terminal task markers.
+		"internal/state/tasks.go":               16, // Execution-turn binding folded into ConfirmTaskExecution (TS-10.R64).
+		"internal/state/schema.go":              1,  // Migration clears historic terminal task markers.
 	},
 	"pipeline_runs": {
 		"internal/state/pipeline_decisions.go": 1,

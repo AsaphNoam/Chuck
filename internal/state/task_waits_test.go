@@ -127,12 +127,18 @@ func TestTaskExecutionTurnIsFencedByStartAttemptAndGeneration(t *testing.T) {
 	if _, err := st.DB().Exec(`UPDATE tasks SET state = ?, assigned_agent_id = ?, assigned_generation = ?, start_attempt_id = ? WHERE task_id = ?`, TaskStarting, "a_owner", "g1", "attempt1", task.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	updated, ok, err := st.SetTaskExecutionTurn(task.TaskID, "attempt1", "g1", "t_000000000001")
-	if err != nil || !ok || updated.ExecutionTurn != "t_000000000001" {
-		t.Fatalf("set execution turn = %+v, %v, %v", updated, ok, err)
+	// TS-10.R64: one confirmation binds the live generation, the claimed turn
+	// and the attempt's handle; an obsolete attempt binds nothing.
+	if _, ok, err := st.ConfirmTaskExecution(task.TaskID, "attempt0", "g2", "t_000000000002"); err != nil || ok {
+		t.Fatalf("stale attempt confirmed: ok=%v err=%v", ok, err)
 	}
-	if _, ok, err := st.SetTaskExecutionTurn(task.TaskID, "attempt1", "g2", "t_000000000002"); err != nil || ok {
-		t.Fatalf("stale execution turn accepted: ok=%v err=%v", ok, err)
+	updated, ok, err := st.ConfirmTaskExecution(task.TaskID, "attempt1", "g2", "t_000000000001")
+	if err != nil || !ok || updated.State != TaskRunning || updated.ExecutionTurn != "t_000000000001" ||
+		updated.AssignedGeneration != "g2" || updated.ExecutionHandle != "attempt1" {
+		t.Fatalf("confirm execution = %+v, %v, %v", updated, ok, err)
+	}
+	if _, ok, err := st.ConfirmTaskExecution(task.TaskID, "attempt1", "g3", "t_000000000003"); err != nil || ok {
+		t.Fatalf("second confirmation accepted: ok=%v err=%v", ok, err)
 	}
 }
 

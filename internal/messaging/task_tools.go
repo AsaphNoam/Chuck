@@ -41,12 +41,28 @@ func (s *Server) handleGetAssignedTask(_ context.Context, req *mcp.CallToolReque
 			"ok": false, "error": "internal", "message": "Could not read your assignment.",
 		})
 	}
-	attachments, err := s.store.ListTaskAttachments(task.TaskID)
+	response, err := s.AssignmentContext(task)
 	if err != nil {
-		s.log.Debug("list task attachments failed", "task", task.TaskID, "err", err)
+		s.log.Debug("read assignment context failed", "task", task.TaskID, "err", err)
 		return errResult(map[string]any{
 			"ok": false, "error": "internal", "message": "Could not read your assignment.",
 		})
+	}
+	response["ok"] = true
+	response["assigned"] = true
+	response["instruction"] = task.Instruction
+	response["state"] = task.State
+	return jsonResult(response)
+}
+
+// AssignmentContext is the one assignment projection: the explicit lookup above
+// and the inline assignment a task turn carries both read it, so neither can
+// drift on attachments, wait changes or pipeline facts (FS-16.R60, TS-10.R63,
+// INV §2). It holds no instruction; each caller places that itself.
+func (s *Server) AssignmentContext(task state.Task) (map[string]any, error) {
+	attachments, err := s.store.ListTaskAttachments(task.TaskID)
+	if err != nil {
+		return nil, fmt.Errorf("list task attachments: %w", err)
 	}
 	out := make([]outAttachment, 0, len(attachments))
 	for _, a := range attachments {
@@ -54,38 +70,28 @@ func (s *Server) handleGetAssignedTask(_ context.Context, req *mcp.CallToolReque
 			ContextRefID: a.ContextRefID, Label: a.Label, Description: a.Description,
 		})
 	}
-	// The watched work behind a wait continuation. It is keyed by the caller's
-	// own assignment, so no other agent's watches are reachable (TS-10.R29/R53).
+	// The watched work behind a wait continuation. It is keyed by the
+	// assignment, so no other agent's watches are reachable (TS-10.R29/R53).
 	observed, err := s.store.TaskContinuationContext(task.TaskID)
 	if err != nil {
-		s.log.Debug("read continuation context failed", "task", task.TaskID, "err", err)
-		return errResult(map[string]any{
-			"ok": false, "error": "internal", "message": "Could not read your assignment.",
-		})
+		return nil, fmt.Errorf("read continuation context: %w", err)
 	}
-	response := map[string]any{
+	projection := map[string]any{
 		"observed_changes": observed,
-		"ok":               true,
-		"assigned":         true,
 		"task_id":          task.TaskID,
 		"display_name":     task.DisplayName,
-		"instruction":      task.Instruction,
-		"state":            task.State,
 		"execution_handle": task.ExecutionHandle,
 		"attachments":      out,
 	}
 	// A pipeline stage assignment also gets the current code-owned contract,
 	// separate from its historical instruction text (TS-09.R71).
 	if pipeline, err := s.store.PipelineAssignmentContext(task.TaskID); err == nil {
-		response["pipeline"] = pipeline
-		response["pipeline_contract"] = PipelineDecisionContract
+		projection["pipeline"] = pipeline
+		projection["pipeline_contract"] = PipelineDecisionContract
 	} else if !errors.Is(err, state.ErrNotFound) {
-		s.log.Debug("read pipeline assignment context failed", "task", task.TaskID, "err", err)
-		return errResult(map[string]any{
-			"ok": false, "error": "internal", "message": "Could not read your assignment.",
-		})
+		return nil, fmt.Errorf("read pipeline assignment context: %w", err)
 	}
-	return jsonResult(response)
+	return projection, nil
 }
 
 // PipelineDecisionContract is how a run owner ends a stage visit. It is
@@ -107,7 +113,7 @@ type waitTaskObservation struct {
 }
 
 type waitForTasksArgs struct {
-	ExecutionHandle string                `json:"execution_handle" jsonschema:"handle returned by get_assigned_task for this execution"`
+	ExecutionHandle string                `json:"execution_handle" jsonschema:"execution handle from your current assignment"`
 	Tasks           []waitTaskObservation `json:"tasks" jsonschema:"one to 64 task revisions to watch"`
 }
 
@@ -143,7 +149,7 @@ type reportTaskArgs struct {
 	// ExecutionHandle names the execution this result belongs to. A pipeline
 	// stage result requires it; an ordinary task result may omit it, and any
 	// handle supplied must match the current execution (TS-09.R40, TS-10.R28).
-	ExecutionHandle string `json:"execution_handle,omitempty" jsonschema:"handle returned by get_assigned_task for this execution; required for a pipeline stage result"`
+	ExecutionHandle string `json:"execution_handle,omitempty" jsonschema:"execution handle from your current assignment; required for a pipeline stage result"`
 	// PipelineDecision is the run owner's judgment for a pipeline stage
 	// result; ordinary task reports omit it (TS-09.R66).
 	PipelineDecision *pipelineDecisionArgs `json:"pipeline_decision,omitempty" jsonschema:"pipeline stage results only: what the run does next. Omit on success to take the usual next step; the plan's last step requires action complete"`
@@ -151,7 +157,7 @@ type reportTaskArgs struct {
 
 type pipelineDecisionArgs struct {
 	Action         string            `json:"action" jsonschema:"next (run a listed step, including a repeat or revisit), complete (the goal is met), or needs_input (ask the person a question)"`
-	StageID        string            `json:"stage_id,omitempty" jsonschema:"next only: a step id from get_assigned_task pipeline.steps"`
+	StageID        string            `json:"stage_id,omitempty" jsonschema:"next only: a step id from your assignment's pipeline.steps"`
 	Reason         string            `json:"reason" jsonschema:"why this is the right next step"`
 	Question       string            `json:"question,omitempty" jsonschema:"needs_input only: the concrete question the person must answer"`
 	RequiredChecks map[string]string `json:"required_checks,omitempty" jsonschema:"complete only: for every required step, the id of its accepted successful task (this task for the current step)"`

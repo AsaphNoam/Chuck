@@ -292,13 +292,20 @@ func TestALaunchSpecTaskStartsItselfAndBecomesRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read prompt log: %v", err)
 	}
-	// FS-16.R49 — the instruction leads verbatim and the reporting paragraph follows.
-	want, _ := json.Marshal(runtime.LaunchedTaskPrompt("please do build the thing"))
-	if !strings.Contains(string(raw), `"text":`+string(want)) {
-		t.Fatalf("the assignment prompt did not carry the instruction and reporting contract: %s", raw)
+	// FS-16.R60 — read the payload the provider actually received: the
+	// instruction leads verbatim, then labelled context carrying the confirmed
+	// handle, with no reporting boilerplate and no second copy of the text.
+	text := firstPromptText(t, raw)
+	const instruction = "please do build the thing"
+	facts := assignmentFacts(t, text, instruction+"\n\n")
+	if facts["task_id"] != task.TaskID || facts["execution_handle"] != running.ExecutionHandle || running.ExecutionHandle == "" {
+		t.Fatalf("assignment facts = %v, want task %s handle %s", facts, task.TaskID, running.ExecutionHandle)
 	}
-	if !strings.Contains(string(raw), "report_task_result") {
-		t.Fatalf("the assignment prompt never says how to report: %s", raw)
+	if strings.Contains(text, "report_task_result") || strings.Count(text, instruction) != 1 {
+		t.Fatalf("assignment prompt carries boilerplate or a repeated instruction: %q", text)
+	}
+	if running.ExecutionTurn == "" || running.AssignedGeneration == "" {
+		t.Fatalf("running task was not bound to its turn and generation: %+v", running)
 	}
 	// No mail row was created to carry the assignment: this plane is control
 	// state, not conversation (FS-16.R6).
@@ -472,12 +479,16 @@ func TestATaskForARunningAgentActivatesThatConversation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read prompt log: %v", err)
 	}
-	dependency, ok := runtime.LookupActivationKind(state.ActivationKindDependency)
-	if !ok {
-		t.Fatal("the dependency activation kind has no registered contract")
+	// FS-16.R60: the borrowed conversation receives the assignment inline,
+	// bound to the turn it runs in, with no reporting boilerplate.
+	text := firstPromptText(t, raw)
+	lead := "Chuck task assignment from the person. Instruction:\n\nplease do review the migration\n\n"
+	facts := assignmentFacts(t, text, lead)
+	if facts["task_id"] != task.TaskID || facts["execution_handle"] != running.ExecutionHandle || running.ExecutionTurn == "" {
+		t.Fatalf("borrowed assignment facts = %v for task %+v", facts, running)
 	}
-	if !strings.Contains(string(raw), dependency.Instruction) || !strings.Contains(dependency.Instruction, "report_task_result") {
-		t.Fatalf("prompt = %s, want the task instruction with its reporting contract %q", raw, dependency.Instruction)
+	if strings.Contains(text, "report_task_result") {
+		t.Fatalf("borrowed assignment carries reporting boilerplate: %q", text)
 	}
 	mail, _ := runtime.LookupActivationKind(state.ActivationKindMail)
 	if strings.Contains(string(raw), mail.Instruction) {
@@ -519,9 +530,20 @@ func TestATaskForAStoppedAgentWakesIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read prompt log: %v", err)
 	}
-	dependency, _ := runtime.LookupActivationKind(state.ActivationKindDependency)
-	if !strings.Contains(string(raw), dependency.Instruction) {
-		t.Fatalf("woken prompt = %s, want the task instruction", raw)
+	// FS-16.R60: an existing agent gets an attributed heading, then the exact
+	// instruction as task content, then the confirmed execution's facts, so
+	// it can report or wait with no lookup first.
+	text := firstPromptText(t, raw)
+	if !strings.HasPrefix(text, "Chuck task assignment from ") {
+		t.Fatalf("woken prompt = %q, want an attributed assignment heading", text)
+	}
+	if _, lead, ok := strings.Cut(text, ". Instruction:\n\n"); !ok || !strings.HasPrefix(lead, "please do pick this back up\n\n") {
+		t.Fatalf("woken prompt = %q, want the verbatim instruction after the heading", text)
+	}
+	heading, _, _ := strings.Cut(text, "\n\n")
+	facts := assignmentFacts(t, text, heading+"\n\nplease do pick this back up\n\n")
+	if facts["execution_handle"] != running.ExecutionHandle || running.ExecutionHandle == "" || running.ExecutionTurn == "" {
+		t.Fatalf("woken assignment facts = %v for task %+v", facts, running)
 	}
 	if _, err := srv.stateStore.RecordAgentTaskResult(task.TaskID, agentID, realGeneration, "",
 		state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done"}); err != nil {
@@ -535,7 +557,7 @@ func TestATaskForAStoppedAgentWakesIt(t *testing.T) {
 }
 
 func TestYieldedTaskReleasesThenResumesOnWatchedResult(t *testing.T) {
-	srv, _ := wakeTestServer(t)
+	srv, _, promptLog := activationTestServer(t)
 	owner := newLaunchTask(t, srv, "orchestrate")
 	srv.dispatchReadyTasks(context.Background())
 	running := waitTaskState(t, srv, owner.TaskID, state.TaskRunning)
@@ -567,6 +589,38 @@ func TestYieldedTaskReleasesThenResumesOnWatchedResult(t *testing.T) {
 	ready := waitTaskState(t, srv, owner.TaskID, state.TaskReady)
 	if !ready.ContinuationPending || !ready.ResumeNeeded {
 		t.Fatalf("watched change did not request continuation: %+v", ready)
+	}
+
+	// FS-16.R60 / A42: the resumed execution is a continuation, not a fresh
+	// launch: an attributed heading precedes the unchanged instruction (so a
+	// leading command is not run again), and the watched change and a new
+	// execution handle arrive inline.
+	srv.dispatchReadyTasks(context.Background())
+	resumed := waitTaskState(t, srv, owner.TaskID, state.TaskRunning)
+	// The child's own launch prompt may land on either side of the owner's
+	// continuation, so find the continuation by its heading.
+	var text string
+	for deadline := time.Now().Add(10 * time.Second); text == "" && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		raw, err := os.ReadFile(promptLog)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(strings.TrimSpace(string(raw))) == 0 {
+			continue
+		}
+		for i := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			if candidate := promptTextAt(t, raw, i); strings.HasPrefix(candidate, "Chuck task continuation") {
+				text = candidate
+			}
+		}
+	}
+	facts := assignmentFacts(t, text, "Chuck task continuation of your assignment from the person. Original instruction:\n\nplease do orchestrate\n\n")
+	if facts["execution_handle"] != resumed.ExecutionHandle || resumed.ExecutionHandle == running.ExecutionHandle {
+		t.Fatalf("continuation handle = %v, task %+v, previous %q", facts["execution_handle"], resumed, running.ExecutionHandle)
+	}
+	observed, _ := facts["observed_changes"].([]any)
+	if len(observed) != 1 || observed[0].(map[string]any)["task_id"] != child.TaskID {
+		t.Fatalf("continuation observed_changes = %v, want the watched child %s", facts["observed_changes"], child.TaskID)
 	}
 }
 
@@ -608,24 +662,27 @@ func TestBorrowedCancellationWithoutTurnIsUnsafeNotAnUnguardedCancel(t *testing.
 	}
 }
 
-// FS-16.R25 / TS-10.R4 — once a wake delivered the assignment turn, losing
-// its generation before confirmation spends the attempt and never strands the
-// task in starting.
-func TestWokenTaskWithMissingGenerationSettlesItsAttempt(t *testing.T) {
-	srv, ts := wakeTestServer(t)
-	agentID := launchAndWaitIdle(t, ts, "impl", "tmpproj")
-	if resp, body := post(t, ts.URL+"/api/sessions/"+agentID+"/stop", nil); resp.StatusCode != 200 {
-		t.Fatalf("stop status = %d: %s", resp.StatusCode, body)
-	}
-	task := newAgentTask(t, srv, agentID, "wake then disappear")
-	srv.taskGeneration = func(string) string { return "" }
+// FS-16.R25 / TS-10.R64 — a woken assignment whose binding is refused spends
+// its attempt, never strands the task in starting, and sends nothing.
+func TestWokenTaskWithRefusedBindingSettlesItsAttempt(t *testing.T) {
+	srv, ts, promptLog := activationTestServer(t)
+	agentID := launchThenStop(t, srv, ts)
+	task := newAgentTask(t, srv, agentID, "wake then refuse")
+	srv.registry.SetTaskTurnPreparer(func(agentID, generation, turnID string, launched bool) (runtime.TaskTurn, error) {
+		turn, err := srv.prepareTaskTurn(agentID, generation, turnID, launched)
+		turn.Confirm = func() error { return errTaskTurnStale }
+		return turn, err
+	})
 	srv.dispatchReadyTasks(context.Background())
 	ready := waitTaskState(t, srv, task.TaskID, state.TaskReady)
 	if ready.StartAttemptCount != 1 {
 		t.Fatalf("spent attempts = %d, want 1", ready.StartAttemptCount)
 	}
-	if ready.RuntimeClaim != "" || ready.StartAttemptID != "" {
-		t.Fatalf("missing generation left a starting claim: %+v", ready)
+	if ready.RuntimeClaim != "" || ready.StartAttemptID != "" || ready.ExecutionHandle != "" {
+		t.Fatalf("refused binding left a starting claim: %+v", ready)
+	}
+	if n := promptCount(t, promptLog); n != 0 {
+		t.Fatalf("a refused binding sent %d provider prompts", n)
 	}
 }
 

@@ -453,7 +453,7 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   dependency validation error opens it for correction. Existing payloads, time semantics, project
   resets, feedback and Re-arm behavior are preserved. This refines R39/R45's creation composition.
 
-- **R60 (planned) — Task turns include their current assignment.** For fresh task agents,
+- **R60 — Task turns include their current assignment.** For fresh task agents,
   existing or woken assignees, retries, and resumed waits, Chuck supplies the authored instruction
   directly in the turn, followed by separately labelled Chuck assignment context: task identity,
   current execution handle, attached-reference descriptors, observed child changes when applicable,
@@ -471,7 +471,7 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   contract. No generic reporting reminder, acknowledgement policy or mail procedure is appended
   to the assignment. FS-18.R22 owns standing completion guidance, including the awareness opt-out.
 
-- **R61 (planned) — Inline delivery preserves ownership and provenance.** Chuck builds the
+- **R61 — Inline delivery preserves ownership and provenance.** Chuck builds the
   assignment for the admitted execution, not when its wake is queued. Tools can act only after
   that execution's task, runtime generation and turn are bound and its current handle is valid.
   Restart, Stop, Cancel, refused admission, quota holds and late callbacks retain the existing
@@ -892,7 +892,7 @@ Each names the verification that demonstrates it.
 
 ## 6. Deviations & open decisions
 
-- **Inline assignment design (planned):** R60–R61/A42–A44 replace only R26/R49/A15/A33's
+- **Inline assignment delivery (implemented 2026-11-21):** R60–R61 replace only R26/R49/A15/A33's
   prompt/pull requirements on implementation. Explicit lookup, result acceptance, durable
   activation claims, task ownership and recovery remain authoritative. FS-18.R22–R23 owns the
   accompanying standing-context and progressively loaded guidance cleanup.

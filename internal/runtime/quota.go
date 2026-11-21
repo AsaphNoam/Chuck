@@ -156,6 +156,29 @@ func (c *ChatRuntime) SetQuotaManualBind(fn func(string, string, string) error) 
 	c.mu.Unlock()
 }
 
+// SetTaskTurnPreparer installs the server's assignment builder and execution
+// binder for task launch prompts and dependency activations (TS-10.R63–R64).
+func (c *ChatRuntime) SetTaskTurnPreparer(fn TaskTurnPreparer) {
+	c.mu.Lock()
+	c.taskTurn = fn
+	c.mu.Unlock()
+}
+
+// prepareTaskTurn runs the installed preparer for this agent's claimed turn.
+func (c *ChatRuntime) prepareTaskTurn(as *agentState, turnID string, launched bool) (TaskTurn, error) {
+	c.mu.Lock()
+	fn := c.taskTurn
+	c.mu.Unlock()
+	if fn == nil {
+		return TaskTurn{}, errNoTaskPreparer
+	}
+	turn, err := fn(as.agentID, as.generation, turnID, launched)
+	if err == nil && (turn.Prompt == "" || turn.Confirm == nil) {
+		err = errors.New("runtime: incomplete task turn")
+	}
+	return turn, err
+}
+
 func (r *Registry) SetQuotaManualBind(fn func(string, string, string) error) {
 	if r != nil && r.chat != nil {
 		r.chat.SetQuotaManualBind(fn)

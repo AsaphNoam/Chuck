@@ -8,9 +8,17 @@ func (r *Registry) SetMessageOutcomeHandler(fn func(string, string, string) erro
 	r.chat.SetMessageOutcomeHandler(fn)
 }
 
+// SetTaskTurnPreparer installs the assignment builder for every task turn.
+func (r *Registry) SetTaskTurnPreparer(fn TaskTurnPreparer) {
+	if r != nil && r.chat != nil {
+		r.chat.SetTaskTurnPreparer(fn)
+	}
+}
+
 // StartLaunchedTask sends the initial assignment together with any input
-// retained for this owner, using the ordinary chat turn gate.
-func (r *Registry) StartLaunchedTask(id, taskID, instruction string) error {
+// retained for this owner, using the ordinary chat turn gate. The task turn
+// preparer supplies and confirms the assignment inside that turn.
+func (r *Registry) StartLaunchedTask(id, taskID string) error {
 	rt, err := r.ownerFor(id)
 	if err != nil {
 		return err
@@ -19,7 +27,7 @@ func (r *Registry) StartLaunchedTask(id, taskID, instruction string) error {
 	if !ok {
 		return ErrNoHandle
 	}
-	return chat.sendPrompt(id, LaunchedTaskPrompt(instruction), taskID)
+	return chat.sendPrompt(id, "", taskID)
 }
 func (r *Registry) SendMessageOrHold(ctx context.Context, id string, m Message) (bool, error) {
 	rt, err := r.ownerFor(id)
