@@ -48,6 +48,7 @@ func forkServer(t *testing.T, env map[string]string) (*Server, string, string, s
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+	waitTurnReleased(t, srv, src)
 	return srv, ts.URL, src, metaDump
 }
 

@@ -154,6 +154,7 @@ func TestEditRefusesUnavailableAttachmentBeforeAcceptance(t *testing.T) {
 		for len(rootTurnEnds(readEvents(t, srv, id))) < 1 && time.Now().Before(deadline) {
 			time.Sleep(10 * time.Millisecond)
 		}
+		waitTurnReleased(t, srv, id)
 		blob := filepath.Join(srv.configStore.Home(), "sessions", id, "attachments", kept.ID, "blob")
 		if err := os.WriteFile(blob, []byte("corrupt!!!"), 0o600); err != nil {
 			t.Fatal(err)

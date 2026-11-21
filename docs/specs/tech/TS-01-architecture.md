@@ -811,7 +811,9 @@ reservation and generation-scoped start/teardown seams. The reservation excludes
 held promotion and autonomous turn starts until edit preparation commits or aborts. The
 reservation is taken under the runtime's turn-claim lock and refuses a claimed turn, held input,
 a Steer fallback or open background tasks; every turn claim consults it under that lock, so
-the two exclude each other. Validate
+the two exclude each other. The durable idle row and turn_end are published before turn_end's
+subscribers return and the turn claim is released, so an Edit in that brief window is refused as
+busy with no effect; automated callers wait for the runtime's release, not the idle row. Validate
 the active history revision, last user message and turn ownership under that reservation,
 before acceptance. Refuse task/room ownership, unresolved input/permission, active background work,
 quota continuation and unsupported history without changing any of them.

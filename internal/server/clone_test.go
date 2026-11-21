@@ -40,6 +40,7 @@ func cloneServer(t *testing.T, env map[string]string) (*Server, *httptest.Server
 		t.Fatalf("prompt = %d %s", resp.StatusCode, body)
 	}
 	waitStatus(t, srv, id, "idle")
+	waitTurnReleased(t, srv, id)
 	return srv, ts, id
 }
 

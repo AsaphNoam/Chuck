@@ -72,6 +72,21 @@ func waitStatus(t *testing.T, srv *Server, id, want string) {
 	}
 }
 
+// waitTurnReleased waits until the runtime no longer owns the agent's turn.
+// The durable idle row and turn_end are published before turn_end's
+// subscribers return and the turn claim is released, so a fixture that acts
+// on idle with Edit (which refuses an owned turn) waits here first.
+func waitTurnReleased(t *testing.T, srv *Server, id string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for srv.registry.Chat().OwnsWork(id) {
+		if time.Now().After(deadline) {
+			t.Fatalf("runtime still owns %s's turn", id)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 // deleteJSON issues a DELETE and returns the response and body.
 func deleteJSON(t *testing.T, url string) (*http.Response, []byte) {
 	t.Helper()

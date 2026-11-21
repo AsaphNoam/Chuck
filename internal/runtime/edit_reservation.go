@@ -41,7 +41,7 @@ func (c *ChatRuntime) ReserveEdit(agentID, requestID string) error {
 	if as, err := c.lookup(agentID); err == nil {
 		as.mu.Lock()
 		defer as.mu.Unlock()
-		if as.turn.turnActive || !as.turn.held.message().empty() || !as.turn.steerFallback.message().empty() || as.openTasks > 0 {
+		if as.ownsWorkLocked() {
 			return ErrEditBusy
 		}
 	}
@@ -55,6 +55,25 @@ func (c *ChatRuntime) ReserveEdit(agentID, requestID string) error {
 	}
 	c.edits.byID[agentID] = requestID
 	return nil
+}
+
+// ownsWorkLocked is the work ReserveEdit refuses. Caller must hold as.mu.
+func (as *agentState) ownsWorkLocked() bool {
+	return as.turn.turnActive || !as.turn.held.message().empty() || !as.turn.steerFallback.message().empty() || as.openTasks > 0
+}
+
+// OwnsWork reports whether agentID's live runtime still owns work an Edit
+// reservation refuses. The durable idle row is written before turn_end's
+// subscribers return and the turn claim is released after them (finishTurn),
+// so this stays true briefly after idle is visible.
+func (c *ChatRuntime) OwnsWork(agentID string) bool {
+	as, err := c.lookup(agentID)
+	if err != nil {
+		return false
+	}
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	return as.ownsWorkLocked()
 }
 
 // ReleaseEdit ends requestID's reservation; a stale release is a no-op.

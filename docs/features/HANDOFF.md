@@ -201,21 +201,22 @@ specs, live user state or unrelated dirty files changed.
 
 - **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §15/§19). The repair is in
   `3590f5c5`, `40dbbca0` and `fd169e61`. It records the Steer before native delivery and
-  settles that exact row. The targeted regressions and independent check passed. Full Go
-  closure is blocked by EDIT-IDLE-1. Rerun it after repairing that finding.
+  settles that exact row. The targeted regressions and independent check passed. EDIT-IDLE-1
+  no longer blocks it (fixed 2026-11-21). Full Go closure is owed. IDLE-WINDOW-1's intermittent
+  quota test can still fail it.
 
-### EDIT-IDLE — Edit tests can reach admission before the prior turn settles (2026-11-20) — **Fix model:** medium — Codex Terra or Claude Opus.
+### IDLE-WINDOW — automatic work may be lost between published idle and turn release (found 2026-11-21 while fixing EDIT-IDLE-1) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — EDIT-IDLE-1 (medium; TS-01.R51, INV §5/§17). The full server suite intermittently
-  fails Edit requests with `422 edit_unavailable` (“Wait for the agent to finish its current
-  turn”) or direct reservation with `ErrEditBusy` after the fixture observes `idle`.
-  `TestEditStopAndCancelAfterDecision`, `TestEditLastAbortRestoresTheOriginal` and
-  `TestSendRefusedWhileEditOwnsTheConversation` all reproduced with the pre-Steer source
-  (`a66c0f52`, 12 runs of each test). The fixture waits on the durable status row
-  (`internal/server/queue_steer_test.go`); reservation checks runtime turn ownership under lock
-  (`internal/runtime/edit_reservation.go`). Control that ordering to determine whether the
-  fixture needs a settlement barrier or the published idle state is premature.
-  `TestGroupAndPeerStopReachPreparingEdit` failed the same way in the PROJECT-FILES closure run.
+- **Must fix** — IDLE-WINDOW-1 (undetermined; INV §5/§18/§19). `finishTurn`
+  (`internal/runtime/chat.go`) writes the idle row and emits turn_end before it releases the turn
+  claim. With a temporary 300 ms sleep after the turn_end emission, these four server tests timed
+  out: `TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart` and
+  `TestQuotaSnapshotSchedulesAndPostponesRecovery` (“waiting for 2 provider prompts, saw 1”),
+  `TestATaskForAStoppedAgentWakesIt` and `TestYieldedTaskReleasesThenResumesOnWatchedResult`.
+  All Edit tests passed. Unprovoked, `TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity`
+  failed once in the plain-variant suite at the EDIT-IDLE fix (“waiting for 1 provider prompts,
+  saw 0”) and then passed 10 runs alone. Same symptom; same cause not established. Next step: find out whether the quota/task dispatch refuses work in that
+  window without retrying it (a product defect), or whether the fixtures only assume timing.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

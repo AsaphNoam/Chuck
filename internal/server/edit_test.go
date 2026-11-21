@@ -83,6 +83,7 @@ func TestEditLastReplacesTheLatestTurnInPlace(t *testing.T) {
 	for len(rootTurnEnds(readEvents(t, srv, id))) < 3 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
+	waitTurnReleased(t, srv, id)
 	meta, _ := os.ReadFile(metaDump)
 	if !strings.Contains(string(meta), `"messageId":"msg-2"`) {
 		t.Fatalf("edit did not fork after turn 2: %s", meta)
@@ -308,6 +309,7 @@ func TestEditLastRefusesWhenALaterTurnFollowed(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	waitStatus(t, srv, id, "idle")
+	waitTurnReleased(t, srv, id)
 	if again, _ := lastRootPrompt(t, readTranscriptAPI(t, base, id)); again.Seq != latest.Seq {
 		t.Fatalf("mail turn wrote a person message at %d", again.Seq)
 	}
@@ -350,6 +352,7 @@ func TestEditLastTwiceForksTheKeptTurnAgain(t *testing.T) {
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
+		waitTurnReleased(t, srv, id)
 		if meta, _ := os.ReadFile(metaDump); !strings.Contains(string(meta), `"messageId":"msg-2"`) {
 			t.Fatalf("%s did not fork after turn 2: %s", requestID, meta)
 		}
