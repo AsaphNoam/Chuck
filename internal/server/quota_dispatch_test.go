@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -36,6 +37,14 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 			}
 			s.startQuotaContinuation(context.Background(), q)
 			waitPrompts(t, log, 1)
+			raw, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := firstPromptText(t, raw)
+			if !strings.HasPrefix(text, "Continue the work interrupted by the provider quota") || strings.Contains(text, "Chuck assignment context:") {
+				t.Fatalf("ordinary quota prompt acquired task context: %q", text)
+			}
 			deadline := time.Now().Add(5 * time.Second)
 			for {
 				q, err = s.stateStore.GetQuota(id)
@@ -267,6 +276,20 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 	t.Setenv("FAKEACP_FAILURE_RESULT", `{"id":"quota-terminal","revision":1,"category":"limit","severity":"error","title":"Account quota exhausted","actions":[]}`)
 	s, _, log := activationTestServer(t)
 	task := newLaunchTask(t, s, "unfinished quota work")
+	// Two inputs accepted during starting: the first turn claims only the
+	// oldest; the quota continuation must carry the remaining receipt once.
+	s.registry.SetTaskTurnPreparer(func(agentID, generation, turnID string, launched bool) (runtime.TaskTurn, error) {
+		if launched {
+			for _, id := range []string{"first-correction", "remaining-correction"} {
+				if _, ok, err := s.stateStore.QueueAssignmentInput(state.AttachmentReceipt{
+					AgentID: agentID, RequestID: id, PayloadHash: id, Action: "prompt", MessageJSON: `{"text":"` + id + `"}`,
+				}); err != nil || !ok {
+					t.Fatalf("queue assignment input = %v, %v", ok, err)
+				}
+			}
+		}
+		return s.prepareTaskTurn(agentID, generation, turnID, launched)
+	})
 	s.dispatchReadyTasks(context.Background())
 	task = waitTaskState(t, s, task.TaskID, state.TaskRunning)
 	deadline := time.Now().Add(5 * time.Second)
@@ -308,6 +331,28 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 	waitTurnReleased(t, s, q.AgentID)
 	s.startQuotaContinuation(context.Background(), q)
 	waitPrompts(t, log, 2)
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := assignmentFacts(t, promptTextAt(t, raw, 1), "Chuck task continuation of your assignment from the person. Original instruction:\n\nplease do unfinished quota work\n\n")
+	if facts["task_id"] != task.TaskID || facts["execution_handle"] != task.ExecutionHandle || task.ExecutionHandle == "" {
+		t.Fatalf("quota continuation facts = %v, want same task and handle %+v", facts, task)
+	}
+	var frame struct {
+		Prompt []struct {
+			Text string `json:"text"`
+		} `json:"prompt"`
+	}
+	if err := json.Unmarshal([]byte(strings.Split(strings.TrimSpace(string(raw)), "\n")[1]), &frame); err != nil {
+		t.Fatal(err)
+	}
+	if len(frame.Prompt) != 3 || !strings.HasPrefix(frame.Prompt[1].Text, "The person sent this message for your assignment") || frame.Prompt[2].Text != "remaining-correction" {
+		t.Fatalf("quota continuation did not carry separately attributed queued input: %+v", frame.Prompt)
+	}
+	if receipt, err := s.stateStore.AttachmentReceipt(task.AssignedAgentID, "remaining-correction"); err != nil || receipt.Delivery != "submitted" || receipt.AssignmentTaskID != "" {
+		t.Fatalf("queued input did not move to its provider turn: %+v, %v", receipt, err)
+	}
 	task, err = s.stateStore.ReadTask(task.TaskID)
 	if err != nil || task.State != state.TaskRunning || task.Outcome != "" || task.AssignedAgentID != q.AgentID {
 		t.Fatalf("continuation replaced assignment: %+v %v", task, err)

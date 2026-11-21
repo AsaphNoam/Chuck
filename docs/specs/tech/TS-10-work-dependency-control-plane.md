@@ -719,8 +719,9 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   After lifecycle, Edit, quota and turn admission and successful assignment preparation, bind the
   exact task, existing start-attempt id, actual runtime generation and claimed turn id through
   the state-owned confirmation transaction. Set `execution_handle` from that attempt and record
-  `execution_turn`; establish applicable pipeline-owner binding before exposing the prompt to the
-  provider. A failed or stale binding submits nothing and follows existing failure/deferral
+  `execution_turn`; establish applicable pipeline-owner binding, run activation and coordinator
+  release in that same transaction before exposing the prompt to the provider. A failed or stale
+  binding rolls back task confirmation, submits nothing and follows existing failure/deferral
   cleanup. Remove the post-provider-goroutine confirmation race; do not confirm merely because
   a task was queued or a runtime process launched. Confirmation means an assignment staged in an
   admitted live turn, not provider acknowledgement or completed work. A later transport failure,

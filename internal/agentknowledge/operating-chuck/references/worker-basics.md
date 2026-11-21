@@ -8,7 +8,7 @@ The assignment and its current execution handle arrive inline in the turn. `get_
 
 ## Reporting the result
 
-Finish through `report_task_result` with `success`, `failure` or `blocked` and a short summary. A final chat reply records no result. Keep routine progress and user-requested adjustments in that final result. Follow the tool result: validation, conflict, stale-generation and retry classifications are more authoritative than conversational claims.
+Keep routine progress and user-requested adjustments in the final result. Follow the tool result: validation, conflict, stale-generation and retry classifications are more authoritative than conversational claims.
 
 ## Messaging peers
 

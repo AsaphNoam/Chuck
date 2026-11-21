@@ -5,6 +5,37 @@ work. The specifications describe the product today; this file does not.
 
 ## New ideas
 
+- **One rule for task execution across continuations.** INLINE-TASK-7 inventory (2026-11-21),
+  following quota admission (`95779e0c`) and pipeline recovery (`0a8bda69`) repairs. Urgent inline
+  continuation, binding, provenance and guidance findings INLINE-TASK-1–4 were repaired; the
+  remaining same-cause findings belong here for `/design-feature`.
+  Writers and owners: the dispatcher reserves ready work with `AdmitReadyTask` (`state/tasks.go`);
+  the admitted runtime turn confirms task/handle/generation/turn and applicable standing owner
+  with `ConfirmTaskExecution` and the pipeline binding transaction (`state/pipeline_tasks.go`).
+  Quota episodes use `AdmitQuotaTaskResume`, `AdmitQuotaTurn` and `BindQuotaManualTurn`
+  (`state/quota_admission.go`, `quota.go`); `ConfirmTaskContinuation`
+  (`state/task_continuation.go`) binds the next turn while preserving the execution handle.
+  Agent waits use `WaitForTasks`/`CompleteTaskYield` (`state/task_waits.go`), then return through
+  normal admission. Agent results use `RecordAgentTaskResult`; standing pipeline results use
+  `AcceptPipelineStageTaskResult`. Cancellation records `pending_release`; runtime cleanup
+  guards borrowed cancellation by turn and owned stops by generation (`server/task_dispatcher.go`).
+  Restart drains cleanup, preserves quota-held tasks and retries or interrupts uncertain starts;
+  failed reaping retains the reservation. Pipeline Retry/Resume/Replace and reconciliation own
+  the run revision, replacement and release cursors (`pipeline/actions.go`, `reconcile.go`).
+  Entry points: fresh launch, live/woken dependency activation, wait/mail/retry via the dispatcher,
+  automatic quota, stalled-owner continuation, and explicit person input. Room-backed stages
+  retain separate room-attempt authority. Inventory found two test-only alternate surfaces:
+  `server.confirmTaskStart` and `state.BindPipelineStageTaskStandingAgent`.
+  Missing or divergent rules to resolve: trace the legal execution tuple moves and their owner
+  across every entry point, including binding failure, cancellation and restart. INLINE-TASK-5:
+  pipeline prompts duplicate the inline decision contract and still direct agents to lookup;
+  revise their composed guidance to treat lookup as refresh. INLINE-TASK-6: derive the assignment
+  ceiling from actual ordinary and pipeline producers (including 48,000-rune pipeline instructions),
+  bound variable reasons and prove decoded maximum facts with mail; the current synthetic fixture
+  does not establish the promised maximum. Governing rules: FS-16.R60–R61, FS-18.R22–R23,
+  TS-10.R63–R65, INV §2/§5/§15/§16/§17/§21/§23. Reuse existing admission/cleanup mechanisms;
+  this inventory authorizes design, not a new scheduler or framework.
+
 Put a half-formed thought here. It needs only a short title and, if useful, a sentence about what
 prompted it.
 

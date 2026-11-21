@@ -10,7 +10,7 @@ import (
 // ownerStallPrompt continues a pipeline owner whose turn ended with its stage
 // visit still open and neither a report nor a wait recorded (TS-09.R70).
 const ownerStallPrompt = "Your pipeline assignment is still open, but your last turn ended without report_task_result or wait_for_tasks. " +
-	"Call get_assigned_task, then continue the work, wait for child tasks with wait_for_tasks, or finish with report_task_result (adding pipeline_decision when needed). " +
+	"Continue the supplied assignment, wait for child tasks with wait_for_tasks, or finish with report_task_result (adding pipeline_decision when needed). " +
 	"If only the person can unblock you, report with pipeline_decision action needs_input and the concrete question."
 
 func (s *Server) nudgeStalledOwner(agentID, generation string) {
@@ -90,7 +90,11 @@ func (s *Server) recoverMissedStageStalls() {
 		case "check_stall":
 			s.nudgeStalledOwner(owner.AgentID, owner.Generation)
 		case "bind":
-			s.bindPipelineOwner(owner.TaskID, owner.AgentID, owner.Generation)
+			if err := s.stateStore.BindConfirmedPipelineOwner(owner.TaskID, owner.AgentID, owner.Generation); err != nil {
+				s.log.Warn("recover pipeline owner binding", "agent", owner.AgentID, "generation", owner.Generation, "task", owner.TaskID, "err", err)
+			} else {
+				s.publishTaskPipelineOwner(owner.TaskID)
+			}
 		case "parked":
 			s.recoverParkedStageTask(state.Task{TaskID: owner.TaskID, State: state.TaskDependencyFailed})
 		case "owner_unavailable", "restart_interrupted":

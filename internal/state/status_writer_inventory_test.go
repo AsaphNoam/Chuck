@@ -34,6 +34,7 @@ var statusTableWriters = map[string]map[string]int{
 		"internal/state/pipeline_tasks.go":      4,
 		"internal/state/quota.go":               1,
 		"internal/state/quota_admission.go":     2,
+		"internal/state/task_continuation.go":   1, // Same execution, new turn for quota/stall continuation; handle and state are unchanged (TS-10.R65).
 		"internal/state/task_time.go":           2,
 		"internal/state/task_waits.go":          4,
 		"internal/state/tasks.go":               16, // Execution-turn binding folded into ConfirmTaskExecution (TS-10.R64).

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity(t *testing.T) {
 		agent, gen string
 		claim      string
 	}{{quotaTask, quotaAgent, quotaGeneration, state.ClaimBorrowed}, {occupantTask, occupantAgent, occupantGeneration, state.ClaimWoke}} {
-		if _, err := s.stateStore.DB().Exec(`UPDATE tasks SET state=?, assigned_agent_id=?, assigned_generation=?, runtime_claim=? WHERE task_id=?`,
+		if _, err := s.stateStore.DB().Exec(`UPDATE tasks SET state=?, assigned_agent_id=?, assigned_generation=?, runtime_claim=?, execution_handle='existing-execution', started_at=created_at WHERE task_id=?`,
 			state.TaskRunning, row.agent, row.gen, row.claim, row.task.TaskID); err != nil {
 			t.Fatal(err)
 		}
@@ -122,6 +123,14 @@ func TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity(t *testing.T) {
 	}
 	if quotaTask.AssignedAgentID != quotaAgent || quotaTask.StartAttemptCount != 0 {
 		t.Fatalf("quota resume changed task ownership or spent a launch attempt: %+v", quotaTask)
+	}
+	raw, err := os.ReadFile(promptLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := assignmentFacts(t, firstPromptText(t, raw), "Chuck task continuation of your assignment from the person. Original instruction:\n\n"+quotaTask.Instruction+"\n\n")
+	if facts["execution_handle"] != "existing-execution" || quotaTask.ExecutionTurn == "" {
+		t.Fatalf("resumed quota execution changed handle or lacked a current turn: facts=%v task=%+v", facts, quotaTask)
 	}
 	if running, err := s.stateStore.ReadRunning(quotaAgent); err != nil || running.AgentID != quotaAgent {
 		t.Fatalf("quota agent did not resume: %+v err=%v", running, err)

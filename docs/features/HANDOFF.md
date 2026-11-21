@@ -31,7 +31,14 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+Fixing the Inline task assignments review unit (INLINE-TASK-1–7). Atomic task/pipeline
+confirmation, fresh creator attribution, concise guidance and task quota/stall continuations are
+repaired. Focused binding/retry/launch/attribution, quota/stall/room/queued-input, state, pipeline
+and guidance checks pass. The fresh-context independent boundary check found no material defect.
+Remaining same-cause findings and the writer/entry-point inventory
+are routed to the "One rule for task execution across continuations" idea. Next: independent
+final Go closure matrix/race checks and fix closure. Preserve the pre-existing generated
+`internal/server/ui/dist/index.html` change.
 
 ## Decisions needing input
 

@@ -1221,12 +1221,17 @@ func (c *ChatRuntime) prepareMessageTurn(as *agentState, message Message, turnID
 	// A task's launch prompt is its current assignment, built for this
 	// admitted execution rather than when the launch was planned (FS-16.R61).
 	var task TaskTurn
-	if origin.Kind == state.TurnOriginTask {
+	assignment := origin.Kind == state.TurnOriginTask || origin.Kind == state.TurnOriginOwnerContinuation
+	if assignment {
 		var err error
-		if task, err = c.prepareTaskTurn(as, turnID, true); err != nil {
+		if task, err = c.prepareTaskTurn(as, turnID, origin.Kind == state.TurnOriginTask); err != nil {
 			return turnPrompt{}, err
 		}
-		message.Text = task.Prompt
+		if origin.Kind == state.TurnOriginOwnerContinuation {
+			message.Text = task.Prompt + "\n\n" + message.Text
+		} else {
+			message.Text = task.Prompt
+		}
 	}
 	content, err := c.messageContent(as, message)
 	if err != nil {
@@ -1270,7 +1275,7 @@ func (c *ChatRuntime) prepareMessageTurn(as *agentState, message Message, turnID
 	return turnPrompt{
 		content: content, deliveryKey: deliveryKey, mailNotice: mailNotice,
 		detail: "thinking", trace: "UserPromptSubmit", requestID: message.RequestID,
-		assignment: origin.Kind == state.TurnOriginTask, allowStatusFailure: true,
+		assignment: assignment, allowStatusFailure: true,
 		confirm: task.Confirm,
 	}, nil
 }
@@ -2194,7 +2199,15 @@ func (c *ChatRuntime) StartActivation(ctx context.Context, agentID, kind string,
 func (c *ChatRuntime) prepareActivationTurn(as *agentState, turnID, kind string, contract ActivationKind) (turnPrompt, error) {
 	instruction := contract.Instruction
 	var task TaskTurn
-	if kind == state.ActivationKindDependency {
+	assignment := kind == state.ActivationKindDependency
+	if kind == state.ActivationKindQuotaContinue {
+		q, err := c.store.GetQuota(as.agentID)
+		if err != nil {
+			return turnPrompt{}, err
+		}
+		assignment = q.Owner.Kind == "task"
+	}
+	if assignment {
 		var err error
 		if task, err = c.prepareTaskTurn(as, turnID, false); err != nil {
 			return turnPrompt{}, err
@@ -2217,7 +2230,7 @@ func (c *ChatRuntime) prepareActivationTurn(as *agentState, turnID, kind string,
 	return turnPrompt{
 		content:     []map[string]any{{"type": "text", "text": promptText}},
 		deliveryKey: deliveryKey, mailNotice: mailNotice, detail: contract.StatusDetail,
-		trace: contract.LastTrace, assignment: kind == state.ActivationKindDependency,
+		trace: contract.LastTrace, assignment: assignment,
 		confirm: task.Confirm,
 	}, nil
 }

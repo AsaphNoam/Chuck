@@ -986,6 +986,13 @@ func (s *Store) bindPipelineStageTaskStandingAgent(taskID, agentID string, gener
 		return err
 	}
 	defer tx.Rollback()
+	if err := bindPipelineStageTaskStandingAgentTx(tx, taskID, agentID, generation); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func bindPipelineStageTaskStandingAgentTx(tx *sql.Tx, taskID, agentID string, generation *string) error {
 	var coordinator, runID string
 	query := `UPDATE pipeline_stage_tasks SET standing_agent_id = ? WHERE task_id = ? AND state = 'open'
   AND (standing_agent_id = '' OR standing_agent_id = ?)`
@@ -1023,7 +1030,7 @@ func (s *Store) bindPipelineStageTaskStandingAgent(taskID, agentID string, gener
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 // RetryInterruptedPipelineStageTask returns the current interrupted assignment

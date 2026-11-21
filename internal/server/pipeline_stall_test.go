@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,7 +102,7 @@ func TestPipelineRecoverySweepRespectsInterruptedOwnerDisposition(t *testing.T) 
 	}
 }
 
-func TestPipelineRecoverySweepRetriesConfirmedOwnerBind(t *testing.T) {
+func TestPipelineOwnerBindFailureRollsBackConfirmation(t *testing.T) {
 	srv := testServer(t, true)
 	task := createDispatchingStallVisit(t, srv, "pr_bind", "tk_bind")
 	if _, err := srv.stateStore.DB().Exec(`UPDATE tasks SET state = 'starting', start_attempt_id = 'bind', assigned_agent_id = 'a_owner', assigned_generation = 'g_bind' WHERE task_id = ?`, task.TaskID); err != nil {
@@ -111,13 +113,16 @@ func TestPipelineRecoverySweepRetriesConfirmedOwnerBind(t *testing.T) {
 	}
 	task.StartAttemptID = "bind"
 	srv.confirmTaskStart(task)
+	if current, err := srv.stateStore.ReadTask(task.TaskID); err != nil || current.State != state.TaskStarting || current.ExecutionHandle != "" {
+		t.Fatalf("failed binding committed task execution: %+v, %v", current, err)
+	}
 	if run, err := srv.stateStore.ReadPipelineRun("pr_bind"); err != nil || run.State != "queued" {
 		t.Fatalf("after bind failure run = %+v, %v", run, err)
 	}
 	if _, err := srv.stateStore.DB().Exec(`DROP TRIGGER fail_pipeline_bind`); err != nil {
 		t.Fatal(err)
 	}
-	srv.recoverMissedStageStalls()
+	srv.confirmTaskStart(task)
 	run, err := srv.stateStore.ReadPipelineRun("pr_bind")
 	visit, visitErr := srv.stateStore.LatestPipelineStageTask("pr_bind")
 	if err != nil || visitErr != nil || run.State != "running" || visit.StandingAgentID != "a_owner" {
@@ -200,6 +205,19 @@ func TestFailedOwnerTurnIsContinuedThenPaused(t *testing.T) {
 	}
 	if got := promptCount(t, promptLog); got != state.MaxOwnerStallTurns {
 		t.Fatalf("assignment plus continuation prompts = %d, want %d", got, state.MaxOwnerStallTurns)
+	}
+	raw, err := os.ReadFile(promptLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := promptTextAt(t, raw, 1)
+	assignment, _, _ := strings.Cut(text, "\n\nYour pipeline assignment is still open")
+	facts := assignmentFacts(t, assignment, "Chuck task continuation of your assignment from a Chuck pipeline. Original instruction:\n\n"+task.Instruction+"\n\n")
+	if facts["task_id"] != task.TaskID || facts["execution_handle"] != "ta_stall" {
+		t.Fatalf("stall continuation facts = %v, want task %s with its existing handle", facts, task.TaskID)
+	}
+	if strings.Contains(text, "Call get_assigned_task") {
+		t.Fatalf("stall continuation still requires an assignment lookup: %q", text)
 	}
 }
 

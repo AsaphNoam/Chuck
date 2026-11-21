@@ -157,7 +157,8 @@ func (c *ChatRuntime) SetQuotaManualBind(fn func(string, string, string) error) 
 }
 
 // SetTaskTurnPreparer installs the server's assignment builder and execution
-// binder for task launch prompts and dependency activations (TS-10.R63–R64).
+// binder for task launch prompts, dependency activations and same-execution
+// continuations (TS-10.R63–R65).
 func (c *ChatRuntime) SetTaskTurnPreparer(fn TaskTurnPreparer) {
 	c.mu.Lock()
 	c.taskTurn = fn

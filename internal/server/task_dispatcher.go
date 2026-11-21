@@ -481,24 +481,21 @@ func (s *Server) confirmTaskStart(task state.Task) {
 		// A pipeline association becomes standing-owner authority only after the
 		// dispatcher confirmed this exact task/runtime assignment. A coordinator
 		// or an unstarted task can therefore never report a stage by lineage alone.
-		s.bindPipelineOwner(confirmed.TaskID, confirmed.AssignedAgentID, confirmed.AssignedGeneration)
+		s.publishTaskPipelineOwner(confirmed.TaskID)
 		s.publishTaskUpdate(confirmed)
 	}
 }
 
-func (s *Server) bindPipelineOwner(taskID, agentID, generation string) {
+func (s *Server) publishTaskPipelineOwner(taskID string) {
 	visit, err := s.stateStore.ReadPipelineStageTaskByTask(taskID)
 	if errors.Is(err, state.ErrNotFound) {
 		return
 	}
-	if err == nil {
-		err = s.stateStore.BindConfirmedPipelineOwner(taskID, agentID, generation)
-	}
 	if err != nil {
-		s.log.Warn("bind pipeline standing owner", "run", visit.RunID, "task", taskID, "agent", agentID, "generation", generation, "err", err)
+		s.log.Warn("read bound pipeline standing owner", "task", taskID, "err", err)
 		return
 	}
-	s.log.Info("bound pipeline standing owner", "run", visit.RunID, "task", taskID, "agent", agentID, "generation", generation)
+	s.log.Info("bound pipeline standing owner", "run", visit.RunID, "task", taskID, "agent", visit.StandingAgentID)
 	run, err := s.stateStore.ReadPipelineRun(visit.RunID)
 	if err != nil {
 		s.log.Warn("read run after binding standing owner", "run", visit.RunID, "task", taskID, "err", err)

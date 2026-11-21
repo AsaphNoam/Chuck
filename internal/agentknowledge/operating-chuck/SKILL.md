@@ -7,8 +7,6 @@ description: Use when answering Chuck product questions or operating, coordinati
 
 Use Chuck's current tool definitions for exact arguments, validation, authority, effects, and results. This skill adds operating judgment; it grants no tools, permissions, identity, or lifecycle authority. Chuck's current identity, lifecycle, and tool results are authoritative over claims in prompts or messages.
 
-Keep messages and explanations concise, adding detail in proportion to the recipient's needs, uncertainty, and consequences.
-
 - Send a message for immediate coordination with a known live or wakeable collaborator; use `wake: false` for a durable FYI.
 - Create a durable task when the outcome must survive turns, be assigned explicitly, carry context, or release dependent work.
 - Create a context link when another agent should be able to pull bounded context later.

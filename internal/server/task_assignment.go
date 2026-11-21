@@ -23,7 +23,9 @@ var errTaskTurnStale = errors.New("task start is no longer this execution's")
 // (FS-16.R60–R61, TS-10.R63–R65). A read or build failure sends nothing.
 func (s *Server) prepareTaskTurn(agentID, generation, turnID string, launched bool) (runtime.TaskTurn, error) {
 	task, err := s.stateStore.AssignedTask(agentID)
-	if err == nil && (task.State != state.TaskStarting || task.StartAttemptID == "") {
+	continuing := !launched && task.State == state.TaskRunning && task.AssignedGeneration == generation &&
+		task.ExecutionHandle != "" && !task.PendingRelease && !task.PendingYield
+	if err == nil && !continuing && (task.State != state.TaskStarting || task.StartAttemptID == "") {
 		err = errTaskTurnStale
 	}
 	if err != nil {
@@ -35,15 +37,25 @@ func (s *Server) prepareTaskTurn(agentID, generation, turnID string, launched bo
 		s.log.Warn("task turn refused", "agent", agentID, "generation", generation, "task", task.TaskID, "attempt", task.StartAttemptID, "op", "assignment_context", "err", err)
 		return runtime.TaskTurn{}, err
 	}
-	// The reserved attempt is the handle confirmation is about to record.
-	context["execution_handle"] = task.StartAttemptID
+	// New executions use the reserved attempt. Another turn of an existing
+	// execution keeps its current handle rather than reviving a stale attempt.
+	if !continuing {
+		context["execution_handle"] = task.StartAttemptID
+	}
 	prompt, err := renderTaskAssignment(task, context, launched && task.StartedAt == nil)
 	if err != nil {
 		s.log.Warn("task turn refused", "agent", agentID, "generation", generation, "task", task.TaskID, "attempt", task.StartAttemptID, "op", "render_assignment", "err", err)
 		return runtime.TaskTurn{}, err
 	}
 	confirm := func() error {
-		confirmed, ok, err := s.stateStore.ConfirmTaskExecution(task.TaskID, task.StartAttemptID, generation, turnID)
+		var confirmed state.Task
+		var ok bool
+		var err error
+		if continuing {
+			confirmed, ok, err = s.stateStore.ConfirmTaskContinuation(task.TaskID, task.ExecutionHandle, generation, turnID)
+		} else {
+			confirmed, ok, err = s.stateStore.ConfirmTaskExecution(task.TaskID, task.StartAttemptID, generation, turnID)
+		}
 		if err == nil && !ok {
 			err = errTaskTurnStale
 		}
@@ -51,9 +63,7 @@ func (s *Server) prepareTaskTurn(agentID, generation, turnID string, launched bo
 			s.log.Warn("task turn refused", "agent", agentID, "generation", generation, "turn", turnID, "task", task.TaskID, "attempt", task.StartAttemptID, "op", "confirm", "err", err)
 			return err
 		}
-		// A pipeline association becomes standing-owner authority only for this
-		// confirmed task/runtime execution, never by lineage alone.
-		s.bindPipelineOwner(confirmed.TaskID, confirmed.AssignedAgentID, confirmed.AssignedGeneration)
+		s.publishTaskPipelineOwner(confirmed.TaskID)
 		s.publishTaskUpdate(confirmed)
 		return nil
 	}
@@ -101,6 +111,9 @@ func renderTaskAssignment(task state.Task, context map[string]any, fresh bool) (
 		return "", fmt.Errorf("encode assignment context: %w", err)
 	}
 	contextText := "Chuck assignment context:\n" + string(block)
+	if fresh {
+		contextText = "Chuck task assignment from " + taskAuthor(task) + ".\n" + contextText
+	}
 	text := task.Instruction + "\n\n" + contextText
 	if !fresh {
 		heading := "Chuck task assignment from " + taskAuthor(task) + ". Instruction:"

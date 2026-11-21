@@ -121,7 +121,7 @@ func TestEmbeddedSkillUsesBoundedProgressiveReferences(t *testing.T) {
 	}
 	// FS-18.R23: worker job lives in worker basics, not coordination.
 	worker := string(files["references/worker-basics.md"])
-	for _, phrase := range []string{"`report_task_result`", "`success`, `failure` or `blocked`", "records no result", "not a required first step", "`wake: false`", "duplicate completion mail"} {
+	for _, phrase := range []string{"validation, conflict, stale-generation and retry", "not a required first step", "`wake: false`", "duplicate completion mail"} {
 		if !strings.Contains(worker, phrase) {
 			t.Errorf("worker basics reference is missing %q", phrase)
 		}

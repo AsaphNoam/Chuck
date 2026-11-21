@@ -1494,6 +1494,21 @@ WHERE task_id = ? AND state = ? AND start_attempt_id = ?`,
 	if n == 0 {
 		return Task{}, false, nil
 	}
+	// The task and its applicable standing authority are one admission. A
+	// binding failure must leave the reservation retryable and send no prompt.
+	var stageCount int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM pipeline_stage_tasks WHERE task_id = ?`, taskID).Scan(&stageCount); err != nil {
+		return Task{}, false, err
+	}
+	if stageCount != 0 {
+		var agentID, boundGeneration string
+		if err := tx.QueryRow(`SELECT assigned_agent_id, COALESCE(assigned_generation, '') FROM tasks WHERE task_id = ?`, taskID).Scan(&agentID, &boundGeneration); err != nil {
+			return Task{}, false, err
+		}
+		if err := bindPipelineStageTaskStandingAgentTx(tx, taskID, agentID, &boundGeneration); err != nil {
+			return Task{}, false, err
+		}
+	}
 	// A charged pipeline recovery ends once its owner executes again; a later
 	// failure is a new recovery operation (TS-09.R70).
 	if _, err := tx.Exec(`UPDATE pipeline_runs SET recovery_effect_key = '' WHERE recovery_effect_key = ?`, taskID); err != nil {

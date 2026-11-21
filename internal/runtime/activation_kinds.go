@@ -34,8 +34,9 @@ type TaskTurn struct {
 }
 
 // TaskTurnPreparer builds the current assignment for the task this agent's
-// admitted turn executes. launched is true only for a task's own first launch
-// prompt; every other route is an existing-agent assignment or continuation.
+// admitted turn executes, including a quota or stalled-owner continuation.
+// launched is true only for a task's own first launch prompt; every other route
+// is an existing-agent assignment or continuation.
 type TaskTurnPreparer func(agentID, generation, turnID string, launched bool) (TaskTurn, error)
 
 // errNoTaskPreparer refuses a task turn rather than sending an assignment

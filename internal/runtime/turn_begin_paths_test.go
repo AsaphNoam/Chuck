@@ -290,6 +290,15 @@ func TestBeginTurnRecordsOriginForEveryEntryPath(t *testing.T) {
 		}{
 			name: k.name,
 			drive: func(t *testing.T, a *beginPathAgent) (outcome, string) {
+				if k.kind == state.ActivationKindQuotaContinue {
+					due := time.Now().UTC().Add(-time.Second)
+					reset := due.Add(-state.QuotaResetBuffer)
+					if _, err := a.c.store.ObserveQuota(state.QuotaObservation{AgentID: a.id, EpisodeID: k.origin.id,
+						SourceGeneration: a.generation, ExecutingTurn: "interrupted", Owner: state.QuotaOwner{Kind: "ordinary"},
+						ObservedAt: due.Add(-2 * time.Minute), ResetAt: &reset, DueAt: &due, State: state.QuotaScheduled}); err != nil {
+						t.Fatal(err)
+					}
+				}
 				started, err := a.c.StartActivation(ctx, a.id, k.kind, func(turnID string) error {
 					return a.c.store.BeginConversationTurn(a.id, turnID, state.TurnOrigin{Generation: a.generation, Kind: k.origin.kind, ID: k.origin.id})
 				})
