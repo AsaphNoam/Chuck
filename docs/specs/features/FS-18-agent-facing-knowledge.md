@@ -242,6 +242,31 @@ not claim which progressive references the model read. Older conversations remai
 unknown; no raw prompts, environment values, credentials or native file bodies are newly exposed,
 and no model call is made to create the manifest.
 
+**R22 (planned) — Completion guidance belongs to the shared context.** Replace R15's vague
+outcome-reporting sentence with: “For assigned Chuck tasks, finish through `report_task_result`
+with success, failure or blocked and a short summary.” Do not append the sentence about chat
+replies not completing a task or restore it through task boilerplate. FS-16.R60 supplies assignments
+inline; do not require an initial lookup. The completion rule is part of the same awareness-gated,
+runtime-only shared context, including when the skill package is unavailable. With awareness off,
+omit it and provide no fallback reporting/communication paragraph in task prompts. Task-specific
+assignment data, tools, installed skill availability and actual result acceptance remain unchanged.
+Personas do not copy shared rules. No live session or retained history is rewritten.
+
+**R23 (planned) — Read guidance by activity, not by agent hierarchy.** Keep one
+`operating-chuck` skill. Its short entry gives only the basic capability choices, authority
+boundary and reading map; remove repeated communication/delegation prose and pipeline procedure
+already owned elsewhere. Replace R5/R19's reference inventory with five directly linked jobs:
+`worker-basics.md` (receiving assignments, result/blocker reporting and necessary peer messaging),
+`coordinate-work.md` (delegating, dependencies, scheduling, child waits, repair, context links and
+peer-history inspection), `operate-agents.md`, `build-and-run-pipelines.md` and `think-tanks.md`.
+Split the current coordination reference by those activities and remove duplicated procedure;
+retain current non-obvious operating rules and keep exact invocation mechanics in tool definitions.
+The shared context and entry continue to make authorized delegation discoverable to every aware
+agent, including a child worker: any agent reads the coordination reference when undertaking that
+activity. No persona/parent-child access tier, extra skill, new setting or eager loading of all
+references is added. Routine workers need not read lifecycle, scheduling, pipeline or room detail.
+Existing pipeline decision and Think Tank contribution contracts are outside the prose cleanup.
+
 ## 3. States & transitions
 
 - **Package:** absent or older cache → dashboard startup attempts to install the current complete
@@ -396,7 +421,27 @@ fork/check omissions and changed knowledge/tool/adapter artifacts across fresh/r
 while the frozen persona stays intact. Assert bounds/redaction and unknown legacy/adoption fields.
 A correct manifest does not close A12/A13 or establish output-quality causality.
 
+**A18 (planned)** (R22, FS-16.R60) — Composition fixtures cover awareness on/off, missing package,
+fresh launch, resume, wake, clone and runtime switch. Aware shared context contains the concise
+completion rule once; unaware context contains neither shared block nor fallback reporting prose.
+Assignments still arrive inline in both cases. Role files, snapshots, permissions and existing
+history are preserved; native-provider observation remains distinct from requested composition.
+
+**A19 (planned)** (R23) — Embedded and installed package checks verify all five direct reference
+links and identical managed provider views. A bounded reading scenario gives a worker an assignment
+and peer question using only the entry/worker basics; a follow-up asking that same worker to
+delegate routes it to coordinating work without changing role. Pipeline/room/operator scenarios
+retain their own references. Content checks flag generic task boilerplate and duplicated cross-job
+procedure; a pinned-provider sample records actual reading and results rather than claiming that
+file layout alone ensures behavior. No fixed word-count oracle is required.
+
 ## 6. Deviations & open decisions
+
+- **Concise guidance and inline tasks (planned):** R22–R23/A18–A19 supersede conflicting
+  completion-text, core-content and reference-inventory clauses in R3–R5/R15/R19 and A2/A4/A15,
+  plus R12's fetch-on-activation clause, when implemented. R20's awareness boundary remains:
+  assignment data is not standing awareness
+  guidance. FS-16.R60 removes generic task-prompt reminders for both awareness choices.
 
 - **Optional awareness (implemented 2026-10-10):** R20/A16 and FS-04.R56–R57 are implemented by
   [`agents-without-a-persona-by-default.md`](../../ready-changes/agents-without-a-persona-by-default.md).

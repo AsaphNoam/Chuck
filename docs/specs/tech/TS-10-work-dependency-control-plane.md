@@ -1,6 +1,6 @@
 # TS-10 — Work dependency control plane
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks`
 **Absorbed:** —
 
@@ -699,6 +699,53 @@ supply a verified reset time, so due-time dispatch has no provider-driven schedu
   per-pass batch and R57's per-pass enumeration cap only pace processing, and a schedule left
   behind by a cap catches up on later passes.
 
+- **R63 (planned) — Inline and explicit assignment reads share one projection.** For FS-16.R60–R61,
+  factor the current `handleGetAssignedTask` projection into a shared service over `internal/state`;
+  do not duplicate instruction, attachment, wait-change or pipeline builders in the runtime.
+  The tool resolves its caller as today. Turn preparation resolves the claimed task/attempt,
+  actual live generation and turn server-side, then builds the same assignment facts for that
+  execution. Preserve the existing lookup/result schemas and tool authorization. One renderer
+  preserves the fresh-launch leading-command route but starts existing-agent assignments and all
+  continuations with a short code-owned attribution/continuation heading before their verbatim
+  instruction, so provider-native dispatch does not newly consume that instruction. A separate,
+  escaped Chuck assignment-context block supplies remaining fields without generic procedure or
+  another copy of the instruction. Attribution distinguishes assignment authors from human input;
+  text and supplied handles never grant authority. Keep attachment bodies and detailed child
+  transcripts/results behind their existing bounded reads. `get_assigned_task` remains a refresh
+  path, not a mandatory step before acting on a delivered assignment.
+
+- **R64 (planned) — Confirm the admitted execution before provider tools can run.** Extend the
+  existing claimed-turn preparation/pre-submission seam, not a parallel dispatcher or handshake.
+  After lifecycle, Edit, quota and turn admission and successful assignment preparation, bind the
+  exact task, existing start-attempt id, actual runtime generation and claimed turn id through
+  the state-owned confirmation transaction. Set `execution_handle` from that attempt and record
+  `execution_turn`; establish applicable pipeline-owner binding before exposing the prompt to the
+  provider. A failed or stale binding submits nothing and follows existing failure/deferral
+  cleanup. Remove the post-provider-goroutine confirmation race; do not confirm merely because
+  a task was queued or a runtime process launched. Confirmation means an assignment staged in an
+  admitted live turn, not provider acknowledgement or completed work. A later transport failure,
+  Stop or Cancel uses the existing interrupted/cancelled/cleanup rules. No new task state, handle
+  species or schema is introduced. Restart and retry retain the same assignee and existing claim-
+  specific uncertainty policy; a newly admitted execution uses its new attempt's handle.
+
+- **R65 (planned) — Preparation is current, bounded and generation-fenced.** Reuse TS-01.R45's
+  turn gate and preparation path across launch, existing/wake, retry, yielded wait and task-owned
+  quota continuation. Rebuild the current assignment/observed changes/pipeline facts for each
+  admitted execution; a continuing turn of the same execution retains its valid handle. Never
+  copy a queued or previous-execution envelope. Preserve pending human input's separate receipt,
+  event, attachments and late claim in `appendQueuedAssignmentInput`; preserve inline mail's own
+  attribution and delivery settlement. The payload-free activation row remains only a signal.
+  Bound assignment construction by existing admitted field/count maxima, including JSON/UTF-8
+  worst-case expansion: ordinary instruction 16,000 runes, 32 attachment descriptors, 64 watched
+  changes and the existing bounded pipeline assignment/step projection. Encode an explicit finite
+  derived byte ceiling and guard its derivation with maximum legal Unicode/escaping fixtures;
+  do not reuse mail's smaller byte allowance, silently clip required fields or reduce existing
+  legal authoring limits. The prepared envelope lives only for its turn and its existing transcript
+  representation; no additional retained snapshot/store or delivery log is added. Read/validation
+  failure sends nothing and logs bounded task/attempt/generation/operation/reason identifiers,
+  never payloads. Extend dispatch, turn, wait, pipeline and quota tests for immediate callbacks,
+  stale executions, failure injection and maximum legal payloads (FS-16.A42–A44).
+
 ## 3. Interfaces & data shapes
 
 **Timed-start additions (R54–R60, implemented 2026-10-23):**
@@ -840,6 +887,11 @@ graph or task state carries a typed `error.details.code` — `dependency_cycle`,
   ahead of the effect it authorizes and recovery can always finish an interrupted release (R19).
 
 ## 5. Deviations & open decisions
+
+- **Inline task delivery (planned):** R63–R65 specialize R4/R5/R53's model-read/confirmation
+  timing only. Durable activation rows, admission, lifecycle claims, wait records, result acceptance
+  and recovery policies remain authoritative. TS-01.R52 explicitly permits assignment data in
+  the prepared prompt without putting it in the activation record. No transport receipt is assumed.
 
 - **Task-backed pipeline replacement.** R25–R37 extend this plane under FS-14.R61–R77 and
   FS-16.R30–R38. They replace R7's separate pipeline acceptance transaction, R8's prohibition on

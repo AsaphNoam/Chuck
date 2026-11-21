@@ -855,6 +855,16 @@ Time-bounded preparation uses the existing startup deadline,
 and late callbacks recheck both operation and launch generation (INV §1/§2/§4/§5/§15/§19/§23).
 Verify FS-01.A43 through failure injection on both sides of the decision and send boundary.
 
+**R52 (planned) — Task activation records stay small; task prompts carry current work.** For
+FS-16.R60–R61 and TS-10.R63–R65, extend R21/R45's existing claimed-turn preparation with a
+task-specific assignment read and pre-submission confirmation. This supersedes only the
+payload-free model-prompt/fixed-fetch-instruction clauses for dependency/task continuations;
+R18–R20's durable domain ownership and payload-free activation rows remain. The runtime receives
+an intentional assignment with separately attributed metadata, not a new control-plane payload
+store. No second scheduler, provider delivery-acknowledgement protocol, generic prompt-template
+registry or new authority is introduced. Verify through FS-16.A42–A44, including an immediate
+provider tool callback after confirmation and Stop before transport submission.
+
 ## 3. Interfaces & data shapes
 
 **Runtime interface** (`internal/runtime/runtime.go`, minimum surface):

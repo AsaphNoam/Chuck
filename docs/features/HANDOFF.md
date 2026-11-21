@@ -33,18 +33,17 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 None.
 
-Design in progress: “Concise task instructions and guidance loaded by job” in `docs/ideas.md`.
-Concrete feature-delta confirmation is pending before technical design: remove repeated
-task-prompt prose and separate worker essentials from advanced operating references. The operator
-confirmed no fallback reporting guidance for agents with Chuck awareness off. No product
-implementation or ready change.
-
 ## Decisions needing input
 
 None.
 
 ## Resolved decisions
 
+- Inline task delivery and guidance cleanup is ready in
+  [inline-task-assignments-and-concise-guidance.md](../ready-changes/inline-task-assignments-and-concise-guidance.md)
+  (FS-16.R60–R61, FS-18.R22–R23). Fresh-context design review closed on 2026-11-21 after
+  preserving native-command handling on fresh launches and attributed content on continuations.
+  No open material findings; implementation is waiting to start.
 - Project Files starts with all shared folders and offers a folder selector. HTML opens in a
   sandboxed viewer in a new browser tab. The shared folder is desktop-only and symbolic links
   cannot be followed. Shipped 2026-11-20 (FS-11.R11–R16).
@@ -137,10 +136,9 @@ requires it in the first prompt. `TestALaunchSpecTaskStartsItselfAndBecomesRunni
 it was inspected, not rerun. The annotation itself is the live reproduction. History traces the
 contract to `4ddedff1` and the expanded coordination guidance to `a674e6bc`.
 
-No fix finding or model recommendation: the behavior matches FS-16.R49 and INV §21. Product
-question for the operator: should skill-only launches omit or shorten this mandatory paragraph?
-That would require a deliberate requirement change, rather than an investigation fix. No product
-code, specifications or tests changed; the pre-existing generated UI diff remains untouched.
+No investigation fix finding: the shipped behavior matches FS-16.R49 and INV §21. The operator
+approved the replacement design in `docs/ready-changes/inline-task-assignments-and-concise-guidance.md`.
+That planned requirement change owns the cleanup; this investigation made no product-code change.
 
 ### TAB-BLANK — Chrome shows only the theme background on tab return (2026-11-17)
 

@@ -1,6 +1,6 @@
 # FS-16 — Dependent work and armed starts
 
-**Status:** Current
+**Status:** Partial
 **Code:** `internal/state`, `internal/server`, `internal/messaging`, `ui/src/features/tasks` · **Journeys:** —
 **Absorbed:** —
 
@@ -453,6 +453,35 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   dependency validation error opens it for correction. Existing payloads, time semantics, project
   resets, feedback and Re-arm behavior are preserved. This refines R39/R45's creation composition.
 
+- **R60 (planned) — Task turns include their current assignment.** For fresh task agents,
+  existing or woken assignees, retries, and resumed waits, Chuck supplies the authored instruction
+  directly in the turn, followed by separately labelled Chuck assignment context: task identity,
+  current execution handle, attached-reference descriptors, observed child changes when applicable,
+  and current pipeline context/decision contract when applicable. Fresh task launches retain the
+  authored instruction verbatim at the provider-leading position. Existing-agent assignments and
+  all continuations instead begin with a short attributed assignment/continuation heading, with
+  the verbatim instruction supplied as assignment content: do not turn previously pulled task text
+  into a provider-native command or invoke a skill anew just because a task resumes. Assignment
+  context does not repeat the instruction or embed attached file/transcript contents.
+  The agent need not call `get_assigned_task` to discover its work or obtain its current handle.
+  That tool remains available to refresh the assignment; an inline snapshot does not make later
+  state changes disappear. Existing command/provider limitations remain unchanged.
+  This supersedes R26's payload-free model prompt and mandatory assignment lookup, and R49's
+  appended reporting/communication paragraph, not the durable activation record or explicit-result
+  contract. No generic reporting reminder, acknowledgement policy or mail procedure is appended
+  to the assignment. FS-18.R22 owns standing completion guidance, including the awareness opt-out.
+
+- **R61 (planned) — Inline delivery preserves ownership and provenance.** Chuck builds the
+  assignment for the admitted execution, not when its wake is queued. Tools can act only after
+  that execution's task, runtime generation and turn are bound and its current handle is valid.
+  Restart, Stop, Cancel, refused admission, quota holds and late callbacks retain the existing
+  recovery/ownership rules; an inline snapshot is no authority to replay or complete work.
+  An agent-authored assignment remains attributed as assigned work, not human approval. Queued
+  human input retains its separate attribution, attachments and delivery receipt. Lookup/build
+  failure prevents an incomplete assignment from being sent and uses the existing start-failure
+  or interruption path with an actionable reason. No task schema, outcome vocabulary, context grant,
+  retained-history policy or permission changes are introduced.
+
 ## 3. States & transitions
 
 - **Task:** `armed` (at least one arm unsatisfied) → `ready` (every arm satisfied; eligible, and
@@ -839,7 +868,34 @@ Each names the verification that demonstrates it.
   runtime overrides and change backend/model to confirm stale effort/fast values are cleared.
   Render at 1024px and 1440px in every built-in appearance without clipping or escaped controls.
 
+- **A42 (planned)** (R60–R61) — With the existing fake provider, launch a new task, assign an
+  existing idle agent, wake a stopped assignee, retry an interrupted task and resume a child wait.
+  Each turn carries the exact authored instruction once plus current assignment context; an
+  immediate first tool action can report or wait with the supplied handle without a lookup.
+  Verify attached references, changed/deleted child evidence and pipeline decision context against
+  an independent task fixture and explicit lookup. Delayed dispatch must read the latest state.
+  Extend `internal/server/task_dispatch_test.go`, task-wait and pipeline integration fixtures.
+
+- **A43 (planned)** (R61) — Interleave admission/confirmation with Stop, Cancel, provider failure,
+  generation replacement, quota hold and restart. No refused turn submits an assignment; a confirmed
+  execution is bound before any provider tool callback. No obsolete handle can report or yield,
+  terminal/cancelled work is not replayed, and queued human input retains its recovery receipt.
+  Extend existing runtime turn-boundary, server dispatch, quota and state task tests.
+
+- **A44 (planned)** (R60, FS-18.R22–R23) — Pinned Claude and Codex task smokes use their project-skill
+  invocation syntax on fresh launches without generic reporting prose. Existing-agent and resumed
+  task turns deliver the instruction as attributed assignment content without native-command replay.
+  An aware worker reports a real result from the inline assignment without an initial lookup;
+  an unaware worker receives the same assignment data without fallback completion advice. Record
+  actual provider/model observations separately from deterministic delivery tests; no universal
+  model-adherence claim or guarantee that an unaware agent completes its task is made.
+
 ## 6. Deviations & open decisions
+
+- **Inline assignment design (planned):** R60–R61/A42–A44 replace only R26/R49/A15/A33's
+  prompt/pull requirements on implementation. Explicit lookup, result acceptance, durable
+  activation claims, task ownership and recovery remain authoritative. FS-18.R22–R23 owns the
+  accompanying standing-context and progressively loaded guidance cleanup.
 
 - **Quota continuation (implemented 2026-10-11):** FS-01.R40–R45 specializes interruption/recovery
   only for a provider-confirmed quota interruption. The same task/assignee remains unfinished; its

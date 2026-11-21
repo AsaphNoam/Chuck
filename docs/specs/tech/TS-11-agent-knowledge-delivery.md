@@ -359,6 +359,31 @@ same digest Steer's proof compares, and is empty for a PATH adapter. Delivery is
 `requested`, adoption `unknown`; every text field clips to 128 bytes and sets `truncated`, and a
 serialized record over 16 KiB drops its layers with `truncated`.
 
+**R25 (planned) — One awareness-gated source owns generic completion guidance.** For FS-18.R22,
+edit `operatingContextPrompt` through `applyKnowledgeOverlay`; replace its outcome-reporting
+sentence with R22's concise completion rule, leaving the rest of the established context intact.
+Remove `taskReportContract` and the `LaunchedTaskPrompt` reporting suffix from task delivery and
+dependency activations; FS-16.R60/TS-10.R63 supplies the task instead of the fetch trigger. Do not
+move these paragraphs into personas, pipeline wrappers, tool responses or an awareness-off
+fallback. Existing pipeline decision/output and room contribution instructions retain their own
+contracts; this change does not rewrite them. Update tool descriptions and operating guidance that
+promise the retired reporting suffix. Preserve frozen awareness, additive native instruction
+delivery, package-failure behavior, manifests and runtime-only prompt composition. Existing
+processes are not hot-rewritten; updated guidance applies through ordinary later process starts.
+
+**R26 (planned) — Reorganize the existing package rather than multiplying skills.** For FS-18.R23,
+extend R1/R8/R19/R23's verified inventory with `references/worker-basics.md` and narrow
+`references/coordinate-work.md` to its coordination job. The five references are linked directly
+from the same `SKILL.md`; they do not require reading one another wholesale. Put assignment and
+ordinary peer-message judgment in worker basics; keep task creation/scheduling, child observation,
+repair and context/history inspection in coordinating work. Lifecycle, pipelines and rooms keep
+their existing references. The entry retains capability discovery, including authorized delegation
+by a child, and routing; it does not repeat shared communication advice, tool schemas or the run
+owner's pipeline procedure. Reuse embedded publication, package digest, provider views, direct-path
+fallback and release refresh with no user-role migration or new discovery mechanism. Update existing
+package/link/content and overlay tests for FS-18.A18–A19; verify byte-identical views and preserve
+truthful package-unavailable behavior. Exact tool mechanics remain in their registrations.
+
 ## 3. Interfaces & data shapes
 
 The new agent-facing delivery contracts are:
@@ -400,6 +425,11 @@ SQLite state, REST/SSE data, or MCP arguments.
   migrating nothing.
 
 ## 5. Deviations & open decisions
+
+- **Guidance cleanup (planned):** R25–R26 supersede the conflicting task-pull description in R12,
+  inventory/content clauses in R1/R8/R19/R23 and generic assignment guidance in R15/R22 when
+  implemented. Awareness-off still receives assignment data and existing task-specific contracts,
+  but no shared context or replacement generic reporting paragraph. No persona file is rewritten.
 
 - The original knowledge-delivery change adds no external API or schema; `CHUCK_SKILL_DIR`, the
   managed path and bounded prompt pointer are its agent-facing interfaces. R22's optional
