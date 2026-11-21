@@ -75,26 +75,41 @@ func TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity(t *testing.T) {
 		t.Fatalf("capacity occupant was changed: %+v err=%v", occupantTask, err)
 	}
 
-	if wait := time.Until(*deferred.DueAt); wait > 0 {
-		time.Sleep(wait)
-	}
-	deferred, err = s.stateStore.GetQuota(quotaAgent)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if _, err := s.stateStore.DB().Exec(`UPDATE tasks SET runtime_claim=? WHERE task_id=?`, state.ClaimBorrowed, occupantTask.TaskID); err != nil {
 		t.Fatal(err)
 	}
-	s.startQuotaContinuation(context.Background(), deferred)
-	// The continuation reaches the provider synchronously once capacity is
-	// free (its turn may already have completed it); a deferral or hold here
-	// would never retry, because this fixture runs no dispatcher.
-	if q, err := s.stateStore.GetQuota(quotaAgent); err != nil || !(q.State == state.QuotaContinued || q.State == state.QuotaClaimed && q.ProviderStarted) {
-		t.Fatalf("continuation did not start: %+v err=%v (from %+v)", q, err, deferred)
+	// Capacity is free. A busy deferral is a permitted, non-spending outcome
+	// that the due sweep retries (FS-01.A27), so drive the sweep's ticks rather
+	// than assume one attempt starts; a hold is terminal and fails at once.
+	deadline := time.Now().Add(15 * time.Second)
+	for promptCount(t, promptLog) == 0 {
+		q, err := s.stateStore.GetQuota(quotaAgent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch q.State {
+		case state.QuotaNeedsAttention:
+			t.Fatalf("continuation held instead of starting: %+v", q)
+		case state.QuotaDeferred:
+			if q.ReasonCode != "busy" || q.DueAt == nil {
+				t.Fatalf("continuation deferred for a non-capacity reason: %+v", q)
+			}
+			if q.Revision != deferred.Revision {
+				t.Logf("continuation deferred again after capacity freed: %+v", q)
+			}
+			if wait := time.Until(*q.DueAt); wait > 0 {
+				time.Sleep(wait)
+			}
+			s.dispatchQuotaContinuations(context.Background())
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("continuation never reached the provider: %+v", q)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	waitPrompts(t, promptLog, 1)
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline = time.Now().Add(5 * time.Second)
 	for {
 		quotaTask, err = s.stateStore.ReadTask(quotaTask.TaskID)
 		if err == nil && quotaTask.RuntimeClaim == state.ClaimWoke && quotaTask.AssignedGeneration != quotaGeneration {
