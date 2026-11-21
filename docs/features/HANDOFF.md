@@ -20,7 +20,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   are recorded there. The operator resolved EXEC-6c by retaining the existing shrink-only
   test-fixture exceptions in TS-01.R50. The next-release source assessment at `96c0b4a5`
   is recorded in [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json).
-  Two new Must-fix findings are open below. The release review is incomplete: committed release
+  Its ARCH-v025 findings are fixed and recorded there; QUOTA-DISMISS stays open below. The
+  release review is incomplete: committed release
   preparation and coverage of any subsequently included dirty work are still required.
 - **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
   was still running when release CI completed. The prior waiting-input UI fixture failure had a
@@ -204,41 +205,16 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### ARCH-v025 — active conversation context and revision consumers (2026-11-21 at `96c0b4a5`) — **Fix model:** medium — Codex Terra or Claude Opus.
+### DEFERRED-STOP-FLAKE — Stop right after task dispatch hit a held lifecycle claim (2026-11-22) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Source assessment of `v0.24.0..96c0b4a5`, with three independent slice reviewers. See the
-[candidate receipt](../archive/reviews/architecture/v0.24.0-next.json) and
-[evidence and reproductions](../archive/reviews/architecture/v0.24.0-next-evidence.md).
-Release preparation is absent; uncommitted work is excluded. Repairs append exact commits and
-verification to this receipt; those repairs alone do not require another architecture review.
-The existing QUOTA-DISMISS unit retains its findings and owner.
-
-- **Must fix** (medium) — ARCH-EDIT-CONTEXT-1 (FS-01.R61, TS-04.R113, TS-02.R70;
-  INV §1/§2/§20). Edit the first message after switching backends. The fresh candidate reuses
-  the latest snapshot's `HistoryPrimer` (`internal/server/edit.go:504`), which switching built
-  from the original message and reply (`internal/server/switch.go:250`). The active transcript
-  shows only the replacement, but the new provider's startup system prompt still includes both
-  superseded texts. The real HTTP/store/fake-ACP probe reproduces this twice. Recover and prove
-  the original pre-message startup context, or refuse before acceptance when it cannot be proved;
-  preserve legitimate original clone/bridge context rather than clearing every primer. Cover
-  first-message Edit after a backend switch at the actual startup-wire boundary.
-- **Must fix** (medium) — ARCH-REVISION-1 (TS-03.R91, TS-02.R70, FS-01.R61;
-  INV §1/§11). On the phone, load older messages, disconnect, edit the latest user turn on
-  desktop, then reconnect. Hydration updates `transcriptRev` but only a live revision event
-  updates `revisionEpoch` (`ui/src/remote/connection.ts:319`, `:372`). The phone ignores
-  `history_revision` and joins cached `earlier.events` with the new tail
-  (`ui/src/remote/AgentScreen.tsx:401`, `:429`), retaining the superseded question/reply when
-  they crossed a page boundary. The component/serialized-stream probe fails on reconnect and
-  passes when the revision event is received. Reconcile retained pages and outstanding reads
-  against authoritative revisions, including missed events during backgrounding/hydration.
-- **Worth fixing** (medium) — ARCH-REVISION-2 (INV §18, workflow §7). Edit's revision and
-  consumer paths were already repaired in `e31222f9`..`de651191`. Inventory every history-derived
-  startup context and active reader/cache, its writer, revision authority, invalidation/rebuild
-  entry points and original-context provenance. Include backend-switch/clone primers, desktop,
-  phone pagination/reconnect, CLI follow and delayed reads. State their legal moves when the
-  revision changes; verify the two gaps above through those owners. Coordinate with the existing
-  “One commit point for an Edit's history, session and replacement” idea; its deferred lifecycle
-  findings retain their ownership and are not duplicated here.
+- **Must fix** (medium) — DEFERRED-STOP-FLAKE-1 (INV §4/§11; workflow §2). The full
+  `make test` run of the ARCH-v025 repair tree (clean worktree of `520e4329` plus the repair)
+  failed once: `TestDeferredAssignmentResumesOriginalAgent/continuation_failure`,
+  `task_assignee_retry_test.go:31`, `StopStage` returned "a lifecycle transition is already in
+  progress" after `waitTaskState` saw the task running. Ten focused reruns passed, which does not
+  close it. Likely the dispatch's start claim outlives the visible running state, so an operator
+  Stop at that moment is refused. Establish whether that claim window is a product ordering
+  (Stop should wait or succeed) or a fixture race, and make the test control that schedule.
 
 ### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off — **Fix model:** medium — Codex Terra or Claude Opus.
 

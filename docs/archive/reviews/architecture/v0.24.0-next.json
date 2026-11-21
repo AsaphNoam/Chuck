@@ -20,5 +20,14 @@
     { "id": "QUOTA-DISMISS-1", "severity": "must_fix" },
     { "id": "QUOTA-DISMISS-2", "severity": "worth_fixing" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": ["43b03731f8fff7af8dd817cd978f0868fa80b485"],
+      "finding_ids": ["ARCH-EDIT-CONTEXT-1", "ARCH-REVISION-1", "ARCH-REVISION-2"],
+      "closes": ["ARCH-EDIT-CONTEXT-1", "ARCH-REVISION-1", "ARCH-REVISION-2"],
+      "verified": true,
+      "evidence": "2026-11-22. ARCH-EDIT-CONTEXT-1: firstMessagePrimer derives the pre-message bridge (empty outside a fork, a fork's only while no later switch, else edit_unavailable); TestEditFirstMessageAfterBackendSwitchOmitsSupersededBridge reads the real fake-ACP session/new on Codex and Claude and fails on both without the fix; TS-04.R113 updated. ARCH-REVISION-1: hydration advances revisionEpoch on a changed history_revision and AgentScreen drops older pages/in-flight reads of another revision; the reconnect and in-flight-read tests in streamRefresh.test.tsx fail without the fix. ARCH-REVISION-2: inventory routed to docs/ideas.md ('One revision rule for history-derived contexts and readers'). An Opus independent check found two provenance gaps in the first draft (lost switch marker, switch kept through an earlier edit); both repaired before commit. Clean worktree of 520e4329 plus the fix: go test ./... and -tags sqlite_fts5 ./... pass, check-specs ok, UI npm test (1,373), tsc -b and vite build pass; focused -race passes. One earlier make test run failed TestDeferredAssignmentResumesOriginalAgent intermittently, recorded as DEFERRED-STOP-FLAKE-1. No packaged provider or physical device claim."
+    }
+  ]
 }
