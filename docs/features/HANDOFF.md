@@ -253,17 +253,6 @@ Focused package, messaging, runtime, server and state tests passed with loopback
 probes reproduced INLINE-TASK-1 on quota, INLINE-TASK-2 under a write failure, and INLINE-TASK-3 on
 fresh launch. Stall and guidance findings are source-verified. Packaged provider behavior is unverified.
 
-### QUOTA-RELOAD-FLAKE — stopped quota continuation's reloaded transcript differs once (2026-11-21) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** (undetermined) — QUOTA-RELOAD-FLAKE-1: during the inline-assignment closure
-  `make test` on macOS, `TestQuotaDispatcherContinuesSameConversationOnce/stopped` failed at
-  `quota_dispatch_test.go:118` with `reloaded transcript differs:` (the unsuffixed live read),
-  after its session-index wait had matched. Ten focused reruns passed. Another session was
-  running server tests concurrently. ACCEPTANCE-GATES already mentions a "known quota-dispatch
-  FTS5 transcript flake" with no cause. The changed task-turn path is not on this route
-  (quota continuations keep their fixed instruction). Close only with a cause: which events
-  differ, and whether the read races transcript indexing (INV §5/§17).
-
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution

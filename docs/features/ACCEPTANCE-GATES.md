@@ -106,8 +106,7 @@ gate; remove an entry when its receipt exists. A gate that was run and failed is
   receipt for late tool input, and rendered verification of the withdraw failed-recovery-read
   tail notice remain owed.
 - **ASF-1 live setting receipt:** credentialed mid-turn effort/fast application remains unverified.
-- **Test limits:** the concurrent closure hit the known quota-dispatch FTS5 transcript flake;
-  full suites and five focused repeats passed. The two runtime cancellation tests that failed
+- **Test limits:** the two runtime cancellation tests that failed
   under `-race` were repaired by ARCH-v019-2 (`-race -count=20` passes).
 - **Timed starts on a real Mac:** native sleep through a start time and a time-zone change
   across restart are proven only by store/fake-clock tests; no native macOS receipt exists.

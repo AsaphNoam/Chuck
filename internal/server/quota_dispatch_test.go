@@ -58,6 +58,10 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 				t.Fatalf("duplicate provider prompts: %d", got)
 			}
 			waitStatus(t, s, id, "idle")
+			// Idle is committed before turn_end. Capture history only after the
+			// runtime releases the turn, or the index can match an unfinished
+			// prefix while the subsequent HTTP read includes the final event.
+			waitTurnReleased(t, s, id)
 			events := readEvents(t, s, id)
 			notices := 0
 			for _, ev := range events {
@@ -115,7 +119,7 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 					got.Events[i].Fork, got.Events[i].Outcome = nil, ""
 				}
 				if !reflect.DeepEqual(got.Events, events) {
-					t.Fatalf("reloaded transcript differs: %s", suffix)
+					t.Fatalf("reloaded transcript differs: %s\nwant: %+v\ngot: %+v", suffix, events, got.Events)
 				}
 			}
 			resp, body := post(t, ts.URL+"/api/sessions/"+id+"/archive", map[string]any{})
