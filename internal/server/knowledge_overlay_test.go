@@ -197,6 +197,12 @@ func TestOperatingContextPromptStaysStable(t *testing.T) {
 	if strings.ContainsAny(operatingContextPrompt, "0123456789") {
 		t.Error("standing context contains a numeric budget")
 	}
+	// FS-18.R22: the completion rule is the requirement's sentence, once, with
+	// no chat-reply warning or mandatory lookup beside it.
+	const rule = "For assigned Chuck tasks, finish through `report_task_result` with success, failure or blocked and a short summary."
+	if strings.Count(operatingContextPrompt, rule) != 1 || strings.Contains(operatingContextPrompt, "chat message") {
+		t.Errorf("standing context completion rule = %q", operatingContextPrompt)
+	}
 }
 
 func TestKnowledgeOverlayComposesWithSwitchPrimer(t *testing.T) {

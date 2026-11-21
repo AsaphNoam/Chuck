@@ -31,7 +31,20 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**In progress:** [`inline-task-assignments-and-concise-guidance.md`](../ready-changes/inline-task-assignments-and-concise-guidance.md)
+(FS-16.R60–R61, FS-18.R22–R23, TS-01.R52, TS-10.R63–R65, TS-11.R25–R26).
+
+- Slice 1 done: skill package split (`worker-basics.md`, narrowed `coordinate-work.md`, shorter
+  entry) and the shared-context completion sentence in `launch.go`. Checked by
+  `go test ./internal/agentknowledge/` and the server overlay tests.
+- Slice 2 next: share `handleGetAssignedTask`'s projection (`internal/messaging/task_tools.go`);
+  a server task-turn preparer, called from runtime turn preparation, builds the inline assignment
+  and confirms task/attempt/generation/turn in one `ConfirmTaskStart` update before
+  `beginTurn` starts the provider goroutine; remove `taskReportContract`, the fixed dependency
+  prompt and the dispatcher's post-start `recordTaskExecutionTurn`/`confirmTaskStart`.
+- Slice 3: TS-10.R65's derived byte ceiling with maximum-escaping fixtures.
+- Owed at closure: `make test`, `make build`, focused `-race` on runtime/server dispatch; the
+  pinned-provider smokes (FS-16.A44, FS-18.A19 sample) go to ACCEPTANCE-GATES.
 
 ## Decisions needing input
 

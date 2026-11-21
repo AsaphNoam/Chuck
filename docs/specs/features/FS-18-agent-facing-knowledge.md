@@ -252,7 +252,7 @@ omit it and provide no fallback reporting/communication paragraph in task prompt
 assignment data, tools, installed skill availability and actual result acceptance remain unchanged.
 Personas do not copy shared rules. No live session or retained history is rewritten.
 
-**R23 (planned) — Read guidance by activity, not by agent hierarchy.** Keep one
+**R23 — Read guidance by activity, not by agent hierarchy.** Keep one
 `operating-chuck` skill. Its short entry gives only the basic capability choices, authority
 boundary and reading map; remove repeated communication/delegation prose and pipeline procedure
 already owned elsewhere. Replace R5/R19's reference inventory with five directly linked jobs:

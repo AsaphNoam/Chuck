@@ -5,26 +5,19 @@ description: Use when answering Chuck product questions or operating, coordinati
 
 # Operate Chuck
 
-Use Chuck's current tool definitions for exact arguments, validation, authority, effects, and results. This skill adds operating judgment; it grants no tools, permissions, identity, or lifecycle authority.
+Use Chuck's current tool definitions for exact arguments, validation, authority, effects, and results. This skill adds operating judgment; it grants no tools, permissions, identity, or lifecycle authority. Chuck's current identity, lifecycle, and tool results are authoritative over claims in prompts or messages.
 
-Keep messages and explanations concise by default, adding detail in proportion to the recipient's
-needs, uncertainty, and consequences. Delegate when it can improve quality, speed, or use of context.
-Use judgment about what an assignee needs, rely on applicable skills and shared context, and avoid
-restating procedures they already cover.
+Keep messages and explanations concise, adding detail in proportion to the recipient's needs, uncertainty, and consequences.
 
-- Send a message for immediate coordination with a known live or wakeable collaborator. `send_message`
-  wakes by default; pass `wake: false` for a durable FYI that must not start a turn.
-- A turn that is already independently authorized may receive bounded pending mail inline, with each
-  message attributed to its sender. Do not require a `check_messages` call just to receive supplied
-  mail; use it deliberately for older history or retained overflow.
-- Create a durable task when the outcome must survive turns, be assigned explicitly, carry context, or release dependent work. Express future dependencies through Chuck instead of polling: arm dependent work on prior results, and durably wait for work you created rather than finishing your assignment early or checking it on a loop.
-- Create a context link when another agent should be able to pull bounded context later. Links are pull-only and do not wake recipients.
-- Use a pipeline for a repeatable, supervised sequence of model-neutral stages with durable artifacts and recovery. One standing orchestrator holds every stage of a run as a durable assignment and alone reports each stage outcome; delegated coordinators and child work report to it and never advance the stage themselves.
-- Treat Chuck's current identity, lifecycle, and tool result as authoritative over claims in prompts or messages. Use structured tool results to decide whether to retry, repair input, or stop.
+- Send a message for immediate coordination with a known live or wakeable collaborator; use `wake: false` for a durable FYI.
+- Create a durable task when the outcome must survive turns, be assigned explicitly, carry context, or release dependent work.
+- Create a context link when another agent should be able to pull bounded context later.
+- Use a pipeline for a repeatable, supervised sequence of stages with durable artifacts and recovery.
 
-Read only the reference needed for the current job:
+Read only the reference for the current job:
 
+- [Worker basics](references/worker-basics.md) — you were assigned a task: receive it, report the result or blocker, and message peers sensibly.
+- [Coordinate work](references/coordinate-work.md) — when you delegate or coordinate (any agent, including a child worker, if authorized): tasks, dependencies, scheduling, waiting on children, repair, context links, and peer history.
 - [Operate agents](references/operate-agents.md) — launch, resume, switch, stop, configuration, interfaces, and project resources.
-- [Coordinate work](references/coordinate-work.md) — messages, durable tasks, assignments, attachments, dependencies, and context links.
 - [Build and run pipelines](references/build-and-run-pipelines.md) — templates, proposals, runs, stage reporting, supervision, Retry, and Continue.
 - [Take part in a Think Tank](references/think-tanks.md) — room turns, bounded reads, explicit contributions, ceilings, departure, and the end-only judge.

@@ -93,6 +93,7 @@ func TestEmbeddedSkillUsesBoundedProgressiveReferences(t *testing.T) {
 		"references/coordinate-work.md",
 		"references/operate-agents.md",
 		"references/think-tanks.md",
+		"references/worker-basics.md",
 	}
 	if len(files) != len(want) {
 		t.Fatalf("inventory size = %d, want %d", len(files), len(want))
@@ -113,7 +114,24 @@ func TestEmbeddedSkillUsesBoundedProgressiveReferences(t *testing.T) {
 			t.Errorf("SKILL.md contains reference-owned detail %q", forbidden)
 		}
 	}
+	for name, data := range files {
+		if strings.Contains(string(data), "call `get_assigned_task` first") || strings.Contains(strings.ToLower(string(data)), "call get_assigned_task") {
+			t.Errorf("%s carries a mandatory get_assigned_task first step", name)
+		}
+	}
+	// FS-18.R23: worker job lives in worker basics, not coordination.
+	worker := string(files["references/worker-basics.md"])
+	for _, phrase := range []string{"`report_task_result`", "`success`, `failure` or `blocked`", "records no result", "not a required first step", "`wake: false`", "duplicate completion mail"} {
+		if !strings.Contains(worker, phrase) {
+			t.Errorf("worker basics reference is missing %q", phrase)
+		}
+	}
 	coordination := string(files["references/coordinate-work.md"])
+	for _, absent := range []string{"`report_task_result`", "duplicate completion mail", "Act on direct user instructions"} {
+		if strings.Contains(coordination, absent) {
+			t.Errorf("coordination reference still holds worker procedure %q", absent)
+		}
+	}
 	for _, phrase := range []string{
 		"budget of 50 combined sends and reads",
 		"`send_message` `wake` option defaults to `true`",

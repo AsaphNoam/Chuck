@@ -371,7 +371,7 @@ promise the retired reporting suffix. Preserve frozen awareness, additive native
 delivery, package-failure behavior, manifests and runtime-only prompt composition. Existing
 processes are not hot-rewritten; updated guidance applies through ordinary later process starts.
 
-**R26 (planned) — Reorganize the existing package rather than multiplying skills.** For FS-18.R23,
+**R26 — Reorganize the existing package rather than multiplying skills.** For FS-18.R23,
 extend R1/R8/R19/R23's verified inventory with `references/worker-basics.md` and narrow
 `references/coordinate-work.md` to its coordination job. The five references are linked directly
 from the same `SKILL.md`; they do not require reading one another wholesale. Put assignment and
