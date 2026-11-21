@@ -82,9 +82,8 @@ None.
 
 ## Review queue
 
-- **Dismiss quota banner when automatic continuation is off** (FS-01.R40): available for review.
-  See the `Add Dismiss to disabled quota banners` commit. Dismissal is local to the mounted
-  view and scoped to one interruption.
+- **Dismiss quota banner when automatic continuation is off** (FS-01.R40): reviewed
+  `f595d484` at `07bc14f6`. Open for `/fix`; see QUOTA-DISMISS below.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
@@ -202,6 +201,26 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off
+
+**Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** (medium) — QUOTA-DISMISS-1 (FS-01.R40/R43, TS-03.R60; INV §10/§11/§17).
+  Let a chat reach quota with Auto continue enabled and a check or continuation scheduled.
+  Turning Auto continue off calls `CancelPendingQuotas`, which publishes that same episode as
+  `cancelled` in live updates and reconnect snapshots. `QuotaBanner.tsx` offers Dismiss only
+  for `disabled`, so the card and desktop/phone chats keep a banner the operator cannot hide
+  through the specified action. The live config HTTP test confirms the cancellation projection;
+  Chromium on the three actual UI routes reproduced the missing button using that wire shape.
+  Define how interruption-level dismissal eligibility reaches all three surfaces while preserving
+  cancellation, re-enable and reconnect behavior. Cover toggling off after the banner appears,
+  manual cancellation with Auto continue enabled, and a new episode after local dismissal.
+- **Worth fixing** (medium) — QUOTA-DISMISS-2 (INV §18, workflow §7). The same
+  `quota_intents.state` owner had recent repairs at `4c896077` and `95779e0c`. Inventory
+  its writers, the entry points for policy disable and continuation cancellation, and where the
+  legal transitions and reason codes are declared. Use the existing status-table writer guard
+  and identify which fields the projection needs for dismissal eligibility.
 
 ### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
