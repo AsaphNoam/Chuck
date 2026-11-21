@@ -412,10 +412,19 @@ the relevant feature and technical specifications; it does not change product co
   on children and peer-history reads. Proposed direction: one short skill entry, worker-relevant
   guidance separately readable from coordinator/operator/pipeline/room details, and no repeated
   manual in assignment prompts. Preserve actual reporting, messaging, authority and recovery
-  behavior. Pending feature confirmation: exact instruction-only delivery for Chuck-aware task
-  launches; what minimal reporting guidance unaware assignees still receive; acceptance for
-  task completion and useful escalation without redundant messages. No technical design or
-  ready change yet. Governing existing scope: FS-18.R3–R6/R15/R20, FS-16.R26/R49.
+  behavior. The operator confirmed that opting out of Chuck awareness is the user's choice:
+  do not inject a fallback reporting reminder for unaware assignees. Proposed concrete delta:
+  new-task first prompts contain only the authored instruction for both awareness choices;
+  existing-agent task activations retain their short assignment-discovery trigger but lose the
+  reporting/communication paragraph. Replace the shared context's vague outcome-reporting
+  sentence with the essential assigned-task lookup and explicit result-reporting rule, delivered
+  only to aware agents. Shorten the skill entry to basic choices and a reading map. Separate
+  assignment and messaging basics from coordinator-only delegation, scheduling, child waiting,
+  repair and peer-history guidance within the same skill package. No persona copies or new
+  awareness exceptions. Product-specific instructions for pipeline decisions and Think Tank
+  contributions remain outside this cleanup. Pending confirmation of this concrete feature
+  delta before technical design and planned FS/TS authoring; no ready change yet. Governing
+  existing scope: FS-18.R3–R6/R15/R20, FS-16.R26/R49.
 
 ## ACP Wait-list
 

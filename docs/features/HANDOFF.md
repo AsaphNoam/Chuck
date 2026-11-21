@@ -34,9 +34,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 None.
 
 Design in progress: “Concise task instructions and guidance loaded by job” in `docs/ideas.md`.
-Feature confirmation is pending before technical design: remove repeated task-prompt prose,
-separate worker essentials from advanced operating references, and retain an explicit reporting
-path for assignees with Chuck awareness off. No product implementation or ready change.
+Concrete feature-delta confirmation is pending before technical design: remove repeated
+task-prompt prose and separate worker essentials from advanced operating references. The operator
+confirmed no fallback reporting guidance for agents with Chuck awareness off. No product
+implementation or ready change.
 
 ## Decisions needing input
 
