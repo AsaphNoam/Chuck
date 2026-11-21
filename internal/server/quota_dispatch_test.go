@@ -207,6 +207,9 @@ func TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart(t *testing.T)
 		t.Fatal(err)
 	}
 	time.Sleep(time.Until(reset) + time.Millisecond)
+	// The interrupted turn must have released the runtime, or the continuation
+	// defers as busy until a dispatcher tick this fixture does not run.
+	waitTurnReleased(t, s, q.AgentID)
 	s.startQuotaContinuation(context.Background(), q)
 	waitPrompts(t, log, 2)
 	task, err = s.stateStore.ReadTask(task.TaskID)

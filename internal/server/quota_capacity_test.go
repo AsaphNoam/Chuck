@@ -86,6 +86,12 @@ func TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.startQuotaContinuation(context.Background(), deferred)
+	// The continuation reaches the provider synchronously once capacity is
+	// free (its turn may already have completed it); a deferral or hold here
+	// would never retry, because this fixture runs no dispatcher.
+	if q, err := s.stateStore.GetQuota(quotaAgent); err != nil || !(q.State == state.QuotaContinued || q.State == state.QuotaClaimed && q.ProviderStarted) {
+		t.Fatalf("continuation did not start: %+v err=%v (from %+v)", q, err, deferred)
+	}
 	waitPrompts(t, promptLog, 1)
 
 	deadline := time.Now().Add(5 * time.Second)

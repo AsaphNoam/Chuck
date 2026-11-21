@@ -527,6 +527,9 @@ func TestATaskForAStoppedAgentWakesIt(t *testing.T) {
 		state.TaskResult{Outcome: state.OutcomeSuccess, Summary: "done"}); err != nil {
 		t.Fatalf("RecordAgentTaskResult with runtime token: %v", err)
 	}
+	// The result is recorded after the woken turn, so this untargeted turn end
+	// is what releases the runtime, and it stops only a released one.
+	waitTurnReleased(t, srv, agentID)
 	srv.dispatchTurnEnd(agentID, realGeneration, "")
 	waitRunning(t, srv, agentID, false)
 }
@@ -552,6 +555,7 @@ func TestYieldedTaskReleasesThenResumesOnWatchedResult(t *testing.T) {
 		[]state.TaskWaitObservation{{TaskID: child.TaskID, AfterRevision: child.Revision}}); err != nil {
 		t.Fatalf("WaitForTasks: %v", err)
 	}
+	waitTurnReleased(t, srv, running.AssignedAgentID)
 	srv.dispatchTurnEnd(running.AssignedAgentID, running.AssignedGeneration, "")
 	waiting := waitTaskState(t, srv, owner.TaskID, state.TaskWaiting)
 	if waiting.RuntimeClaim != "" || waiting.AssignedAgentID != running.AssignedAgentID {

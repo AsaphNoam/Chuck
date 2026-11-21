@@ -59,6 +59,9 @@ func TestQuotaSnapshotSchedulesAndPostponesRecovery(t *testing.T) {
 	if _, err := srv.stateStore.DB().Exec(`UPDATE quota_intents SET due_at=? WHERE agent_id=?`, past, id); err != nil {
 		t.Fatal(err)
 	}
+	// A continuation that finds the interrupted turn still owning the runtime
+	// defers as busy until a dispatcher tick this fixture does not run.
+	waitTurnReleased(t, srv, id)
 	srv.dispatchQuotaContinuations(context.Background())
 	for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		if q, err = srv.stateStore.GetQuota(id); err == nil && q.ResetAt != nil && q.ResetAt.Equal(later) {

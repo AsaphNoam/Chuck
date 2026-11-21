@@ -200,21 +200,21 @@ specs, live user state or unrelated dirty files changed.
 - **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §15/§19). The repair is in
   `3590f5c5`, `40dbbca0` and `fd169e61`. It records the Steer before native delivery and
   settles that exact row. The targeted regressions and independent check passed. EDIT-IDLE-1
-  no longer blocks it (fixed 2026-11-21). Full Go closure is owed. IDLE-WINDOW-1's intermittent
-  quota test can still fail it.
+  no longer blocks it (fixed 2026-11-21). Full Go closure is owed. QUOTA-CAPACITY-1's
+  intermittent test can still fail it.
 
-### IDLE-WINDOW — automatic work may be lost between published idle and turn release (found 2026-11-21 while fixing EDIT-IDLE-1) — **Fix model:** medium — Codex Terra or Claude Opus.
+### QUOTA-CAPACITY — capacity-deferred quota continuation sometimes starts no prompt (found 2026-11-21) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** — IDLE-WINDOW-1 (undetermined; INV §5/§18/§19). `finishTurn`
-  (`internal/runtime/chat.go`) writes the idle row and emits turn_end before it releases the turn
-  claim. With a temporary 300 ms sleep after the turn_end emission, these four server tests timed
-  out: `TestQuotaTaskAssignmentSurvivesProviderInterruptionAndRestart` and
-  `TestQuotaSnapshotSchedulesAndPostponesRecovery` (“waiting for 2 provider prompts, saw 1”),
-  `TestATaskForAStoppedAgentWakesIt` and `TestYieldedTaskReleasesThenResumesOnWatchedResult`.
-  All Edit tests passed. Unprovoked, `TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity`
-  failed once in the plain-variant suite at the EDIT-IDLE fix (“waiting for 1 provider prompts,
-  saw 0”) and then passed 10 runs alone. Same symptom; same cause not established. Next step: find out whether the quota/task dispatch refuses work in that
-  window without retrying it (a product defect), or whether the fixtures only assume timing.
+- **Must fix** — QUOTA-CAPACITY-1 (undetermined; INV §17/§18). Unprovoked,
+  `TestQuotaStoppedBorrowedTaskDefersUntilRuntimeCapacity` failed once in the plain-variant full
+  server suite (`quota_capacity_test.go:89`, “waiting for 1 provider prompts, saw 0”). Both agents
+  are stopped, so the turn-release gap that the IDLE-WINDOW fix closed does not apply. The test
+  failed to reproduce in 10 plain runs, 30 `-race` runs, 40 runs under CPU load, 8 runs after
+  the queue/Steer tests that precede it, and 2 more full server-suite runs. The fixture has no dispatcher tick. A second
+  `startQuotaContinuation` that takes any `deferBusy` or `hold` branch
+  (`internal/server/quota_dispatch.go:198–320`) therefore leaves no prompt and no retry. The test
+  now fails at once with the quota row when the continuation does not start. Next step: read that
+  row from the next failing full-suite run to identify the branch.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
