@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { decodeQuotaState, formatQuotaTime } from "../../lib/quota";
 
 const reasonLabels: Record<string, string> = {
@@ -38,8 +39,11 @@ export function QuotaBanner({
   cancelError?: string;
   onCancel?: () => void;
 }) {
+  const [dismissedEpisode, setDismissedEpisode] = useState<string>();
   const quota = decodeQuotaState(value);
   if (!quota) return null;
+  const dismissible = quota.continuation_state === "disabled";
+  if (dismissible && dismissedEpisode === quota.episode_id) return null;
 
   const resetAt = formatQuotaTime(quota.reset_at);
   const dueAt = formatQuotaTime(quota.due_at);
@@ -75,8 +79,20 @@ export function QuotaBanner({
         {checking && pending && checksLeft(quota.checks_remaining) && <span>{checksLeft(quota.checks_remaining)}</span>}
       </div>
       {pending && onCancel && (
-        <button type="button" className="ad-button-secondary quota-banner-cancel" disabled={cancelPending || cancelDisabled} onClick={onCancel}>
+        <button type="button" className="ad-button-secondary quota-banner-action" disabled={cancelPending || cancelDisabled} onClick={onCancel}>
           {cancelPending ? "Cancelling…" : "Cancel continuation"}
+        </button>
+      )}
+      {dismissible && (
+        <button
+          type="button"
+          className="ad-button-secondary quota-banner-action"
+          onClick={(event) => {
+            event.stopPropagation();
+            setDismissedEpisode(quota.episode_id);
+          }}
+        >
+          Dismiss
         </button>
       )}
       {cancelError && <p className="quota-banner-error" role="alert">{cancelError}</p>}

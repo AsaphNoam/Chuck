@@ -323,6 +323,10 @@ orphaned processes.
   shown as a local date/time with timezone; missing or ambiguous evidence reads **Reset time
   unknown**, never an invented countdown. Each affected chat is tracked independently, including
   several agents using the same provider quota.
+  When automatic continuation is off for an interruption, **Dismiss** hides that
+  banner for the current interruption on the mounted dashboard card, desktop chat, or phone chat.
+  A new interruption appears normally. Dismissal is local to that view and has no effect on
+  recorded quota state or continuation.
 - **R41 (implemented 2026-10-11)** — **Auto continue schedules the interrupted conversation.** With the global
   setting in FS-04.R53 on, a known future quota reset creates one durable scheduled continuation
   for that agent's interrupted work, visible in its conversation as **Will continue at …**.

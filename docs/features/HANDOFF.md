@@ -82,6 +82,10 @@ None.
 
 ## Review queue
 
+- **Dismiss quota banner when automatic continuation is off** (FS-01.R40): available for review.
+  See the `Add Dismiss to disabled quota banners` commit. Dismissal is local to the mounted
+  view and scoped to one interruption.
+
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
 ownership and record the reviewed HEAD. Intended for a frontier reviewer; the charters' leads are

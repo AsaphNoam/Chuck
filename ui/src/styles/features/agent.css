@@ -482,7 +482,7 @@ a.agent-mini-card:focus-visible {
   font-size: 0.75rem;
 }
 
-.quota-banner-cancel {
+.quota-banner-action {
   flex: none;
   min-height: 2rem;
 }
