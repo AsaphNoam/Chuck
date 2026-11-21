@@ -1,0 +1,53 @@
+--- a/ui/src/remote/streamRefresh.test.tsx
++++ b/ui/src/remote/streamRefresh.test.tsx
+@@ -65,0 +66 @@
++  server.resetHandlers();
+@@ -69,0 +71,48 @@
++  it.each(["reconnect", "event"])("drops older cached pages after %s discovers a revised conversation", async (trigger) => {
++    let revised = false;
++    const oldTail = Array.from({ length: 750 }, (_, index) => ({
++      agent_id: "a1", seq: 151 + index, type: "assistant_text", ts: "t", data: { text: index === 0 ? "Old reply tail" : "" },
++    }));
++    server.use(http.get("/api/sessions/a1/transcript", ({ request }) => {
++      const url = new URL(request.url);
++      if (url.searchParams.has("before_seq")) return HttpResponse.json({ agent_id: "a1", history_revision: 0, has_more: false, events: [
++        { agent_id: "a1", seq: 150, type: "user_text", ts: "t", data: { text: "Superseded user question" } },
++      ] });
++      if (!revised && url.searchParams.has("since_seq")) return HttpResponse.json({ agent_id: "a1", history_revision: 0, has_more: false, events: oldTail.slice(1) });
++      return HttpResponse.json({ agent_id: "a1", history_revision: revised ? 1 : 0, has_more: !revised, events: revised ? [
++        { agent_id: "a1", seq: 901, type: "conversation_revision", ts: "t", data: { revision: 1, replaces_from_seq: 150, replaces_through_seq: 900 } },
++        { agent_id: "a1", seq: 902, type: "user_text", ts: "t", data: { text: "Revised user question" } },
++        { agent_id: "a1", seq: 903, type: "assistant_text", ts: "t", data: { text: "Revised reply" } },
++      ] : oldTail });
++    }));
++    start();
++    await waitFor(() => expect(FakeEventSource.current).toBeDefined());
++    const stream = FakeEventSource.current!;
++    await act(async () => {
++      stream.onopen?.();
++      stream.emit("state_update", { data: agent });
++      stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
++    });
++    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
++    render(<QueryClientProvider client={queryClient}><AgentScreen agentId="a1" /></QueryClientProvider>);
++    expect(await screen.findByText("Old reply tail")).toBeInTheDocument();
++    Object.defineProperty(window, "scrollY", { configurable: true, value: 100 });
++    act(() => window.dispatchEvent(new Event("scroll")));
++    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
++    act(() => window.dispatchEvent(new Event("scroll")));
++    expect(await screen.findByText("Superseded user question")).toBeInTheDocument();
++    revised = true;
++    await act(async () => {
++      if (trigger === "reconnect") {
++        stream.onopen?.();
++        stream.emit("state_update", { data: { ...agent, history_revision: 1 } });
++        stream.emit("state_update", { agent_id: "__hydrated__", data: { hydrated: true } });
++      } else {
++        stream.emit("new_message", { agent_id: "a1", data: { type: "conversation_revision", seq: 901, data: { revision: 1 } } });
++      }
++    });
++    expect(await screen.findByText("Revised reply")).toBeInTheDocument();
++    expect(screen.queryByText("Superseded user question")).not.toBeInTheDocument();
++    queryClient.clear();
++  });
++

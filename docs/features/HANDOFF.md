@@ -18,8 +18,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   `v0.23.0..d26e5fe2` is now recorded in the
   [receipt](../archive/reviews/architecture/v0.23.0-next.json); it did not gate v0.24.0. Its fixes
   are recorded there. The operator resolved EXEC-6c by retaining the existing shrink-only
-  test-fixture exceptions in TS-01.R50. The next release needs its own review and
-  `v0.24.0-next.json`.
+  test-fixture exceptions in TS-01.R50. The next-release source assessment at `96c0b4a5`
+  is recorded in [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json).
+  Two new Must-fix findings are open below. The release review is incomplete: committed release
+  preparation and coverage of any subsequently included dirty work are still required.
 - **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
   was still running when release CI completed. The prior waiting-input UI fixture failure had a
   local repair. Native, provider and device gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md)
@@ -202,9 +204,43 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off
+### ARCH-v025 — active conversation context and revision consumers (2026-11-21 at `96c0b4a5`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-**Fix model:** medium — Codex Terra or Claude Opus.
+Source assessment of `v0.24.0..96c0b4a5`, with three independent slice reviewers. See the
+[candidate receipt](../archive/reviews/architecture/v0.24.0-next.json) and
+[evidence and reproductions](../archive/reviews/architecture/v0.24.0-next-evidence.md).
+Release preparation is absent; uncommitted work is excluded. Repairs append exact commits and
+verification to this receipt; those repairs alone do not require another architecture review.
+The existing QUOTA-DISMISS unit retains its findings and owner.
+
+- **Must fix** (medium) — ARCH-EDIT-CONTEXT-1 (FS-01.R61, TS-04.R113, TS-02.R70;
+  INV §1/§2/§20). Edit the first message after switching backends. The fresh candidate reuses
+  the latest snapshot's `HistoryPrimer` (`internal/server/edit.go:504`), which switching built
+  from the original message and reply (`internal/server/switch.go:250`). The active transcript
+  shows only the replacement, but the new provider's startup system prompt still includes both
+  superseded texts. The real HTTP/store/fake-ACP probe reproduces this twice. Recover and prove
+  the original pre-message startup context, or refuse before acceptance when it cannot be proved;
+  preserve legitimate original clone/bridge context rather than clearing every primer. Cover
+  first-message Edit after a backend switch at the actual startup-wire boundary.
+- **Must fix** (medium) — ARCH-REVISION-1 (TS-03.R91, TS-02.R70, FS-01.R61;
+  INV §1/§11). On the phone, load older messages, disconnect, edit the latest user turn on
+  desktop, then reconnect. Hydration updates `transcriptRev` but only a live revision event
+  updates `revisionEpoch` (`ui/src/remote/connection.ts:319`, `:372`). The phone ignores
+  `history_revision` and joins cached `earlier.events` with the new tail
+  (`ui/src/remote/AgentScreen.tsx:401`, `:429`), retaining the superseded question/reply when
+  they crossed a page boundary. The component/serialized-stream probe fails on reconnect and
+  passes when the revision event is received. Reconcile retained pages and outstanding reads
+  against authoritative revisions, including missed events during backgrounding/hydration.
+- **Worth fixing** (medium) — ARCH-REVISION-2 (INV §18, workflow §7). Edit's revision and
+  consumer paths were already repaired in `e31222f9`..`de651191`. Inventory every history-derived
+  startup context and active reader/cache, its writer, revision authority, invalidation/rebuild
+  entry points and original-context provenance. Include backend-switch/clone primers, desktop,
+  phone pagination/reconnect, CLI follow and delayed reads. State their legal moves when the
+  revision changes; verify the two gaps above through those owners. Coordinate with the existing
+  “One commit point for an Edit's history, session and replacement” idea; its deferred lifecycle
+  findings retain their ownership and are not duplicated here.
+
+### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** (medium) — QUOTA-DISMISS-1 (FS-01.R40/R43, TS-03.R60; INV §10/§11/§17).
   Let a chat reach quota with Auto continue enabled and a check or continuation scheduled.

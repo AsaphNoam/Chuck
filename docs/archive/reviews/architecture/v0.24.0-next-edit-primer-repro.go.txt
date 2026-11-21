@@ -1,0 +1,54 @@
+package server
+
+import (
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+func TestArchitectureFirstEditAfterBackendSwitchOmitsSupersededPrimer(t *testing.T) {
+	t.Setenv("FAKEACP_CAPS", "1")
+	dump := filepath.Join(t.TempDir(), "new-session.json")
+	t.Setenv("FAKEACP_NEW_RAW_DUMP", dump)
+	srv, server := switchTestServer(t)
+	id := launchAndWaitIdle(t, server, "impl", "tmpproj")
+	oldText := "ARCHITECTURE_SUPERSEDED_INPUT_63815"
+	response, body := post(t, server.URL+"/api/sessions/"+id+"/prompt", map[string]string{"text": oldText})
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("prompt = %d %s", response.StatusCode, body)
+	}
+	waitStatus(t, srv, id, "idle")
+	waitTurnReleased(t, srv, id)
+	for _, target := range []map[string]string{{"backend": "codex", "model": "gpt-5.5"}, {"backend": "claude", "model": "sonnet"}} {
+		response, body = post(t, server.URL+"/api/sessions/"+id+"/switch-runtime", target)
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("switch = %d %s", response.StatusCode, body)
+		}
+	}
+	first, _ := lastRootPrompt(t, readEvents(t, srv, id))
+	response, body = post(t, server.URL+"/api/sessions/"+id+"/edit-last", map[string]any{"request_id": "architecture-edit", "message_seq": first.Seq, "expected_revision": 0, "text": "REPLACEMENT_WITHOUT_OLD_CONTEXT"})
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("edit = %d %s", response.StatusCode, body)
+	}
+	if record := waitEdit(t, srv, id, "architecture-edit", settled); record.Phase != state.EditCommitted {
+		t.Fatalf("edit = %+v", record)
+	}
+	waitStatus(t, srv, id, "idle")
+	waitTurnReleased(t, srv, id)
+	if messages := promptTexts(readEvents(t, srv, id)); len(messages) != 1 || messages[0] != "REPLACEMENT_WITHOUT_OLD_CONTEXT" {
+		t.Fatalf("active messages = %v", messages)
+	}
+	raw, err := os.ReadFile(dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPromptPresent := strings.Contains(string(raw), oldText)
+	oldReplyPresent := strings.Contains(string(raw), "Sure, I'll do that.")
+	if oldPromptPresent || oldReplyPresent {
+		t.Fatalf("first-message Edit hides the old turn in active history but resends startup context: old_prompt_present=%v old_reply_present=%v", oldPromptPresent, oldReplyPresent)
+	}
+}
