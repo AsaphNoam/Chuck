@@ -195,16 +195,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### QUOTA-START-SETTLE — a provider-admitted quota turn that never begins may stay claimed (found 2026-11-21 by the QUOTA-CAPACITY independent check) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Worth fixing** (undetermined; INV §18) — QUOTA-START-SETTLE-1: if `AdmitQuotaTurn` commits
-  `provider_started=1` and `beginTurn` then returns `(false, nil)` (`internal/runtime/chat.go:1330`),
-  the `!started && !passSettled` tail's `deferBusy` loses its compare-and-swap and only logs, so the
-  intent stays `claimed` with no `due_at`, which the due scan never selects. Not-started turn-end
-  settlement (`settleQuotaTurnWithoutEvidence`, `internal/state/quota.go:64`) appears to hold it as
-  `non_quota_failure`; not traced end to end. Next step: trace that settlement, or a fake-provider
-  test that forces `beginTurn` to refuse after admission and asserts the intent leaves `claimed`.
-
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution

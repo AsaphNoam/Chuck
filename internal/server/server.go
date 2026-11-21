@@ -213,6 +213,9 @@ type Server struct {
 	openBrowserFile func(string) error
 	// revealFile lets route tests observe Finder reveals without opening Finder.
 	revealFile func(string) error
+	// afterQuotaAdmission runs after a quota continuation's provider boundary
+	// commits; tests race a Stop there. Nil in production.
+	afterQuotaAdmission func(agentID string)
 
 	// primerSummarizer is the one-shot target-backend summary seam for backend
 	// switches. The default implementation is gated until live CLI invocation is

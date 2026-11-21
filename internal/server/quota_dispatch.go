@@ -215,7 +215,7 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		hold("check_unsupported")
 		return
 	}
-	started, passSettled := false, false
+	started, passSettled, admitted := false, false, false
 	if eligible, err := s.quotaWorkEligible(q); err != nil {
 		if errors.Is(err, state.ErrQuotaOwner) {
 			hold("owner_unavailable")
@@ -231,7 +231,14 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 	start := func() error {
 		kind := state.ActivationKindQuotaContinue
 		before := func(turn string) error {
-			return s.stateStore.AdmitQuotaTurn(q, s.registry.Generation(q.AgentID), turn)
+			if err := s.stateStore.AdmitQuotaTurn(q, s.registry.Generation(q.AgentID), turn); err != nil {
+				return err
+			}
+			admitted = true
+			if s.afterQuotaAdmission != nil {
+				s.afterQuotaAdmission(q.AgentID)
+			}
+			return nil
 		}
 		if q.Owner.Kind == "room" {
 			kind = state.ActivationKindQuotaThinkTank
@@ -240,10 +247,14 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		if q.Owner.Kind == "room" {
 			before = func(turn string) error {
 				a, err := s.beginQuotaRoomTurn(q, s.registry.Generation(q.AgentID), turn)
-				if err == nil {
-					begun = &a
+				if err != nil {
+					return err
 				}
-				return err
+				begun, admitted = &a, true
+				if s.afterQuotaAdmission != nil {
+					s.afterQuotaAdmission(q.AgentID)
+				}
+				return nil
 			}
 		}
 		var err error
@@ -322,6 +333,13 @@ func (s *Server) startQuotaContinuation(ctx context.Context, q state.QuotaIntent
 		return
 	}
 	if !started && !passSettled {
+		if admitted {
+			// The provider boundary committed but the runtime refused the turn
+			// before any frame: the claim's revision moved on, so deferral can
+			// no longer win, and no turn end will settle it (INV §18).
+			hold("provider_start_failed")
+			return
+		}
 		deferBusy()
 	}
 }

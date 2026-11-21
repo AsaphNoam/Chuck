@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"syscall"
 	"testing"
 	"time"
 
@@ -127,6 +128,97 @@ func TestQuotaDispatcherContinuesSameConversationOnce(t *testing.T) {
 			}
 			if !reflect.DeepEqual(archived.Events, events) {
 				t.Fatal("archived transcript changed continuation history or attribution")
+			}
+		})
+	}
+}
+
+// QUOTA-START-SETTLE-1, INV §18: a Stop that lands after the continuation's
+// provider boundary commits makes the runtime refuse the turn before any frame.
+// No turn end settles that claim, so dispatch must, rather than leave it
+// claimed with no due time until a restart.
+func TestQuotaContinuationRefusedAfterAdmissionLeavesClaim(t *testing.T) {
+	for _, owner := range []string{"ordinary", "room"} {
+		t.Run(owner, func(t *testing.T) {
+			termLog := filepath.Join(t.TempDir(), "term.log")
+			t.Setenv("FAKEACP_TERM_LOG", termLog)
+			s, ts, log := activationTestServer(t)
+			id := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+			observe := s.stateStore.ObserveQuota
+			if owner == "room" {
+				other := launchAndWaitIdle(t, ts, "impl", "tmpproj")
+				if row, err := s.stateStore.ReadRunning(other); err == nil {
+					// It also ignores SIGTERM; skip its cleanup grace window.
+					t.Cleanup(func() { _ = syscall.Kill(-row.PID, syscall.SIGKILL) })
+				}
+				room := createTestRoom(t, s, []string{id, other}, 2)
+				d, err := s.stateStore.ReadThinkTank(room)
+				if err != nil {
+					t.Fatal(err)
+				}
+				next, ok := state.NextThinkTankOpportunity(d)
+				if !ok {
+					t.Fatal("no room opportunity")
+				}
+				id = next.AgentID
+				if _, err := s.stateStore.BeginThinkTankAttempt(state.ThinkTankBegin{RoomID: room, Revision: d.Room.Revision,
+					AgentID: id, Turn: next.Turn, Generation: s.registry.Generation(id), TurnID: "interrupted-turn"}); err != nil {
+					t.Fatal(err)
+				}
+				observe = s.stateStore.ObserveOwnedQuota
+			}
+			generation := s.registry.Generation(id)
+			running, err := s.stateStore.ReadRunning(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			due := time.Now().UTC().Add(-time.Second)
+			obs := state.QuotaObservation{AgentID: id, EpisodeID: "refused-after-admission", SourceGeneration: generation, ExecutingTurn: "interrupted-turn", ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due), DueAt: &due, State: state.QuotaScheduled}
+			if owner == "ordinary" {
+				obs.Owner = state.QuotaOwner{Kind: "ordinary"}
+			}
+			q, err := observe(obs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if owner == "room" {
+				// The fixture injects quota evidence directly; record the source
+				// turn ending before the next admission.
+				if err := s.stateStore.EndConversationTurn(id, state.TurnEnd{Generation: generation, TurnID: "interrupted-turn", Outcome: "quota_blocked"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// The adapter ignores SIGTERM, so Stop is held inside its grace window:
+			// the runtime is stopping but its status is not yet final.
+			stopped := make(chan error, 1)
+			s.afterQuotaAdmission = func(agentID string) {
+				go func() { stopped <- s.registry.Stop(context.Background(), agentID) }()
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					if _, err := os.Stat(termLog); err == nil {
+						return
+					}
+					if time.Now().After(deadline) {
+						t.Error("adapter never received SIGTERM")
+						return
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
+			s.startQuotaContinuation(context.Background(), q)
+			_ = syscall.Kill(-running.PID, syscall.SIGKILL)
+			if err := <-stopped; err != nil {
+				t.Fatalf("stop: %v", err)
+			}
+			got, err := s.stateStore.GetQuota(id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.State != state.QuotaNeedsAttention || got.ReasonCode != "provider_start_failed" {
+				t.Fatalf("quota=%+v", got)
+			}
+			if n := promptCount(t, log); n != 0 {
+				t.Fatalf("provider prompts=%d", n)
 			}
 		})
 	}

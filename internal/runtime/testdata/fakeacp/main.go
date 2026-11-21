@@ -19,11 +19,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/signal"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -132,6 +134,19 @@ var (
 
 func main() {
 	reqSeq.Store(1000)
+	// FAKEACP_TERM_LOG holds a Stop inside its grace window: SIGTERM is
+	// recorded instead of obeyed, and stdin EOF does not exit, so only SIGKILL
+	// ends the process.
+	termLog := os.Getenv("FAKEACP_TERM_LOG")
+	if termLog != "" {
+		term := make(chan os.Signal, 1)
+		signal.Notify(term, syscall.SIGTERM)
+		go func() {
+			<-term
+			_ = os.WriteFile(termLog, []byte("term\n"), 0o600)
+		}()
+		defer func() { select {} }()
+	}
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 36*1024*1024)
 	for sc.Scan() {
