@@ -195,14 +195,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### STEER-HOLD — write-ahead Steer (verification pending) — **Fix model:** difficult — Codex Sol.
-
-- **Must fix** — STEER-HOLD-7 (medium; FS-03.R13/R50/R100, INV §15/§19). The repair is in
-  `3590f5c5`, `40dbbca0` and `fd169e61`. It records the Steer before native delivery and
-  settles that exact row. The targeted regressions and independent check passed. EDIT-IDLE-1
-  no longer blocks it (fixed 2026-11-21). Full Go closure is owed. QUOTA-CAPACITY-1's
-  intermittent test can still fail it.
-
 ### QUOTA-CAPACITY — capacity-deferred quota continuation sometimes starts no prompt (found 2026-11-21) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** — QUOTA-CAPACITY-1 (undetermined; INV §17/§18). Unprovoked,
