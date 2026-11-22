@@ -1,5 +1,30 @@
 # Operator CLI
 
+## Core commands
+
+| Command | Description |
+|---|---|
+| `chuck --version` | print version, commit, build date |
+| `chuck dashboard start [--port N] [--detach]` | start the server (foreground or backgrounded) |
+| `chuck dashboard stop` | stop the server via pidfile |
+| `chuck dashboard open` | open the UI in the default browser |
+| `chuck auth <claude\|codex> [--backend ID] [--model ID]` | sign in with the provider that backend/model launches (default backend otherwise) |
+| `chuck update [--check\|--yes\|--rollback]` | explicitly check, install, or roll back a release |
+| `chuck <role>@<project> [--backend B] [--model M] [--name N]` | launch an agent (resumes a single inactive match by default; `--new` forces a fresh one) |
+| `chuck resume <agent_id>` | resume a specific inactive persisted session |
+| `chuck reindex` | repair the archive/search index offline from saved transcript logs |
+
+```sh
+chuck agent launch --role default --project my-app --json
+chuck agent send AGENT_ID --text-file message.txt --json
+chuck agent transcript AGENT_ID --since-seq 42 --follow --json
+chuck group stop --project my-app --group workers --yes
+chuck pipeline run start --request-file run.json --json
+chuck backend list --etag-output catalog.etag --json
+```
+
+## Operator commands
+
 The operator commands use the running loopback Chuck service. They never start
 the dashboard automatically. Reads return concise text; add `--json` to keep
 the server object or array on stdout. JSON errors go to stderr and use exit 2

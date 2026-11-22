@@ -25,6 +25,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   Global PATH adapters remain unpatched.
 - **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
   Full Go suites need loopback-capable execution.
+- **Public docs:** the README was rewritten for newcomers with screenshots and a tour video
+  captured from the scripted demo fixture. Reference material moved to `docs/configuration.md`,
+  `docs/development.md` and `docs/operator-cli.md`. The AgentDeck cutover guide and compatibility
+  shims were retired 2026-11-22 (FS-10.R25, FS-13.R24, TS-08.R58).
 
 ## Active change
 
