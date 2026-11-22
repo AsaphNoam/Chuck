@@ -46,7 +46,10 @@ The full nonvisual scope and CLI contract in R2–R4 were confirmed on 2026-10-1
   missing values or invent defaults different from the operation's own contract. Existing pipeline
   `--input name=value` and continuation `--input` text retain their established meanings.
 - **R4 — Preserve consequences and consent.** New commands never auto-start the
-  dashboard; an unreachable dashboard names `chuck dashboard start` as the repair. Operations
+  dashboard; an unreachable dashboard names `chuck dashboard start` as the repair. Every client
+  command addresses only the dashboard its own home's live pidfile records; with no live pidfile it
+  reports the dashboard unreachable rather than trying the configured or default port, which may
+  serve another home. Operations
   requiring web confirmation require explicit `--yes` in the CLI, failing with the consequence
   and repair if absent, in a TTY as well as a script. This covers deletes, group/project Stop or
   Archive, and federation bind/detach. It does not add confirmation to ordinary Send, per-agent

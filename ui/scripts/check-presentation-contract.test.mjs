@@ -154,6 +154,14 @@ test("promotes the shared soft overlay and message geometry to every appearance"
   assert.match(featureRule("pipelines.css", ".pipeline-run-title h2"), /font-size:\s*1\.5rem;/);
 });
 
+test("removes the Start-run dialog entrance under reduced motion", () => {
+  // FS-14.A21: the shared dialog fade must not play in the pipeline start dialog.
+  const css = fs.readFileSync(path.join(process.cwd(), "src", "styles", "features", "pipelines.css"), "utf8");
+  const reduced = /@media \(prefers-reduced-motion: reduce\) \{([^@]*?)\{\s*animation: none;/.exec(css)?.[1] ?? "";
+  assert.match(reduced, /\.pipeline-start-modal,/);
+  assert.match(reduced, /\.pipeline-start-overlay,/);
+});
+
 test("rejects implementation classes in production skin selectors", () => {
   expectFailure(fixture({
     skins: ["sky-grove"],

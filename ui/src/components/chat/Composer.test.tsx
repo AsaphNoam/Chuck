@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { Composer } from "./Composer";
@@ -1085,5 +1085,32 @@ describe("Composer queued follow-up and steering", () => {
     expect(screen.getByRole("textbox")).toHaveValue("");
     expect(useHeldStore.getState().byAgent.a_1).toBeUndefined();
     expect(getChatDraft("a_1")).toBe("");
+  });
+});
+
+// J11: while the event stream reconnects, Send says why it is unavailable, and
+// the outage's send error leaves once the connection returns.
+describe("Composer across a reconnect", () => {
+  afterEach(() => useUiStore.setState({ connection: "connecting" }));
+
+  it("blocks Send with a reason while reconnecting and clears the outage error after", async () => {
+    server.use(http.post("/api/sessions/:id/prompt", () => HttpResponse.error()));
+    useUiStore.setState({ connection: "open" });
+    render(<Composer agentId="a_1" busy={false} />);
+    type(screen.getByRole("textbox") as HTMLTextAreaElement, "hello");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const error = await waitFor(() => {
+      const line = document.querySelector(".composer-error");
+      expect(line).not.toBeNull();
+      return line!;
+    });
+
+    act(() => useUiStore.setState({ connection: "reconnecting" }));
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(screen.getByText(/Reconnecting to Chuck/)).toBeInTheDocument();
+
+    act(() => useUiStore.setState({ connection: "open" }));
+    expect(error).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reconnecting to Chuck/)).not.toBeInTheDocument();
   });
 });

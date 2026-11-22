@@ -83,8 +83,13 @@ func TestValidateAnnotationsClipsLongExcerptAndRejectsEmptyInstruction(t *testin
 		t.Fatalf("excerpt runes = %d, want %d", got, maxAnnotationChars)
 	}
 	data.Annotations[0].Instruction = "  "
-	if err := validateAnnotations(&data); err == nil {
-		t.Fatal("validateAnnotations accepted an empty instruction")
+	// FS-13.R11: the refusal names the item and the one missing field.
+	if err := validateAnnotations(&data); err == nil || err.Error() != "annotation 1 needs an instruction" {
+		t.Fatalf("empty instruction error = %v", err)
+	}
+	data.Annotations[0] = runtime.Annotation{Seq: 1, Excerpt: " ", Instruction: "check it"}
+	if err := validateAnnotations(&data); err == nil || err.Error() != "annotation 1 needs an excerpt" {
+		t.Fatalf("empty excerpt error = %v", err)
 	}
 }
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -121,11 +122,14 @@ func runLaunch(args []string) int {
 		fmt.Printf("config: %v\n", cerr)
 		return 1
 	}
-	port := dashboardPort(cfgStore)
-
 	// Explicit --resume <id>: bypass role@project launch entirely.
 	if la.ResumeID != "" {
 		return runResumeByID(la.ResumeID)
+	}
+	port, perr := dashboardPort(cfgStore)
+	if perr != nil {
+		fmt.Println(perr)
+		return 1
 	}
 
 	// --new forces a fresh launch with no inactive-session check.
@@ -190,13 +194,17 @@ func postLaunch(port int, b launchBody) (*http.Response, []byte, error) {
 	return resp, data, nil
 }
 
-// dashboardPort resolves the dashboard port from the pidfile, then config, then default.
-func dashboardPort(cfgStore *config.Store) int {
-	if info, ok, _ := readPidfile(cfgStore.Home()); ok && info.Port > 0 {
-		return info.Port
+// errDashboardNotRunning reports that this home has no live dashboard.
+var errDashboardNotRunning = errors.New("no dashboard is running for this Chuck home; run `chuck dashboard start` first")
+
+// dashboardPort returns the port recorded by this home's live dashboard. A
+// missing, corrupt or stale pidfile fails closed rather than trying the
+// configured or default port, which may serve another home's dashboard
+// (INV §24, FS-22.R4).
+func dashboardPort(cfgStore *config.Store) (int, error) {
+	info, ok, err := readPidfile(cfgStore.Home())
+	if err != nil || !ok || info.Port <= 0 || !processAlive(info.PID) {
+		return 0, errDashboardNotRunning
 	}
-	if cfg, err := cfgStore.ReadConfig(); err == nil && cfg.Port > 0 {
-		return cfg.Port
-	}
-	return config.DefaultConfig().Port
+	return info.Port, nil
 }

@@ -213,9 +213,10 @@ describe("ArchivePage", () => {
     await screen.findByText("metadata");
   });
 
-  it("shows result count", async () => {
+  // total counts project groups, not agents (J8: "1 result" for 58 agents).
+  it("counts the project groups it lists", async () => {
     renderArchive();
-    await screen.findByText("2 results");
+    await screen.findByText("2 projects");
   });
 
   it("loads the next result page using the rendered count as offset", async () => {

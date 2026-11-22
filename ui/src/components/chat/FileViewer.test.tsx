@@ -427,7 +427,7 @@ describe("FileViewer", () => {
 
     await waitFor(() => expect(new URLSearchParams(location).get("file")).toBe(normalized));
     expect(new URLSearchParams(location).get("fileLine")).toBe("2");
-    expect(screen.getByText(normalized, { selector: ".file-viewer-path" })).toBeInTheDocument();
+    expect(screen.getByText(normalized, { selector: ".file-viewer-path bdi" })).toBeInTheDocument();
     expect(reads).toEqual([requested]);
 
     const first = document.querySelector('[data-file-line="1"]') as HTMLElement;

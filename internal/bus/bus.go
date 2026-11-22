@@ -171,6 +171,10 @@ func (b *Bus) PublishPermissionNotification(ev runtime.Event) {
 	agentID := ev.AgentID
 	var detail map[string]any
 	_ = json.Unmarshal(ev.Data, &detail)
+	// skip_permissions settled it already: nothing waits on the person.
+	if auto, _ := detail["auto_approved"].(bool); auto {
+		return
+	}
 	var update state.AgentStateUpdate
 	b.mu.RLock()
 	update = b.snapshot[agentID]

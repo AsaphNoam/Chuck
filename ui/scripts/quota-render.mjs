@@ -71,6 +71,18 @@ try {
     await banner.screenshot({ path: join(output, `1024-${skin}-chat-quota.png`), animations: "disabled" });
   }
 
+  // FS-09.R83: opening Subscription quota floats over the page; the header
+  // keeps its height so the transcript below it does not shrink at 900px.
+  const quotaHeader = page.locator(".chat-header").filter({ has: page.locator(".subscription-quota") }).first();
+  const closedHeight = (await quotaHeader.boundingBox())?.height ?? 0;
+  await quotaHeader.locator(".subscription-quota summary").click();
+  const openHeight = (await quotaHeader.boundingBox())?.height ?? 0;
+  const quotaBody = quotaHeader.locator(".subscription-quota-body");
+  check("1024px: open quota keeps header height",
+    await quotaBody.isVisible() && Math.abs(openHeight - closedHeight) <= 1, `${closedHeight}px -> ${openHeight}px`);
+  await quotaBody.screenshot({ path: join(output, "1024-quota-disclosure-open.png"), animations: "disabled" });
+  await quotaHeader.locator(".subscription-quota summary").click();
+
   const agent = {
     agent_id: "quota-fixture", name: "Quota recovery fixture", role: "builder", project: "quota-demo",
     backend: "claude", model: "claude-opus", interface: "chat", fast: false, fast_available: false,

@@ -328,11 +328,9 @@ func newDashboardOpenCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			port := config.DefaultConfig().Port
-			if info, ok, _ := readPidfile(cfgStore.Home()); ok && info.Port > 0 {
-				port = info.Port
-			} else if cfg, err := cfgStore.ReadConfig(); err == nil && cfg.Port > 0 {
-				port = cfg.Port
+			port, err := dashboardPort(cfgStore)
+			if err != nil {
+				return err
 			}
 			url := fmt.Sprintf("http://127.0.0.1:%d/", port)
 			if err := browser.OpenURL(url); err != nil {

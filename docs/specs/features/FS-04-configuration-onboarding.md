@@ -88,7 +88,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   that saves project configuration. Canceling the picker, closing it, or a browse failure leaves
   the current field values and project configuration unchanged. Path fields remain directly
   editable, including support for the existing leading `~` form, so browsing is a convenience
-  rather than a new requirement or storage format.
+  rather than a new requirement or storage format. Confirming the form while a pending
+  additional directory is typed but not added refuses the save with an inline reason, so the
+  entry is neither silently dropped nor added implicitly.
 
 - **R45.** A project additionally has an optional `base_branch` and an optional
   `setup_command`, both absent by default; existing project files without them stay valid and read
@@ -328,7 +330,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 - **R17.** The Backend step edits the seeded backend for the chosen type, saves via `PUT
   /api/backends`, and only advances when the returned credential status for that backend is `ok`; a
   non-`ok` status is shown inline with provider-specific, human-readable next steps (install the
-  missing adapter, run guided sign-in, or add an API key) and blocks advance.
+  missing adapter, run guided sign-in, or add an API key) and blocks advance. The save keeps every
+  saved default flag; only after the chosen backend's status is `ok` does a follow-up save make it
+  the default, so an unready choice or a repeated **Check again** never replaces the default.
 - **R18.** The Project step creates the user's first real project (preferred over the seeded
   `my-app`, whose `cwd` may not exist). Its id is server-derived (R31) and read back from the create
   response, then carried into the Launch step's default selection.
@@ -336,7 +340,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   client-side and skippable; it is not tracked in the server-side onboarding flags, so a returning
   user resumes past it with Continue.
 - **R20.** The Launch step launches the first agent (`POST /api/sessions`, interface `chat`) and, on
-  success, sets `onboarding_complete: true` via `PUT /api/config`, then closes the wizard.
+  success, sets `onboarding_complete: true` via `PUT /api/config`, then closes the wizard and opens
+  the launched agent's chat. When the launch uses the project created in the Project step, the same
+  completion write also sets it as `default_project`, replacing the seeded `my-app` default.
 
 - **R43** — Settings expose the install-wide task concurrency budget: how many agent
   runtimes Chuck may bring up for dependent work at one time, defaulting to ten (FS-16.R7, R21).

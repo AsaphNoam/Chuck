@@ -36,7 +36,38 @@ func NewRootCmd() *cobra.Command {
 		markOperatorCommands(cmd)
 		root.AddCommand(cmd)
 	}
+	for _, cmd := range root.Commands() {
+		rejectUnknownSubcommands(cmd)
+	}
 	return root
+}
+
+// noPositionalArgs replaces cobra.NoArgs, whose "unknown command" wording
+// misreads a stray value as a subcommand name.
+func noPositionalArgs(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return operatorInvalid(fmt.Sprintf("`%s` takes no positional arguments (got %q); name targets with flags, see `%s --help`", cmd.CommandPath(), args[0], cmd.CommandPath()))
+	}
+	return nil
+}
+
+// rejectUnknownSubcommands makes a command group refuse a mistyped
+// subcommand instead of printing help and exiting 0; bare groups still print help.
+func rejectUnknownSubcommands(cmd *cobra.Command) {
+	if !cmd.HasSubCommands() {
+		return
+	}
+	if !cmd.Runnable() {
+		cmd.RunE = func(c *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return c.Help()
+			}
+			return operatorInvalid(fmt.Sprintf("unknown command %q for `%s`; see `%s --help`", args[0], c.CommandPath(), c.CommandPath()))
+		}
+	}
+	for _, child := range cmd.Commands() {
+		rejectUnknownSubcommands(child)
+	}
 }
 
 func markOperatorCommands(cmd *cobra.Command) {

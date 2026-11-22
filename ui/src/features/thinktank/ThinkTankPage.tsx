@@ -223,6 +223,16 @@ function Room({ room }: { room: ThinkTankDetail }) {
     if (row.published) placed.add(row.attempt_id);
   }
   const loose = [...byAttempt.keys()].filter((attempt) => !placed.has(attempt));
+  // A loose attempt is no longer this agent's unfinished turn once the same
+  // agent produced later work in another attempt, e.g. a retried turn (FS-21.R39).
+  const supersededAttempt = (attempt: string) => {
+    const rows = byAttempt.get(attempt)!;
+    const agent = rows[0].agent_id;
+    const last = Math.max(...rows.map((row) => Date.parse(row.created_at)));
+    const later = (other: string, at: string) => other !== attempt && Date.parse(at) > last;
+    return shownEntries.some((entry) => entry.agent_id === agent && entry.attempt_id && later(entry.attempt_id, entry.created_at))
+      || (activity.data?.activity ?? []).some((row) => row.agent_id === agent && later(row.attempt_id, row.created_at));
+  };
   const projectTitle = (project: string) => projectTitleOf(projects.data, project);
   const fileList = files.data?.files ?? [];
   const commandList = commands.data?.commands ?? [];
@@ -255,7 +265,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
         </div>
       </header>
       <div className="think-tank-context">
-        <span className="think-tank-state" data-state={status.tone}><i aria-hidden="true" />{STATE_LABEL[status.tone]}</span>
+        <span className="think-tank-state" data-state={status.tone}><i aria-hidden="true" />{!ended && room.control === "pause_requested" ? "Pausing after this turn" : !ended && room.control === "end_requested" ? "Ending after this turn" : STATE_LABEL[status.tone]}</span>
         <span>Phase <b>{phaseLabel(room.phase)}</b></span>
         <span className="think-tank-context-rule" aria-hidden="true" />
         <span>Independent openings <b>{room.openings ? "On" : "Off"}</b></span>
@@ -337,7 +347,7 @@ function Room({ room }: { room: ThinkTankDetail }) {
               return (
                 <li key={attempt}>
                   <AttemptActivity
-                    label={live ? `${rows[0].agent_name} is working` : `${rows[0].agent_name}'s unfinished turn`}
+                    label={live ? `${rows[0].agent_name} is working` : supersededAttempt(attempt) ? `${rows[0].agent_name}'s earlier attempt, not published` : `${rows[0].agent_name}'s unfinished turn`}
                     live={live}
                     events={rows}
                     render={renderActivity}

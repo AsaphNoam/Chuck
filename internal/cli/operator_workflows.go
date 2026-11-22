@@ -164,14 +164,15 @@ func newTaskCmd() *cobra.Command {
 		if !c.Flags().Changed("project") || strings.TrimSpace(project) == "" {
 			return operatorInputError(errors.New("task list requires --project"))
 		}
-		path := "/api/tasks"
-		if project != "" {
-			path += "?project=" + url.QueryEscape(project)
+		// The task read answers an unknown project with an empty list; confirm
+		// the project exists so a typo is not reported as "no tasks".
+		if _, err := operatorCollectionItem(c, "/api/projects", "project", project, ""); err != nil {
+			return err
 		}
-		return operatorRun(c, http.MethodGet, path, nil, nil)
+		return operatorRun(c, http.MethodGet, "/api/tasks?project="+url.QueryEscape(project), nil, nil)
 	}
 	list.Flags().StringVar(&project, "project", "", "project id")
-	list.Args = cobra.NoArgs
+	list.Args = noPositionalArgs
 	cmd.AddCommand(list)
 	show := operatorAction("show <task_id>", http.MethodGet, "/api/tasks", func(_ *cobra.Command, args []string) (any, error) { return nil, nil }, false)
 	show.RunE = func(c *cobra.Command, args []string) error {
@@ -187,7 +188,7 @@ func newTaskCmd() *cobra.Command {
 	create := workflowBodyCommand("create", http.MethodPost, "/api/tasks", map[string]string{"project": "project", "display_name": "display-name", "instruction": "instruction", "target_kind": "target-kind", "target_agent_id": "target-agent", "role": "role", "backend": "backend", "model": "model", "effort": "effort"})
 	create.Flags().Bool("fast", false, "use fast mode")
 	addOperatorTextFlags(create)
-	create.Args = cobra.NoArgs
+	create.Args = noPositionalArgs
 	cmd.AddCommand(create)
 	for _, op := range []string{"cancel", "result", "retry", "rearm"} {
 		op := op
@@ -379,7 +380,7 @@ func textField(fields map[string]string) string {
 func newSignalCmd() *cobra.Command {
 	fire := workflowBodyCommand("fire", http.MethodPost, "/api/signals", map[string]string{"project": "project", "name": "name"})
 	fire.Short = "Fire a project signal"
-	fire.Args = cobra.NoArgs
+	fire.Args = noPositionalArgs
 	cmd := &cobra.Command{Use: "signal", Short: "Fire project signals"}
 	cmd.AddCommand(fire)
 	return cmd
@@ -401,7 +402,7 @@ func newThinkTankCmd() *cobra.Command {
 	cmd.AddCommand(show)
 	create := workflowBodyCommand("create", http.MethodPost, "/api/think-tanks", map[string]string{"command_id": "command-id", "title": "title", "goal": "goal", "origin_project": "project"})
 	create.Flags().Bool("openings", false, "start openings")
-	create.Args = cobra.NoArgs
+	create.Args = noPositionalArgs
 	cmd.AddCommand(create)
 	for _, op := range []string{"entries", "activity", "files", "commands"} {
 		op := op

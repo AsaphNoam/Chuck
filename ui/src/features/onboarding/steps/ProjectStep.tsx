@@ -65,14 +65,16 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
 
   return (
     <div className="wizard-step" data-ui="onboarding" data-slot="step" data-variant="project">
-      <h3>Create your first project</h3>
+      <h3>Add your project</h3>
       <p className="wizard-step-desc">
-        A project scopes your agents to a codebase directory.
+        A project scopes your agents to a codebase directory. Launching your first agent in it
+        makes it your default project in place of the example My App.
       </p>
 
       <div className="form-field">
-        <label>Title</label>
+        <label htmlFor="onboarding-project-title">Title</label>
         <input
+          id="onboarding-project-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={createdId !== null}
@@ -81,9 +83,10 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
       </div>
 
       <div className="form-field">
-        <label>Working directory</label>
+        <label htmlFor="onboarding-project-cwd">Working directory</label>
         <div className="field-with-action">
           <input
+            id="onboarding-project-cwd"
             value={cwd}
             onChange={(e) => setCwd(e.target.value)}
             disabled={createdId !== null}
@@ -110,8 +113,9 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
       </div>
 
       <div className="form-field">
-        <label>Context prompt (optional)</label>
+        <label htmlFor="onboarding-project-context">Context prompt (optional)</label>
         <AutoGrowTextarea
+          id="onboarding-project-context"
           value={context}
           onChange={(e) => setContext(e.target.value)}
           placeholder="Brief description of this project…"

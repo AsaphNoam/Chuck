@@ -411,3 +411,64 @@ func TestOperatorCollectionShowClassifiesMalformedCollection(t *testing.T) {
 		})
 	}
 }
+
+// FS-22.R11: an unknown project names the kind and id typed, never the API
+// route, and a task list for it fails instead of reporting "no tasks".
+func TestOperatorUnknownProjectIsNamedNotFound(t *testing.T) {
+	var paths []string
+	withManagementTransport(t, func(r *http.Request) { paths = append(paths, r.URL.RequestURI()) }, `{"demo":{"title":"Demo"},"tasks":[]}`)
+	for _, args := range [][]string{{"project", "show", "--project", "nope"}, {"task", "list", "--project", "nope"}} {
+		paths = nil
+		root := NewRootCmd()
+		root.SetArgs(args)
+		root.SetOut(io.Discard)
+		root.SetErr(io.Discard)
+		root.SilenceErrors = true
+		_, err := root.ExecuteC()
+		var op *operatorError
+		if !errors.As(err, &op) || op.Code != "not_found" || operatorExitCode(err) != 1 || op.Message != `project "nope" not found` {
+			t.Fatalf("%v: error = %#v", args, err)
+		}
+		if len(paths) != 1 || paths[0] != "/api/projects" {
+			t.Fatalf("%v: requests = %v, want only the project lookup", args, paths)
+		}
+	}
+	paths = nil
+	root := NewRootCmd()
+	root.SetArgs([]string{"task", "list", "--project", "demo", "--json"})
+	root.SetOut(io.Discard)
+	if err := root.Execute(); err != nil || len(paths) != 2 || paths[1] != "/api/tasks?project=demo" {
+		t.Fatalf("known project err=%v requests=%v", err, paths)
+	}
+}
+
+// FS-22.R2: a stray positional value or mistyped subcommand is a usage error
+// (exit 2) that says what was wrong; a bare command group still prints help.
+func TestOperatorPositionalAndUnknownSubcommandUsage(t *testing.T) {
+	withManagementTransport(t, func(r *http.Request) { t.Errorf("usage error sent %s", r.URL) }, `{}`)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"project", "show", "nope"}, "`chuck project show` takes no positional arguments (got \"nope\")"},
+		{[]string{"task", "list", "extra", "--project", "demo"}, "`chuck task list` takes no positional arguments (got \"extra\")"},
+		{[]string{"project", "nope"}, "unknown command \"nope\" for `chuck project`"},
+	} {
+		root := NewRootCmd()
+		root.SetArgs(tc.args)
+		root.SetOut(io.Discard)
+		root.SetErr(io.Discard)
+		root.SilenceErrors = true
+		_, err := root.ExecuteC()
+		if err == nil || operatorExitCode(err) != 2 || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%v: error = %v (exit %d), want %q", tc.args, err, operatorExitCode(err), tc.want)
+		}
+	}
+	root := NewRootCmd()
+	root.SetArgs([]string{"project"})
+	var help strings.Builder
+	root.SetOut(&help)
+	if err := root.Execute(); err != nil || !strings.Contains(help.String(), "Available Commands") {
+		t.Fatalf("bare group err=%v help=%q", err, help.String())
+	}
+}

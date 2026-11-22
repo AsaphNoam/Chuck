@@ -181,7 +181,17 @@ describe("PhoneApp", () => {
     renderApp();
     fireEvent.change(await screen.findByLabelText("Pairing code"), { target: { value: "WRONG234" } });
     fireEvent.click(screen.getByRole("button", { name: "Pair" }));
-    expect(await screen.findByText(/Show a new code in Chuck on your Mac/)).toBeInTheDocument();
+    expect(await screen.findByText(/That code did not work/)).toBeInTheDocument();
+  });
+
+  it("does not blame the code when the Mac declines the phone (FS-20.R6)", async () => {
+    paired = false;
+    server.use(http.get("/api/remote/pair/:id", () => HttpResponse.json({ error: { code: "remote_pairing_invalid", message: "x" } }, { status: 400 })));
+    renderApp();
+    fireEvent.change(await screen.findByLabelText("Pairing code"), { target: { value: "ABCD2345" } });
+    fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+    expect(await screen.findByText(/did not allow this phone/)).toBeInTheDocument();
+    expect(screen.queryByText(/That code did not work/)).toBeNull();
   });
 
   it("says a previously paired phone was unpaired", async () => {

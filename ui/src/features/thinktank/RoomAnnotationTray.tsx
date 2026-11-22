@@ -55,6 +55,11 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
   };
 
   const submit = () => {
+    const blank = drafts.find((draft) => !draft.instruction.trim());
+    if (blank) {
+      setError(`${roomAnchorLabel(blank)} needs an instruction.`);
+      return;
+    }
     if (effectiveTarget === "new") {
       setShowLaunch(true);
       return;

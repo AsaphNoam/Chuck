@@ -301,6 +301,8 @@ export function ThinkTankSetupDialog({ open, onClose, originProject }: { open: b
                   </button>
                 )}
                 {templates.isError && <p className="form-hint">Saved templates are unavailable right now.</p>}
+                {/* FS-21.R61: loaded rows are fresh launches, even ones saved from an existing chat. */}
+                {templateID && <p className="form-hint">Each template participant starts as a new agent, even if an agent with that name exists. To reuse an existing chat, remove its row and choose it below.</p>}
               </div>
               <div className="form-field">
                 <label htmlFor="think-tank-title">Title</label>

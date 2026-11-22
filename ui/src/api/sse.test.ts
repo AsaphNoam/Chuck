@@ -351,6 +351,28 @@ describe("SseClient watchdog reconnect", () => {
     expect(agents["a_gone"]).toBeUndefined();
   });
 
+  // J4: a permission prompt raises one toast, and it leaves once the agent
+  // stops waiting rather than outliving the answered prompt.
+  it("shows one toast per permission prompt and drops it when the agent stops waiting", async () => {
+    const { sseClient } = await import("./sse");
+    const { useUiStore } = await import("../store/uiStore");
+    useUiStore.setState({ toasts: [] });
+    sseClient.connect();
+    const es = FakeEventSource.instances[0];
+    es.onopen?.();
+    const note = (type: string, ts: string) => JSON.stringify({ type: "notification", seq: 1, ts: 1, agent_id: "a_p",
+      data: { type: "notification", notification_type: type, agent_id: "a_p", title: type, ts } });
+    const state = (st: string) => JSON.stringify({ type: "state_update", seq: 2, ts: 2, agent_id: "a_p", data: { agent_id: "a_p", state: st } });
+    es.emit("state_update", state("waiting_input"));
+    es.emit("notification", note("waiting_input", "1"));
+    es.emit("notification", note("permission_required", "2"));
+    expect(useUiStore.getState().toasts.map((toast) => toast.type)).toEqual(["permission_required"]);
+    es.emit("notification", note("waiting_input", "3"));
+    expect(useUiStore.getState().toasts).toHaveLength(1);
+    es.emit("state_update", state("busy"));
+    expect(useUiStore.getState().toasts).toEqual([]);
+  });
+
   // CR-A7-3 (INV §16): only an active hydration collects snapshot ids, so a
   // long-lived dashboard retains the agent set, not its live traffic history.
   it("stops collecting hydration ids once the hydrated marker settles", async () => {

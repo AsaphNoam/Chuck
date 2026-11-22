@@ -1849,6 +1849,32 @@ func TestStartActivationRetiresDeferredOnlyMailOpportunity(t *testing.T) {
 	}
 }
 
+// Shutdown must not let the server exit before the transcript records its
+// clean close; otherwise the next start shows a false history-gap notice.
+func TestStopAllWaitsForCleanTranscriptClose(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.StopAll(context.Background())
+	select {
+	case <-as.persistenceDone:
+	default:
+		t.Fatal("StopAll returned before the transcript close was recorded")
+	}
+	as.mu.Lock()
+	closed := as.journalClosed
+	as.mu.Unlock()
+	if !closed {
+		t.Fatal("journal not closed")
+	}
+}
+
 // A cleanup stop claims the runtime without changing its idle/error status, so
 // StartActivation must honor the same stopping gate as every other turn path:
 // waking mail cannot run a turn on a runtime being removed (TS-10.R19).

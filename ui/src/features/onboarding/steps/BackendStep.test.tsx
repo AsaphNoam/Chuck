@@ -242,6 +242,42 @@ describe("BackendStep", () => {
     await waitFor(() => expect(putCount).toBe(2));
   });
 
+  // J2: an unready choice (and every Check again) must not replace the saved
+  // default; the chosen backend becomes default only once its check is ok.
+  it("keeps the saved default until the chosen backend is ready", async () => {
+    const bodies: { backends: Record<string, { default: boolean }> }[] = [];
+    let codexStatus = "failed";
+    server.use(
+      http.put("/api/backends", async ({ request }) => {
+        const body = (await request.json()) as { backends: Record<string, { default: boolean }> };
+        bodies.push(body);
+        return HttpResponse.json({
+          ...body,
+          version: 2,
+          credentials: { codex: { status: codexStatus, detail: codexStatus === "ok" ? "" : "not_logged_in" } },
+        });
+      }),
+    );
+    const onDone = vi.fn();
+    renderWithQuery(<BackendStep onDone={onDone} />);
+    await waitForLoaded();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "codex-acp" } });
+
+    fireEvent.click(screen.getByText("Validate & Continue"));
+    expect(await screen.findByText(/Run the sign-in command above/i)).toBeInTheDocument();
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].backends.claude.default).toBe(true);
+    expect(bodies[0].backends.codex.default).toBe(false);
+
+    codexStatus = "ok";
+    fireEvent.click(screen.getByText("Check again"));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith({ id: "codex", type: "codex-acp" }));
+    expect(bodies).toHaveLength(3);
+    expect(bodies[1].backends.claude.default).toBe(true);
+    expect(bodies[2].backends.codex.default).toBe(true);
+    expect(bodies[2].backends.claude.default).toBe(false);
+  });
+
   // A signed-in Codex has no API key; the field must be optional, and the copy
   // must not imply a key is required (FS-09.R34).
   it("treats the Codex API key as an alternative to native sign-in", async () => {

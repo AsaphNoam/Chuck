@@ -88,6 +88,22 @@ describe("BackendsEditor", () => {
     expect(name).toHaveValue("   ");
   });
 
+  // J9: an empty provider model string is named in the person's terms on its
+  // own row, not as the server's internal keys beside Save.
+  it("refuses to save an empty provider model string and marks its row", async () => {
+    let puts = 0;
+    server.use(http.put("/api/backends", () => { puts++; return HttpResponse.json({}); }));
+    renderWithQuery(<BackendsEditor />);
+    await screen.findByDisplayValue(shown("Claude", "INPUT"));
+
+    fireEvent.click(screen.getByText("+ Add model"));
+    fireEvent.click(screen.getByText("Save"));
+
+    expect(await screen.findByText("Enter a provider model string for New model in Claude.")).toBeInTheDocument();
+    expect(screen.getByText(/Enter the provider model string, for example/)).toBeInTheDocument();
+    expect(puts).toBe(0);
+  });
+
   it("shows the server's field error when a save is refused", async () => {
     server.use(
       http.put("/api/backends", () =>

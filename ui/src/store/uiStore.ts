@@ -18,6 +18,8 @@ export interface ToastItem {
 /** Send/Steer outcome notices are brief confirmations, not standing state (FS-03.R50). */
 export const OUTCOME_TOAST_MS = 3_000;
 
+const ATTENTION_TOASTS = new Set<ToastItem["type"]>(["waiting_input", "permission_required"]);
+
 interface UiStoreState {
   density: { perRow: number; gap: number };
   groupLayout: Record<string, { collapsed: boolean }>;
@@ -34,6 +36,8 @@ interface UiStoreState {
   openContextMenu: (agentId: string, x: number, y: number) => void;
   closeContextMenu: () => void;
   pushToast: (notification: NotificationPayload) => void;
+  /** Drops an agent's waiting/permission toasts once it no longer waits. */
+  dismissAttention: (agentId: string) => void;
   pushError: (title: string, body?: string) => void;
   pushNotice: (title: string, body?: string, agentId?: string, durationMs?: number) => void;
   dismissToast: (id: string) => void;
@@ -70,18 +74,22 @@ export const useUiStore = create<UiStoreState>((set) => ({
   pushToast: (notification) =>
     set((state) => {
       const id = `${notification.agent_id}-${notification.notification_type}-${notification.ts}`;
+      const agentId = notificationAgentId(notification);
+      const type = notification.notification_type;
+      // A permission request also moves its agent into waiting_input; the
+      // person sees one toast for it, the one naming the permission.
+      if (type === "waiting_input" && agentId && state.toasts.some((toast) => toast.agentId === agentId && toast.type === "permission_required")) return {};
       return {
         toasts: [
-          ...state.toasts.filter((toast) => toast.id !== id),
-          {
-            id,
-            title: notification.title,
-            body: notification.body,
-            type: notification.notification_type,
-            agentId: notificationAgentId(notification),
-          },
+          ...state.toasts.filter((toast) => toast.id !== id && !(type === "permission_required" && toast.agentId === agentId && toast.type === "waiting_input")),
+          { id, title: notification.title, body: notification.body, type, agentId },
         ].slice(-4),
       };
+    }),
+  dismissAttention: (agentId) =>
+    set((state) => {
+      const toasts = state.toasts.filter((toast) => !(toast.agentId === agentId && ATTENTION_TOASTS.has(toast.type)));
+      return toasts.length === state.toasts.length ? {} : { toasts };
     }),
   pushError: (title, body) =>
     set((state) => {

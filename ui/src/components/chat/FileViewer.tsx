@@ -335,7 +335,7 @@ export function FileViewerView({ reader, variant, onClose, closeLabel = "Close",
     <aside className="file-viewer" data-ui="file-viewer" data-state={view.status} data-variant={variant} aria-label="Open file">
       {tabs}
       <header className="file-viewer-header" data-slot="header">
-        <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml || revealInFinder ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}>{shownPath}</span>
+        <span className="file-viewer-path" title={shownPath} onContextMenu={isHtml || revealInFinder ? (event) => { event.preventDefault(); openFileMenu(event.clientX, event.clientY); } : undefined}><bdi dir="ltr">{shownPath}</bdi></span>
         <div className="file-viewer-actions" data-slot="actions">
           {!reader.editing && (isMarkdown || canPreviewHtml || formattedJSON !== null || csvTable !== null) && (
             <div className="file-viewer-form" role="group" aria-label={isMarkdown ? "Markdown display" : isHtml ? "HTML display" : csvTable ? "CSV display" : "JSON display"}>

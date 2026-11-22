@@ -58,9 +58,13 @@ func newOperatorClient() (*operatorClient, error) {
 	if err != nil {
 		return nil, &operatorError{Code: "invalid_input", Message: err.Error(), ExitCode: 2}
 	}
+	port, err := dashboardPort(store)
+	if err != nil {
+		return nil, &operatorError{Code: "dashboard_unavailable", Message: err.Error(), ExitCode: 3}
+	}
 	return &operatorClient{
 		HTTP:    &http.Client{},
-		BaseURL: fmt.Sprintf("http://127.0.0.1:%d", dashboardPort(store)),
+		BaseURL: fmt.Sprintf("http://127.0.0.1:%d", port),
 	}, nil
 }
 
@@ -208,6 +212,7 @@ func operatorHTTPError(status int, data []byte) error {
 			if json.Unmarshal(raw, &nested) == nil {
 				code = operatorRawString(nested["code"], code)
 				message = operatorRawString(nested["message"], message)
+				message += operatorDetailDiagnostics(nested["details"])
 			} else {
 				message = operatorRawString(raw, message)
 				if code == "api_error" {
@@ -238,6 +243,39 @@ func operatorRawString(raw json.RawMessage, fallback string) string {
 		return s
 	}
 	return fallback
+}
+
+// operatorDetailDiagnostics renders the server's error.details.diagnostics
+// ([{field,code,message}], e.g. pipeline validation) as bounded readable text
+// appended to the error message, so the reason is not hidden (FS-22.R11).
+func operatorDetailDiagnostics(raw json.RawMessage) string {
+	const shown = 10
+	var details struct {
+		Diagnostics []struct {
+			Field   string `json:"field"`
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"diagnostics"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &details) != nil || len(details.Diagnostics) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, shown+1)
+	for i, d := range details.Diagnostics {
+		if i == shown {
+			parts = append(parts, fmt.Sprintf("and %d more", len(details.Diagnostics)-shown))
+			break
+		}
+		text := d.Message
+		if text == "" {
+			text = d.Code
+		}
+		if d.Field != "" {
+			text = d.Field + ": " + text
+		}
+		parts = append(parts, text)
+	}
+	return ": " + strings.Join(parts, "; ")
 }
 
 func operatorValidationDetails(raw json.RawMessage) string {

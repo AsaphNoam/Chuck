@@ -60,7 +60,13 @@ async function clickLaunch() {
 // FS-01.A29/FS-01.A30: onboarding follows the ordinary saved/default selection.
 describe("LaunchStep", () => {
   it("launches the just-created project, not the seeded my-app (J2 onboarding-completion blocker)", async () => {
-    renderWithQuery(<LaunchStep onDone={() => {}} initialProject="user-proj" />);
+    let configPut: unknown = null;
+    server.use(http.put("/api/config", async ({ request }) => {
+      configPut = await request.json();
+      return HttpResponse.json({});
+    }));
+    const onDone = vi.fn();
+    renderWithQuery(<LaunchStep onDone={onDone} initialProject="user-proj" />);
 
     // Wait for role/project data to populate the selects.
     expect(await screen.findByText("User Proj")).toBeInTheDocument();
@@ -69,6 +75,10 @@ describe("LaunchStep", () => {
 
     await waitFor(() => expect(launchBody).not.toBeNull());
     expect(launchBody?.project).toBe("user-proj");
+    // Completion makes the created project the default (not the seeded my-app)
+    // and hands the launched agent to the gate so it opens that chat.
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("a_1"));
+    expect(configPut).toEqual({ onboarding_complete: true, default_project: "user-proj" });
   });
 
   it("surfaces config write failure instead of silently dismissing (launch success + config write failure)", async () => {

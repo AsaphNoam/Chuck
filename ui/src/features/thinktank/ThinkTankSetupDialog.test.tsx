@@ -159,6 +159,8 @@ describe("ThinkTankSetupDialog templates", () => {
     await screen.findByRole("option", { name: "Storage team" });
     fireEvent.change(screen.getByLabelText("Template"), { target: { value: "ttt_1" } });
     expect(await screen.findByText("Cy")).toBeTruthy();
+    // X1: loading says rows are new agents, never silently replacing existing chats.
+    expect(screen.getByText(/Each template participant starts as a new agent/)).toBeTruthy();
     expect(screen.getByLabelText("Title")).toHaveValue("Cache");
     expect(screen.getByLabelText("Goal")).toHaveValue("Pick a cache");
     expect(screen.getByLabelText("Instructions for Cy")).toHaveValue("Argue for SQLite.");

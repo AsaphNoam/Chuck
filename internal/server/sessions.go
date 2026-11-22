@@ -625,8 +625,11 @@ func validateAnnotations(data *runtime.AnnotationData) error {
 	}
 	for i := range data.Annotations {
 		a := &data.Annotations[i]
-		if strings.TrimSpace(a.Excerpt) == "" || strings.TrimSpace(a.Instruction) == "" {
-			return fmt.Errorf("annotation %d needs an anchor, excerpt, and instruction", i+1)
+		if strings.TrimSpace(a.Excerpt) == "" {
+			return fmt.Errorf("annotation %d needs an excerpt", i+1)
+		}
+		if strings.TrimSpace(a.Instruction) == "" {
+			return fmt.Errorf("annotation %d needs an instruction", i+1)
 		}
 		if runeCount(a.Instruction) > maxAnnotationChars {
 			return fmt.Errorf("annotation %d instruction must be at most %d characters", i+1, maxAnnotationChars)

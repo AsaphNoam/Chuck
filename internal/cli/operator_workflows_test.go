@@ -58,6 +58,11 @@ func TestOperatorWorkflowCommandsUseExistingWireContracts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var gotMethod, gotURI, gotBody, gotContentType string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.RequestURI == "/api/projects" && tc.requestURI != "/api/projects" {
+					// task list confirms its project exists before the read under test.
+					_, _ = io.WriteString(w, `{"alpha one":{}}`)
+					return
+				}
 				gotMethod, gotURI, gotContentType = r.Method, r.RequestURI, r.Header.Get("Content-Type")
 				data, err := io.ReadAll(r.Body)
 				if err != nil {

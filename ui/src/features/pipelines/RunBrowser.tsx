@@ -1,4 +1,4 @@
-import { AutoGrowTextarea } from "../../components/ui";
+import { AutoGrowTextarea, ConfirmDialog } from "../../components/ui";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -72,6 +72,7 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   const [continuation, setContinuation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [confirming, setConfirming] = useState<"stop" | "delete" | null>(null);
 
   if (detail.isLoading) return <RunDetailSkeleton />;
   if (!detail.data) {
@@ -105,13 +106,17 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
   const continueMode = !canContinue ? "" : run.pending_action === "await_approval" ? "approve" : run.attention_reason === "needs_input" ? "answer" : "resume";
   const continuationRequired = continueMode === "answer";
   const continuationOffered = !data.controls.continue.requires_empty_input && (continueMode === "answer" || continueMode === "resume");
-  // A pause whose stage agent is no longer running — a restart stopped it, its launch
-  // failed, or its resume failed — is a pause no chat can resolve: Continue rejects the
-  // state, and an ordinary chat resume of that agent mints an unrelated generation whose
-  // report is refused forever, so Open agent there is a dead end. Withhold it and name
-  // the route that works (FS-14.R48).
-  const restarted = run.attention_reason.startsWith("restart_") && !canContinue;
-  const recovered = paused && (restarted || run.attention_reason === "launch_failed" || run.attention_reason === "resume_failed");
+  // A pause whose stage agent is no longer assigned — its turn was interrupted by a
+  // restart, an exit or repeated non-reporting, or (older records) its launch or resume
+  // failed — is a pause no chat can resolve: the interrupted assignment refuses any
+  // report from that agent's chat, so Open agent there is a dead end. Withhold it and
+  // name the routes that work (FS-14.R48).
+  const legacyRecovered = (run.attention_reason.startsWith("restart_") && !canContinue) || run.attention_reason === "launch_failed" || run.attention_reason === "resume_failed";
+  const recovered = paused && !currentTask?.room && (currentTask?.state === "interrupted" || legacyRecovered);
+  const recoveredCause = run.attention_reason.startsWith("restart_") ? "Chuck stopped the stage agent when it restarted"
+    : run.attention_reason === "launch_failed" || run.attention_reason === "resume_failed" ? "The stage agent is not running after this failure"
+    : "The stage agent is no longer working on this stage";
+  const recoveredRoutes = [canContinue && "Resume run to continue the stage", canRetry && "Retry the stage to run it again with a fresh agent"].filter(Boolean).join(", or ");
   const terminal = run.state === "completed" || run.state === "stopped";
   const nextStage = !terminal && stage ? stages[stageIndex + 1] : undefined;
   const busy = continueRun.isPending || retryRun.isPending || replaceOwner.isPending || repairCleanup.isPending || stopRun.isPending || deleteRun.isPending;
@@ -136,18 +141,24 @@ export function RunDetail({ runID, onDeleted }: { runID: string; onDeleted: () =
         {removeOpen && data.workspace && <WorkspaceRemoveDialog workspaceID={data.workspace.workspace_id} onClose={() => setRemoveOpen(false)} />}
         {currentTask?.room && <div className="pipeline-owner-strip"><div><small>Think Tank stage</small><strong>{roomPhaseLabel(currentTask)}</strong><span>{currentTask.attention_reason || "The judge's published synthesis becomes this stage's output."}</span></div></div>}
         {currentTask && !currentTask.room && <div className="pipeline-owner-strip"><div><small>Standing owner</small><strong>{pipelineAgentLabel(currentTask.standing_owner, "Starting")}</strong><span>{humanize(currentTask.standing_owner.state || currentTask.state)}</span></div>{currentTask.coordinator && <div><small>Stage coordinator</small><strong>{pipelineAgentLabel(currentTask.coordinator, "Starting")}</strong><span>{currentTask.coordinator.report_summary ? "Reports to standing owner" : humanize(currentTask.coordinator.state || "assigned")}</span></div>}</div>}
-        {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(pipelineAttentionText(run.attention_reason, stageTitles))}</p>{run.pause_question && <p><strong>Question:</strong> {run.pause_question}</p>}{recovered && <p>{restarted ? "The stage agent was stopped when Chuck restarted" : "The stage agent is not running after this failure"}, so its chat can no longer report against this run. Retry the stage to run it again with a fresh agent.</p>}</div>}
+        {run.attention_reason && <div className="pipeline-warning"><strong>Needs attention</strong><p>{humanize(pipelineAttentionText(run.attention_reason, stageTitles))}</p>{run.pause_question && <p><strong>Question:</strong> {run.pause_question}</p>}{recovered && <p>{recoveredCause}, so its chat can no longer report against this run.{recoveredRoutes && ` ${recoveredRoutes}.`}</p>}</div>}
         <div className="pipeline-run-actions" data-slot="actions">
-          {currentTask?.room && <Link className="pipeline-link-button" to={`/think-tank/${currentTask.room.room_id}`}>Open Think Tank</Link>}
-          {run.current_agent_id && !recovered && !currentTask?.room && <Link className="pipeline-link-button" to={`/agent/${run.current_agent_id}`}>Open agent</Link>}
           {canContinue && <div className="pipeline-action-choice"><button type="button" className="ad-button-primary" disabled={busy || (continuationRequired && !continuation.trim())} onClick={() => control("continue")}>{continueMode === "approve" ? "Approve" : continueMode === "answer" ? "Send answer" : "Resume run"}</button><small>{continuationRequired && !continuation.trim() ? "Write your answer to the run's question first." : data.controls.continue.reason}</small></div>}
           {canRetry && currentTask?.room && <div className="pipeline-action-choice"><button type="button" disabled={busy} onClick={() => control("retry")}>Retry output acceptance</button><small>{data.controls.retry.reason}</small></div>}
-          {canRetry && !currentTask?.room && <div className="pipeline-action-choice"><button type="button" disabled={busy} onClick={() => control("retry")}>Retry stage</button><small>Retry starts a fresh agent with bounded summaries of prior attempts.</small></div>}
+          {canRetry && !currentTask?.room && <div className="pipeline-action-choice"><button type="button" className={canContinue ? undefined : "ad-button-primary"} disabled={busy} onClick={() => control("retry")}>Retry stage</button><small>Retry starts a fresh agent with bounded summaries of prior attempts.</small></div>}
           {data.controls.replace.eligible && <div className="pipeline-action-choice"><button type="button" disabled={busy || !orchestratorRuntime.backend || !orchestratorRuntime.model} onClick={() => replaceOwner.mutate({ id: run.run_id, revision: run.revision, orchestrator: orchestratorRuntime }, { onError: (reason) => setError(messageOf(reason)) })}>Replace standing owner</button><small>{data.controls.replace.reason || "Cancels the unfinished assignment and retains stage work for the replacement."}</small></div>}
           {data.controls.repair_cleanup.eligible && <div className="pipeline-action-choice"><button type="button" disabled={busy} onClick={() => repairCleanup.mutate({ id: run.run_id, revision: run.revision }, { onError: (reason) => setError(messageOf(reason)) })}>Repair cleanup</button><small>{data.controls.repair_cleanup.reason || "Retries only the recorded cleanup work."}</small></div>}
-          {!terminal && data.controls.stop.eligible && <button type="button" className="btn-danger" disabled={busy} onClick={() => control("stop")}>Stop run</button>}
-          {terminal && <button type="button" className="btn-danger" disabled={busy} onClick={() => deleteRun.mutate(run.run_id, { onSuccess: onDeleted, onError: (reason) => setError(messageOf(reason)) })}>Delete run record</button>}
+          {currentTask?.room && <Link className="pipeline-link-button" to={`/think-tank/${currentTask.room.room_id}`}>Open Think Tank</Link>}
+          {run.current_agent_id && !recovered && !currentTask?.room && <Link className="pipeline-link-button" to={`/agent/${run.current_agent_id}`}>Open agent</Link>}
+          {!terminal && data.controls.stop.eligible && <button type="button" className="btn-danger" disabled={busy} onClick={() => setConfirming("stop")}>Stop run</button>}
+          {terminal && <button type="button" className="btn-danger" disabled={busy} onClick={() => setConfirming("delete")}>Delete run record</button>}
         </div>
+        <ConfirmDialog open={confirming === "stop"} title="Stop this run?" confirmLabel="Stop run" destructive onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); control("stop"); }}>
+          <p>Stopping cancels the current stage and all of its unfinished work, including delegated agents. Completed results stay on this page. A stopped run cannot be resumed.</p>
+        </ConfirmDialog>
+        <ConfirmDialog open={confirming === "delete"} title="Delete this run record?" confirmLabel="Delete run record" destructive onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); deleteRun.mutate(run.run_id, { onSuccess: onDeleted, onError: (reason) => setError(messageOf(reason)) }); }}>
+          <p>The run's page, timeline and results are removed. Its agents, transcripts and tasks are kept.</p>
+        </ConfirmDialog>
         {continuationOffered && <label className="form-field pipeline-continuation"><span>{continuationRequired ? "Your answer" : "Instructions (optional)"}</span><AutoGrowTextarea rows={3} value={continuation} onChange={(event) => setContinuation(event.target.value)} /></label>}
         {error && <p className="form-error">{error}</p>}
       </section>

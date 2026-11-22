@@ -53,11 +53,13 @@ function credentialGuidance(status: string, detail: string | null, type: Backend
     return `The installed ${BACKEND_TYPE_LABELS[type]} adapter is too old for Chuck's readiness check, so its sign-in could not be confirmed. Update the adapter, then check again.`;
   }
   if (detail === "not_logged_in") {
-    return `${BACKEND_TYPE_LABELS[type]} is not signed in. Complete its sign-in below, then check again.`;
+    return signInProvider[type]
+      ? `${BACKEND_TYPE_LABELS[type]} is not signed in. Run the sign-in command above in a terminal, then check again.`
+      : `${BACKEND_TYPE_LABELS[type]} is not signed in. Complete its sign-in in ${BACKEND_TYPE_LABELS[type]}'s own tool, then check again.`;
   }
   if (detail === "no_api_key") {
     return type === "codex-acp"
-      ? "No sign-in and no API key were found. Sign in below, or add an API key, then check again."
+      ? "No sign-in and no API key were found. Run the sign-in command above, or add an API key, then check again."
       : "No API key was found. Add the API key above, then check again.";
   }
   return status === "failed"
@@ -93,7 +95,7 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
   const defaultModelEntry = defaultModel ? seeded?.models?.[defaultModel] : undefined;
   const catalogUnusable = readyToValidate && (!seeded || !defaultModelEntry);
 
-  const handleValidate = () => {
+  const handleValidate = async () => {
     if (!readyToValidate || catalogUnusable) return;
     if (claimMutation && !claimMutation()) return;
     setError(null);
@@ -109,9 +111,10 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
 
     const backends: BackendsConfig["backends"] = existing?.backends ?? {};
     // Merge-preserve (INV §3): the seeded catalog — every model entry and its
-    // default — is submitted unchanged. This step only marks the chosen backend
-    // default and overlays credentials; it never writes back a partial
-    // on-screen view of the model catalog.
+    // default — is submitted unchanged. This save only overlays credentials;
+    // it never writes back a partial on-screen view of the model catalog, and
+    // it leaves every default flag as saved so an unready choice (or a
+    // repeated Check again) never replaces the working default (FS-04.R17).
     const config: BackendsConfig = {
       version: 2,
       backends: {
@@ -120,7 +123,7 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
           ...seeded,
           name: seeded?.name ?? BACKEND_TYPE_LABELS[type],
           type,
-          default: true,
+          default: seeded?.default ?? false,
           default_model: defaultModel,
           models: seeded?.models ?? {},
           env,
@@ -128,22 +131,27 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
       },
     };
 
-    // Clear default flag from all other backends.
-    for (const id of Object.keys(config.backends)) {
-      if (id !== backendId) config.backends[id] = { ...config.backends[id], default: false };
+    try {
+      const resp = await putBackends.mutateAsync({ ...config, catalogEtag: existing?.catalogEtag });
+      const cred = resp.credentials?.[backendId];
+      const status = cred?.status ?? null;
+      setCredStatus(status);
+      setCredDetail(cred?.detail ?? null);
+      if (status !== "ok") return;
+      // Ready: only now does the chosen backend become the default, on top of
+      // the catalog just saved.
+      if (!resp.backends[backendId]?.default) {
+        const promoted = Object.fromEntries(
+          Object.entries(resp.backends).map(([id, b]) => [id, { ...b, default: id === backendId }]),
+        );
+        await putBackends.mutateAsync({ version: 2, backends: promoted, catalogEtag: resp.catalogEtag });
+      }
+      onDone({ id: backendId, type });
+    } catch (e) {
+      setError(configErrorMessage(e));
+    } finally {
+      releaseMutation?.();
     }
-
-    putBackends.mutate({ ...config, catalogEtag: existing?.catalogEtag }, {
-      onSuccess: (resp) => {
-        const cred = resp.credentials?.[backendId];
-        const status = cred?.status ?? null;
-        setCredStatus(status);
-        setCredDetail(cred?.detail ?? null);
-        if (status === "ok") onDone({ id: backendId, type });
-      },
-      onError: (e) => setError(configErrorMessage(e)),
-      onSettled: releaseMutation,
-    });
   };
 
   return (
@@ -155,8 +163,8 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
       </p>
 
       <div className="form-field">
-        <label>Backend type</label>
-        <select value={type} onChange={(e) => setType(e.target.value as BackendType)}>
+        <label htmlFor="onboarding-backend-type">Backend type</label>
+        <select id="onboarding-backend-type" value={type} onChange={(e) => setType(e.target.value as BackendType)}>
           {BACKEND_TYPE_OPTIONS.map((t) => (
             <option key={t} value={t}>
               {BACKEND_TYPE_LABELS[t]}
@@ -190,8 +198,9 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
 
       {type === "codex-acp" && (
         <div className="form-field">
-          <label>OpenAI API key (optional)</label>
+          <label htmlFor="onboarding-openai-key">OpenAI API key (optional)</label>
           <input
+            id="onboarding-openai-key"
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
@@ -204,8 +213,9 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
       {type === "openhands-acp" && (
         <>
           <div className="form-field">
-            <label>LLM API key</label>
+            <label htmlFor="onboarding-llm-key">LLM API key</label>
             <input
+              id="onboarding-llm-key"
               type="password"
               value={llmApiKey}
               onChange={(e) => setLlmApiKey(e.target.value)}
@@ -214,8 +224,9 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
             />
           </div>
           <div className="form-field">
-            <label>LLM base URL (optional)</label>
+            <label htmlFor="onboarding-llm-base-url">LLM base URL (optional)</label>
             <input
+              id="onboarding-llm-base-url"
               value={llmBaseUrl}
               onChange={(e) => setLlmBaseUrl(e.target.value)}
               placeholder="https://api.anthropic.com"
@@ -241,7 +252,7 @@ export function BackendStep({ onDone, claimMutation, releaseMutation }: BackendS
         <button
           type="button"
           className="ad-button-primary"
-          onClick={handleValidate}
+          onClick={() => void handleValidate()}
           disabled={putBackends.isPending || !readyToValidate || catalogUnusable}
         >
           {putBackends.isPending

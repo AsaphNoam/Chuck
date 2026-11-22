@@ -656,6 +656,27 @@ a.agent-mini-card:focus-visible {
   margin: 0;
 }
 
+/* On the desktop header the open quota floats over the page instead of growing
+   the header, so the transcript keeps its height (FS-09.R83). */
+.chat-header .subscription-quota {
+  position: relative;
+}
+
+.chat-header .subscription-quota-body {
+  background: var(--ad-surface-raised);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-medium);
+  box-shadow: var(--ad-shadow-offset);
+  max-height: 50vh;
+  overflow: auto;
+  padding: var(--ad-space-3);
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 16rem;
+  z-index: 10;
+}
+
 .subscription-quota-provider {
   color: var(--ad-text-primary);
 }
@@ -953,6 +974,9 @@ a.agent-mini-card:focus-visible {
   background: var(--ad-surface-raised);
   border-top: var(--ad-border-thin) solid var(--ad-border-default);
   display: grid;
+  /* A fitted terminal's fixed width must not hold the column open after the
+     window shrinks, or the terminal cannot re-fit. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
@@ -1235,10 +1259,12 @@ a.agent-mini-card:focus-visible {
   margin: 0;
 }
 
+/* A long unbroken token (URL, hash) wraps inside its bubble. */
 .message {
   font-size: 0.98rem;
   line-height: 1.65;
   max-width: 52rem;
+  overflow-wrap: anywhere;
   width: min(100%, 52rem);
   margin-inline: auto;
 }
@@ -1861,6 +1887,8 @@ a.agent-mini-card:focus-visible {
   display: contents;
 }
 
+/* rtl moves the ellipsis to the start; the path itself sits in an ltr <bdi>
+   so a leading "/" or "../" keeps its place. */
 .file-viewer-path {
   direction: rtl;
   flex: 1 1 10rem;
@@ -2026,15 +2054,16 @@ a.agent-mini-card:focus-visible {
   width: 100%;
 }
 
-/* Focus gives prose a comfortable measure while technical blocks keep the
-   whole width (TS-08.R131). */
+/* Focus gives prose a comfortable measure while technical blocks may grow into
+   the right gutter (TS-08.R131). Every block starts on the prose edge, so a
+   short table or fence lines up with the text instead of hugging the left. */
 .file-viewer[data-variant="focused"] .file-viewer-rendered {
   display: grid;
   grid-template-columns: [full-start] minmax(0, 1fr) [prose-start] minmax(0, 76ch) [prose-end] minmax(0, 1fr) [full-end];
 }
 
 .file-viewer[data-variant="focused"] .file-viewer-rendered > * {
-  grid-column: full;
+  grid-column: prose-start / full-end;
 }
 
 .file-viewer[data-variant="focused"] .file-viewer-rendered > :is(p, ul, ol, h1, h2, h3, h4, h5, h6, blockquote, hr) {
@@ -2799,6 +2828,35 @@ a.agent-mini-card:focus-visible {
 
   .chat-runtime-hint {
     display: none;
+  }
+}
+
+/* A short window (a 1280×800 laptop) tightens the page chrome so the
+   transcript keeps a readable height. */
+@media (max-height: 900px) {
+  .app-main:has(> .chat-panel) {
+    padding-block: var(--ad-space-4);
+  }
+
+  .chat-panel {
+    gap: var(--ad-space-2);
+    height: calc(100vh - 108px);
+  }
+
+  .chat-header {
+    padding-block: var(--ad-space-4) var(--ad-space-3);
+  }
+
+  .chat-runtime-picker {
+    padding-block: var(--ad-space-2);
+  }
+
+  .chat-composer {
+    padding-bottom: var(--ad-space-4);
+  }
+
+  .chat-composer .composer textarea {
+    min-height: 44px;
   }
 }
 

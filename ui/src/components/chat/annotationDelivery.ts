@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendAnnotations, validateAnnotations } from "../../api/client";
 import type { AgentState, AnnotationBatch } from "../../api/types";
-import { annotationBatch } from "../../lib/annotations";
+import { annotationAnchor, annotationBatch } from "../../lib/annotations";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { readHeldRecovery } from "../../lib/heldMessage";
 
@@ -127,6 +127,12 @@ export function useAnnotationDelivery({ sourceId, sourceActive, source, recipien
     }
     if (!connected) {
       setError("Reconnect to send annotations.");
+      return;
+    }
+    // Name the draft and the missing field before any request (FS-13.R7).
+    const blank = (drafts ?? []).find((draft) => !draft.instruction.trim());
+    if (blank) {
+      setError(`${annotationAnchor(blank)} needs an instruction.`);
       return;
     }
     if (target === "new") {

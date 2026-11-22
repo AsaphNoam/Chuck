@@ -44,6 +44,11 @@ export function ProjectForm({
   const [addDirs, setAddDirs] = useState<string[]>(initial?.add_dirs ?? []);
   const [addDirsInput, setAddDirsInput] = useState("");
   const [browseError, setBrowseError] = useState<string | null>(null);
+  const [pendingDirError, setPendingDirError] = useState(false);
+  const addPendingDir = () => {
+    const v = addDirsInput.trim();
+    if (v) { setAddDirs((prev) => [...prev, v]); setAddDirsInput(""); setPendingDirError(false); }
+  };
   const {
     register,
     handleSubmit,
@@ -61,6 +66,12 @@ export function ProjectForm({
   });
 
   const submit = (vals: FormValues) => {
+    // Only Add puts a directory in the list (FS-04.R42), so typed-but-unadded
+    // text must not be silently dropped by Update/Create.
+    if (addDirsInput.trim()) {
+      setPendingDirError(true);
+      return;
+    }
     onSubmit({
       // Empty id on create tells the server to derive it from the title (R31).
       project: isEdit ? initial!.project : "",
@@ -135,13 +146,14 @@ export function ProjectForm({
         <div className="string-list-add">
           <input
             value={addDirsInput}
-            onChange={(e) => setAddDirsInput(e.target.value)}
+            onChange={(e) => { setAddDirsInput(e.target.value); setPendingDirError(false); }}
             placeholder="~/extra-dir"
+            aria-label="Additional directory"
+            aria-invalid={pendingDirError || undefined}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                const v = addDirsInput.trim();
-                if (v) { setAddDirs((prev) => [...prev, v]); setAddDirsInput(""); }
+                addPendingDir();
               }
             }}
           />
@@ -152,20 +164,18 @@ export function ProjectForm({
             disabled={submitting}
             onPicked={(path) => {
               setBrowseError(null);
+              setPendingDirError(false);
               setAddDirsInput(path);
             }}
             onError={setBrowseError}
           />
-          <button
-            type="button"
-            onClick={() => {
-              const v = addDirsInput.trim();
-              if (v) { setAddDirs((prev) => [...prev, v]); setAddDirsInput(""); }
-            }}
-          >
+          <button type="button" onClick={addPendingDir}>
             Add
           </button>
         </div>
+        {pendingDirError && (
+          <span className="form-error">Add this directory or clear it before saving.</span>
+        )}
       </div>
       <div className="form-field">
         <label>Context prompt</label>

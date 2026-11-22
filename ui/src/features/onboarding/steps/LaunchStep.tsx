@@ -6,7 +6,8 @@ import { displayLabel, displayLabels } from "../../../lib/labels";
 import { isCanonicalNoPersona, personaLabel } from "../../../lib/personas";
 
 interface LaunchStepProps {
-  onDone: () => void;
+  /** Receives the launched agent's id so completion can open its chat. */
+  onDone: (agentId: string) => void;
   /** Slug of the project created in ProjectStep. Preferred over the seeded
    * default so onboarding launches a project whose cwd actually exists. */
   initialProject?: string;
@@ -74,10 +75,15 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
     launch.mutate(
       { name: name || undefined, role, project, backend: defaultBackendId || undefined, interface: "chat" },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setLaunchSucceeded(true);
-          putConfig.mutate({ onboarding_complete: true }, {
-            onSuccess: onDone,
+          // The project created in this wizard replaces the seeded placeholder as
+          // the default for later launches, in the same completion write (FS-04.R20).
+          const completion = project === initialProject
+            ? { onboarding_complete: true, default_project: project }
+            : { onboarding_complete: true };
+          putConfig.mutate(completion, {
+            onSuccess: () => onDone(result.agent.agent_id),
             onError: (e) => {
               pushError("Failed to mark onboarding complete", configErrorMessage(e));
               // Agent launched successfully; keep the wizard visible but show the error.
@@ -103,8 +109,8 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
       </p>
 
       <div className="form-field">
-        <label>Project</label>
-        <select value={project} onChange={(e) => setProject(e.target.value)}>
+        <label htmlFor="onboarding-launch-project">Project</label>
+        <select id="onboarding-launch-project" value={project} onChange={(e) => setProject(e.target.value)}>
           {displayLabels(projectEntries.map(([id, p]) => [id, p.title])).map(([id, title]) => (
             <option key={id} value={id}>{title}</option>
           ))}

@@ -191,6 +191,7 @@ export function BackendsEditor() {
   const [savedBackendIds, setSavedBackendIds] = useState<Set<string>>(new Set());
   const [credentials, setCredentials] = useState<Record<string, CredResult>>({});
   const [error, setError] = useState<string | null>(null);
+  const [showBlankModels, setShowBlankModels] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -284,6 +285,16 @@ export function BackendsEditor() {
     if (unnamed) {
       setError(`Enter a name for backend ${unnamed.id}.`);
       return;
+    }
+    // The server refuses an empty provider model string with internal keys; say
+    // it here in the person's terms and mark the row itself.
+    for (const { backend } of entries) {
+      const blank = Object.values(backend.models ?? {}).find((m) => !m.model.trim());
+      if (blank) {
+        setShowBlankModels(true);
+        setError(`Enter a provider model string for ${blank.name.trim() || "the new model"} in ${backend.name}.`);
+        return;
+      }
     }
     const config = { ...entriesToConfig(entries, defaultId), catalogEtag };
     putBackends.mutate(config, {
@@ -463,6 +474,7 @@ export function BackendsEditor() {
                 isDefault={backend.default_model === modelId}
                 radioGroup={`default-model-${id}`}
                 capability={capability}
+                showBlankModel={showBlankModels}
                 onSetDefault={() => updateBackend(id, { default_model: modelId })}
                 onChange={(updatedModel) => {
                   updateBackend(id, {

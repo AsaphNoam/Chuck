@@ -3,13 +3,10 @@ import { useId } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import type { RoleResponse } from "../../schemas/role";
+import { slugSchema, type RoleResponse } from "../../schemas/role";
 
 const schema = z.object({
-  role: z
-    .string()
-    .regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "must match ^[a-z0-9][a-z0-9-]{0,62}$")
-    .optional(),
+  role: slugSchema.optional(),
   title: z.string().min(1, "title is required").max(120),
   system_prompt: z.string(),
   skip_permissions: z.enum(["null", "true", "false"]),

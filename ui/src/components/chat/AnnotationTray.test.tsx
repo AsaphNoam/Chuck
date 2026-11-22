@@ -211,20 +211,35 @@ describe("AnnotationTray", () => {
 
   it("validates the batch before opening launch, leaving an invalid tray intact", async () => {
     seedTray(1);
-    useAnnotationStore.getState().updateInstruction("source", 0, "  ");
     let preflights = 0;
     server.use(http.post("/api/sessions/source/annotations/validate", () => {
       preflights++;
-      return HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an anchor, excerpt, and instruction" } }, { status: 422 });
+      return HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an excerpt" } }, { status: 422 });
     }));
     renderTray();
     fireEvent.click(screen.getByLabelText("New agent"));
     fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
-    expect(await screen.findByText("annotation 1 needs an anchor, excerpt, and instruction")).toBeInTheDocument();
+    expect(await screen.findByText("annotation 1 needs an excerpt")).toBeInTheDocument();
     expect(preflights).toBe(1);
     expect(launches).toBe(0);
     expect(screen.queryByRole("button", { name: "Launch agent" })).toBeNull();
     expect(useAnnotationStore.getState().bySource.source).toHaveLength(1);
+  });
+
+  // J13: a blank instruction names the draft and the missing field, and sends nothing.
+  it("names the draft whose instruction is blank before any request", async () => {
+    seedTray(2);
+    useAnnotationStore.getState().updateInstruction("source", 1, "  ");
+    let requests = 0;
+    server.use(
+      http.post("/api/sessions/source/annotations/validate", () => { requests++; return HttpResponse.json({ valid: true }); }),
+      http.post("/api/sessions/source/annotations", () => { requests++; return HttpResponse.json({ accepted: true }, { status: 202 }); }),
+    );
+    renderTray();
+    fireEvent.click(screen.getByRole("button", { name: "Send annotations" }));
+    expect(await screen.findByText("Event 2 needs an instruction.")).toBeInTheDocument();
+    expect(requests).toBe(0);
+    expect(useAnnotationStore.getState().bySource.source).toHaveLength(2);
   });
 
   it("retries failed post-launch delivery to the same agent without launching another", async () => {

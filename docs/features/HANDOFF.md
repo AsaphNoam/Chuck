@@ -236,57 +236,25 @@ specs, live user state or unrelated dirty files changed.
 
 ### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
-Repros and evidence: [run record](../archive/reviews/usability-review-run-2026-11-21.md). Homes
-remain under `/tmp/chuck-ur-2026-11-21/work/` while that directory lasts. Its Must-fix items
-closed on 2026-11-21 by the usability fix commit; only Worth-fixing items remain (trivial/easy).
-The per-attempt run cards are proven in jsdom only, not re-checked in a real browser.
+Repros: [run record](../archive/reviews/usability-review-run-2026-11-21.md). Must-fix and
+Worth-fixing items closed on 2026-11-21/22 by the two usability fix commits; what remains:
 
-- **Worth fixing** (trivial/easy) — J2 onboarding: each Check again PUTs backends and makes the last
-  checked backend (e.g. OpenHands) the default; reloading mid-wizard drops the remaining steps once a
-  backend passes (onboarding stays incomplete); Launch lands on Projects instead of the agent; a
-  placeholder "My App" exists while the step says "Create your first project" and stays default;
-  sign-in copy says "below" where nothing is; OpenCode/OpenHands still give no install command;
-  wizard labels are not associated with inputs.
-- **Worth fixing** (trivial/easy) — J9 settings: role id error shows the raw regex; an empty model id
-  error shows internal keys and a generated id, only beside the distant Save; text typed in
-  Additional directories without Add is silently dropped on Update.
-- **Worth fixing** (trivial/easy) — J3/J4 chat: file-viewer header scrambles absolute and `../`
-  paths (`etc/hosts/`, `outside.txt/..`); permission requests raise two stacked toasts that outlive
-  the prompt and a toast appears when skip-permissions auto-approves; at 1280×800 the transcript is
-  about 244px tall (130px with the viewer); a long unbroken token overflows the bubble; an
-  intermittent "Conversation history may be incomplete" notice appears after a clean `dashboard stop`
-  (seen on three agents, not reproduced on a fresh one).
-- **Worth fixing** (trivial/easy) — J6 terminal: shrinking the window does not re-fit the terminal
-  (overflows its card); Resume of a terminal agent without a recorded conversation id returns 409
-  with no visible reason.
-- **Worth fixing** (trivial/easy) — J7/J8/J11: a send error ("Failed to fetch") stays under the
-  composer after reconnect, and controls look live while reconnecting; disabled Stop has no reason
-  and disabled Clone on a stopped agent says the runtime cannot fork; Archive's counter counts
-  projects ("1 result" for 58 agents); untagged search misses the model name.
-- **Worth fixing** (trivial/easy) — J13: tray validation says "needs an anchor, excerpt, and
-  instruction" without naming the item or the missing field.
-- **Worth fixing** (trivial/easy) — J14: restart-paused runs still offer Open agent with code-like
-  "owner not reporting" copy (FS-14.A26/R48); paused-run actions have inverted weight and Stop run and
-  Delete have no confirmation; the shared-workspace 409 dialog lists "agent: Spec" uncapped with no
-  run names; Start-run dialog still fades under reduced motion; CLI `pipeline` errors hide the API
-  diagnostics; 121 scripted `run stop` calls left runs paused (unconfirmed).
-- **Worth fixing** (trivial/easy) — J15/J16 tasks: the create form keeps the previous Wait-for
-  prerequisite, silently arming the next task; raw `display_name`/`signal_name`/`dependency_failed`
-  in errors and options with no limit stated; Delete has no confirmation; parked reason stays
-  generic; budget-queued rows do not say they wait for a slot.
-- **Worth fixing** (trivial/easy) — X1 Think Tanks: Pause during a turn gives no "pausing after this
-  turn" acknowledgement; ended rooms keep "<name>'s unfinished turn" rows for turns later retried; a
-  loaded template silently turns existing agents into new duplicate-named agents.
-- **Worth fixing** (trivial/easy) — X2: rendered Markdown in Project Files splits into misaligned
-  columns (table and code squeezed left).
-- **Worth fixing** (trivial/easy) — X4/X6: the phone says "That code did not work" for a declined
-  code as for a wrong one (FS-20.R6); expanding Subscription quota on the desktop agent page leaves a
-  one-line transcript at 900px height.
-- **Worth fixing** (trivial/easy) — X7 CLI: with no pidfile the CLI falls back to the config port and
-  can read another home's dashboard; positional arguments report `unknown command`; pipeline errors
-  print raw JSON, `project show nope` leaks `/api/projects`, `task list --project nope` exits 0.
-- **Worth fixing** (trivial/easy) — Matrix coverage: add §3 charters for Think Tanks, Project Files,
-  phone remote control, operator CLI, quota and message actions (USABILITY-REVIEW §7).
+- **Worth fixing** (medium) — J16. Budget-queued task rows cannot say they wait for a slot: the
+  server reports no capacity-wait cause (FS-16.R44 shows a cause only when reported), and a ready task
+  that borrows a running agent uses no slot, so the UI cannot tell queued from about to start. The
+  dispatcher or projection must report it (INV §18).
+- **Worth fixing** (needs decision) — J7. Clone on an agent whose runtime never reported
+  capabilities reads "runtime cannot fork", the same as a runtime that refuses fork (INV §20); needs
+  an `unknown` capability state.
+- **Worth fixing** (needs decision) — J2. Reload mid-wizard closes it once a backend passes, and the
+  seeded "My App" project stays; both wait on the planned FS-04.R64/A43. OpenCode/OpenHands install
+  commands: none is verifiable from the repo.
+- **Worth fixing** (trivial/easy, unverified) — real-browser checks owed for the per-attempt run
+  cards, the restyled paused-run actions and the Start-run reduced-motion rule (INV §13).
+  `ui/scripts/quota-render.mjs` "scheduled and unknown reset states visible" failed for Sky & Grove
+  and Studio during the X6 fix, before the panel opens; not investigated.
+- **Worth fixing** (undetermined) — J3. The clean-close shutdown wait covers chat runtimes only; the
+  terminal registry's StopAll was not audited for the same false history-gap notice.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

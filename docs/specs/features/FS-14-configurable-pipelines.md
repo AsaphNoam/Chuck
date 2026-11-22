@@ -302,7 +302,9 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   backend/model/effort, and its named values with the run input or stage attempt that produced each.
   It carries the **Open agent**, **Continue**, **Retry stage**, **Stop run**, and **Delete run
   record** actions under exactly the validity gating R11, R12, R13, and R20 already define, and a
-  refused action stays visible and retryable.
+  refused action stays visible and retryable. Recovery actions lead and navigation to the agent is
+  secondary; **Stop run** and **Delete run record** each ask for one confirmation stating the
+  consequence before acting.
 - **R38** — A run's page presents its attempts as an **execution timeline** in
   the order they actually ran, so a bounded repair loop appears as repeated entries for the same
   stage rather than being collapsed into one. Each entry names its stage, visit number, effective
@@ -400,6 +402,11 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
   agent can no longer report against the run and that Retry runs the stage again, naming whether the
   agent was stopped by the restart or left unstarted by the failure. Every other pause, including a
   `blocked` pause whose stage agent stays live, keeps **Open agent** unchanged.
+  *Clarified 2026-11-21 for the goal-led engine (R101):* any pause whose current stage assignment
+  is interrupted — restart, agent exit, or repeated turns without a report — is such a pause, since
+  the interrupted assignment refuses that agent's chat reports. Where Continue is offered for it
+  (resuming the interrupted owner), the page names Continue alongside Retry. Pause reasons read as
+  product sentences, never as recorded codes.
 
 ### 4.4 Reviewing and declining pending proposals
 
@@ -1173,7 +1180,9 @@ R97–R103 shipped 2026-10-30 (goal-led runs); §6 records the confirmation, dev
 - **A26** (R48) — A run paused by restart recovery, by a failed stage launch, or by a
   failed stage resume shows no **Open agent** action, keeps **Retry stage**, and states that the
   stage agent can no longer report against the run; a run paused as `blocked` still links to its
-  live stage agent. *Verify:* `ui/src/features/pipelines/RunBrowser.test.tsx`.
+  live stage agent. A run paused over an interrupted assignment for repeated non-reporting likewise
+  shows no **Open agent**, names Resume and Retry when both are eligible, and states its reason in
+  a sentence rather than a code. *Verify:* `ui/src/features/pipelines/RunBrowser.test.tsx`.
 
 - **A27** (R49/R50/R57) — Rejecting a pending proposal removes it from the pending
   list, lists it as declined with its decline time, and survives a reload; the pending count the

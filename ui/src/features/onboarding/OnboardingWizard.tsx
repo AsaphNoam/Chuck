@@ -12,7 +12,8 @@ type WizardStep = "backend" | "project" | "source" | "launch" | "resume";
 
 interface OnboardingWizardProps {
   steps: Onboarding["steps"];
-  onComplete: () => void;
+  /** Launch completion passes the new agent's id; Set up later passes none. */
+  onComplete: (launchedAgentId?: string) => void;
 }
 
 export function OnboardingWizard({ steps, onComplete }: OnboardingWizardProps) {
@@ -68,7 +69,7 @@ export function OnboardingWizard({ steps, onComplete }: OnboardingWizardProps) {
     putConfig.mutate(
       { onboarding_complete: true },
       {
-        onSuccess: onComplete,
+        onSuccess: () => onComplete(),
         onError: (e) => setSkipError(configErrorMessage(e)),
         onSettled: releaseMutation,
       },

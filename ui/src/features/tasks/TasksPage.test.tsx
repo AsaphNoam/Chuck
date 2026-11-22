@@ -302,7 +302,7 @@ describe("Tasks work in motion", () => {
     const row = await openTask("Follow up on removed work");
     expect(within(row).getByText(/Re-arm replaces this entire wait set/)).toBeInTheDocument();
     const named = within(row).getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · Ready to start" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     fireEvent.click(within(row).getByRole("button", { name: "Re-arm" }));
     expect(await within(row).findByRole("alert")).toHaveTextContent("wait graph changed");
@@ -323,7 +323,7 @@ describe("Tasks work in motion", () => {
     renderPage("/tasks?project=my-app");
     const row = await openTask("Follow up on removed work");
     const named = within(row).getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · Ready to start" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     fireEvent.change(within(row).getByLabelText(/Start at/), { target: { value: "2030-01-15T09:30" } });
     expect(within(row).getByLabelText(/Run only on time/)).toBeChecked();
@@ -341,7 +341,7 @@ describe("Tasks work in motion", () => {
     const { client } = renderPage("/tasks?project=my-app");
     const row = await openTask("Follow up on removed work");
     const named = within(row).getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · Ready to start" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     taskLists["my-app"] = wire("my-app").filter((task) => task.task_id !== "tk_r");
     await client.invalidateQueries({ queryKey: ["tasks", "my-app"] });
@@ -363,6 +363,21 @@ describe("Tasks work in motion", () => {
     expect(within(again).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
+  // J16: Delete asks first and says what it leaves (FS-16.R18); Keep sends nothing.
+  it("confirms Delete before removing a task", async () => {
+    let deletes = 0;
+    server.use(http.delete("/api/tasks/:id", () => { deletes++; return new HttpResponse(null, { status: 204 }); }));
+    renderPage("/tasks?project=my-app");
+    const row = await openTask("Follow up on removed work");
+    fireEvent.click(within(row).getByRole("button", { name: "Delete…" }));
+    expect(within(row).getByText(/Tasks still waiting on this one will need attention/)).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Keep" }));
+    expect(deletes).toBe(0);
+    fireEvent.click(within(row).getByRole("button", { name: "Delete…" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Delete task" }));
+    await waitFor(() => expect(deletes).toBe(1));
+  });
+
   it("records a person's result on running work", async () => {
     renderPage("/tasks?project=my-app");
     const row = await openTask("Implement API");
@@ -380,7 +395,7 @@ describe("Tasks work in motion", () => {
     expect(within(row).getAllByRole("link", { name: "Pipeline run" })[0]).toHaveAttribute("href", "/pipelines/runs/pr_1");
     expect(await within(row).findByText(/Stage ownership could not be loaded/)).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Record result" })).not.toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /^Delete/ })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 
@@ -430,7 +445,7 @@ describe("Create task manually", () => {
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "follow up" } });
     fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "continue" } });
     const prerequisite = create.getByLabelText("Named prerequisite");
-    await within(prerequisite).findByRole("option", { name: "Tidy fixtures · ready" });
+    await within(prerequisite).findByRole("option", { name: "Tidy fixtures · Ready to start" });
     fireEvent.change(prerequisite, { target: { value: "tk_r" } });
     expect(create.getByText("Advanced · prerequisite")).toBeInTheDocument();
     fireEvent.click(create.getByLabelText("Success"));
@@ -472,7 +487,7 @@ describe("Create task manually", () => {
     const create = createForm();
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "draft name" } });
     const named = create.getByLabelText("Named prerequisite");
-    await within(named).findByRole("option", { name: "Tidy fixtures · ready" });
+    await within(named).findByRole("option", { name: "Tidy fixtures · Ready to start" });
     fireEvent.change(named, { target: { value: "tk_r" } });
     disclosure.open = false;
     disclosure.open = true;
@@ -505,8 +520,8 @@ describe("Create task manually", () => {
     const create = createForm();
     const named = create.getByLabelText("Named prerequisite");
     // Same name and state: the shared duplicate-name rule keeps the choices distinct (FS-02.R69).
-    await within(named).findByRole("option", { name: "Build · ready (tk_x)" });
-    expect(within(named).getByRole("option", { name: "Build · ready (tk_y)" })).toBeInTheDocument();
+    await within(named).findByRole("option", { name: "Build · Ready to start (tk_x)" });
+    expect(within(named).getByRole("option", { name: "Build · Ready to start (tk_y)" })).toBeInTheDocument();
     fireEvent.change(named, { target: { value: "tk_y" } });
     fireEvent.change(create.getByLabelText("Name"), { target: { value: "follow up" } });
     fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "continue" } });
@@ -518,7 +533,7 @@ describe("Create task manually", () => {
   it("keeps an unavailable outcome visible when changing source type and blocks submission until corrected", async () => {
     renderPage("/tasks?project=my-app");
     const create = createForm();
-    await within(create.getByLabelText("Named prerequisite")).findByRole("option", { name: "Tidy fixtures · ready" });
+    await within(create.getByLabelText("Named prerequisite")).findByRole("option", { name: "Tidy fixtures · Ready to start" });
     fireEvent.change(create.getByLabelText("Named prerequisite"), { target: { value: "tk_r" } });
     fireEvent.click(create.getByLabelText("Blocked"));
     fireEvent.change(create.getByLabelText("Source type"), { target: { value: "pipeline_run" } });
@@ -540,6 +555,36 @@ describe("Create task manually", () => {
     expect(await create.findByText("No matching runs in the loaded pages yet.")).toBeInTheDocument();
     fireEvent.click(create.getByRole("button", { name: "Load more runs" }));
     await create.findByRole("option", { name: "Release · completed" });
+  });
+
+  // J15: the next task never silently inherits the previous one's wait.
+  it("clears the prerequisite and context after a successful create", async () => {
+    renderPage("/tasks?project=my-app");
+    const create = createForm();
+    fireEvent.change(create.getByLabelText("Name"), { target: { value: "first" } });
+    fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "do it" } });
+    const named = create.getByLabelText("Named prerequisite");
+    await within(named).findByRole("option", { name: "Tidy fixtures · Ready to start" });
+    fireEvent.change(named, { target: { value: "tk_r" } });
+    fireEvent.change(create.getByLabelText("Context reference ID"), { target: { value: "cx_1" } });
+    fireEvent.click(create.getByRole("button", { name: "Create task" }));
+    expect(await create.findByText(/Created “first”/)).toBeInTheDocument();
+    expect((create.getByLabelText("Named prerequisite") as HTMLSelectElement).value).toBe("");
+    expect((create.getByLabelText("Context reference ID") as HTMLInputElement).value).toBe("");
+    expect(create.getByText("Advanced", { selector: ".task-create > details > summary" })).toBeInTheDocument();
+  });
+
+  // J15: wire field names in a refusal reach the person in the form's words, with the limit.
+  it("names the field and its limit when the server refuses a name", async () => {
+    server.use(http.post("/api/tasks", () => HttpResponse.json({ error: { code: "validation", message: "display_name is required and bounded" } }, { status: 422 })));
+    renderPage("/tasks?project=my-app");
+    await screen.findByText("Implement API");
+    const create = createForm();
+    expect(create.getByLabelText("Name")).toHaveAttribute("maxLength", "200");
+    fireEvent.change(create.getByLabelText("Name"), { target: { value: "x" } });
+    fireEvent.change(create.getByLabelText("Instruction"), { target: { value: "do it" } });
+    fireEvent.click(create.getByRole("button", { name: "Create task" }));
+    expect(await create.findByRole("alert")).toHaveTextContent("Name is required and must be at most 200 characters.");
   });
 
   it("keeps manual IDs in the same selection and preserves the draft after refusal", async () => {

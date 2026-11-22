@@ -61,7 +61,7 @@ func addManagementFlags(c *cobra.Command) {
 	for _, x := range c.Commands() {
 		addOperatorFlags(x)
 		if x.Args == nil {
-			x.Args = cobra.NoArgs
+			x.Args = noPositionalArgs
 		}
 		x.Long = managementHelp(c.Name(), x.Name(), x.Short)
 		if x.Example == "" {
@@ -266,37 +266,47 @@ func requireKnownDirtyExpectation(body map[string]json.RawMessage) error {
 	return nil
 }
 
-func operatorCollectionShow(cmd *cobra.Command, path, id, wrapper string) error {
-	client, err := operatorClientFactory()
+func operatorCollectionShow(cmd *cobra.Command, path, kind, id, wrapper string) error {
+	item, err := operatorCollectionItem(cmd, path, kind, id, wrapper)
 	if err != nil {
 		return err
 	}
+	return operatorOutput(cmd, item)
+}
+
+// operatorCollectionItem reads one id from a keyed collection; a missing id
+// names the kind and id the operator typed, not the API route.
+func operatorCollectionItem(cmd *cobra.Command, path, kind, id, wrapper string) (json.RawMessage, error) {
+	client, err := operatorClientFactory()
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel, err := operatorContext(cmd)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer cancel()
 	data, err := client.Request(ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var values map[string]json.RawMessage
 	if err := json.Unmarshal(data, &values); err != nil || values == nil {
-		return &operatorError{Code: "invalid_response", Message: "dashboard returned an invalid collection object", ExitCode: 1}
+		return nil, &operatorError{Code: "invalid_response", Message: "dashboard returned an invalid collection object", ExitCode: 1}
 	}
 	if wrapper != "" {
 		var wrapped map[string]json.RawMessage
 		raw, ok := values[wrapper]
 		if !ok || json.Unmarshal(raw, &wrapped) != nil || wrapped == nil {
-			return &operatorError{Code: "invalid_response", Message: "dashboard returned a collection without " + wrapper, ExitCode: 1}
+			return nil, &operatorError{Code: "invalid_response", Message: "dashboard returned a collection without " + wrapper, ExitCode: 1}
 		}
 		values = wrapped
 	}
 	item, ok := values[id]
 	if !ok {
-		return &operatorError{Code: "not_found", Message: "no such " + path + " target", HTTPStatus: http.StatusNotFound, ExitCode: 1}
+		return nil, &operatorError{Code: "not_found", Message: fmt.Sprintf("%s %q not found", kind, id), HTTPStatus: http.StatusNotFound, ExitCode: 1}
 	}
-	return operatorOutput(cmd, item)
+	return item, nil
 }
 
 func newOperatorProjectCmd() *cobra.Command {
@@ -305,7 +315,7 @@ func newOperatorProjectCmd() *cobra.Command {
 	c.AddCommand(list)
 	id := new(string)
 	show := &cobra.Command{Use: "show", Short: "Show one project", RunE: func(cmd *cobra.Command, _ []string) error {
-		return operatorCollectionShow(cmd, "/api/projects", *id, "")
+		return operatorCollectionShow(cmd, "/api/projects", "project", *id, "")
 	}}
 	show.Flags().StringVar(id, "project", "", "project id")
 	_ = show.MarkFlagRequired("project")
@@ -572,7 +582,7 @@ func newOperatorBackendCmd() *cobra.Command {
 	c.AddCommand(list)
 	var id, model, etag, name, typ string
 	show := &cobra.Command{Use: "show", Short: "Show one backend", RunE: func(cmd *cobra.Command, _ []string) error {
-		return operatorCollectionShow(cmd, "/api/backends", id, "backends")
+		return operatorCollectionShow(cmd, "/api/backends", "backend", id, "backends")
 	}}
 	show.Flags().StringVar(&id, "id", "", "backend id")
 	_ = show.MarkFlagRequired("id")
@@ -643,7 +653,7 @@ func operatorCollectionCommands(kind, path string, mutate bool) []*cobra.Command
 		if strings.TrimSpace(id) == "" {
 			return operatorInvalid("--id must name an exact role")
 		}
-		return operatorCollectionShow(cmd, path, id, "")
+		return operatorCollectionShow(cmd, path, kind, id, "")
 	}}
 	show.Flags().String("id", "", "id")
 	_ = show.MarkFlagRequired("id")
@@ -687,7 +697,7 @@ func operatorCollectionCommands(kind, path string, mutate bool) []*cobra.Command
 	for _, x := range []*cobra.Command{list, show, create, edit, del} {
 		addOperatorFlags(x)
 		if x.Args == nil {
-			x.Args = cobra.NoArgs
+			x.Args = noPositionalArgs
 		}
 		x.Long = managementHelp(kind, x.Name(), x.Short)
 		x.Example = operatorExample(kind, x.Use)

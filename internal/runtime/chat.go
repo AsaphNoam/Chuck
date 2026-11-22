@@ -311,6 +311,7 @@ type agentState struct {
 	journalAttachment      uint64 // this generation's writer attachment, guarded by mu
 	journalClosed          bool   // teardown already closed this generation's journal, guarded by mu
 	journalRelease         sync.Once
+	persistenceDone        chan struct{} // closed after the exit teardown records a clean journal close
 	// commands is the latest ACP available-commands snapshot (TS-04.R24). It is
 	// replace-only live state, not a transcript event: each update overwrites it,
 	// an empty update clears it, and it dies with this agentState on stop/crash.
@@ -498,6 +499,7 @@ func (c *ChatRuntime) Start(ctx context.Context, spec LaunchSpec) (*Handle, erro
 		stdin:            stdin,
 		stderr:           newRingBuffer(16 * 1024),
 		stderrDone:       make(chan struct{}),
+		persistenceDone:  make(chan struct{}),
 		ctx:              actx,
 		cancel:           acancel,
 		skipPerms:        spec.SkipPerms,
@@ -1839,6 +1841,7 @@ func (c *ChatRuntime) Resume(ctx context.Context, spec LaunchSpec, sessionID str
 		stdin:            stdin,
 		stderr:           newRingBuffer(16 * 1024),
 		stderrDone:       make(chan struct{}),
+		persistenceDone:  make(chan struct{}),
 		ctx:              actx,
 		cancel:           acancel,
 		skipPerms:        spec.SkipPerms,
@@ -2958,6 +2961,9 @@ func (as *agentState) closePersistence() {
 	as.mu.Unlock()
 	as.journal.forgetGeneration(generation)
 	as.releaseJournal()
+	if as.persistenceDone != nil {
+		close(as.persistenceDone)
+	}
 }
 
 // releaseJournal drops this generation's journal reference exactly once, on

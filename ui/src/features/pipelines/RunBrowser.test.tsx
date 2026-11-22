@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -121,8 +121,63 @@ it("offers Retry and explains why a restart-paused stage cannot be opened", asyn
   renderRun();
   expect(await screen.findByRole("button", { name: "Retry stage" })).toBeEnabled();
   expect(screen.queryByRole("link", { name: "Open agent" })).toBeNull();
-  expect(screen.getByText(/stage agent was stopped when Chuck restarted/)).toBeInTheDocument();
+  expect(screen.getByText("Chuck restarted while the stage agent was working.")).toBeInTheDocument();
+  expect(screen.getByText(/Chuck stopped the stage agent when it restarted, so its chat can no longer report against this run\. Retry the stage/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Resume run" })).toBeNull();
+});
+
+// FS-14.R48/A26: any pause over an interrupted stage assignment withholds Open
+// agent, whatever the recorded reason, and names every route that works.
+it("withholds Open agent for an interrupted non-reporting owner and names Resume and Retry", async () => {
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
+    ...detail,
+    run: { ...run, state: "paused", pending_action: "", attention_reason: "owner_not_reporting" },
+    stage_tasks: [{ ...stageTask, state: "interrupted" }],
+    controls: { ...controls, continue: { eligible: true, reason: "Resumes the interrupted owner." }, retry: { eligible: true, reason: "" } },
+  })));
+  renderRun();
+  expect(await screen.findByRole("button", { name: "Resume run" })).toBeEnabled();
+  expect(screen.queryByRole("link", { name: "Open agent" })).toBeNull();
+  expect(screen.getByText("The stage agent ended several turns without reporting a result.")).toBeInTheDocument();
+  expect(screen.getByText(/no longer working on this stage, so its chat can no longer report against this run\. Resume run to continue the stage, or Retry the stage/)).toBeInTheDocument();
+  expect(screen.queryByText(/owner not reporting/)).toBeNull();
+});
+
+it("keeps Open agent for a paused run whose stage agent is still assigned", async () => {
+  server.use(http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({
+    ...detail,
+    run: { ...run, state: "paused", pending_action: "", attention_reason: "needs_input", pause_question: "Which?" },
+    stage_tasks: [{ ...stageTask, state: "finished", result: { outcome: "blocked", summary: "", details: "", checks: "", outputs: {} } }],
+  })));
+  renderRun();
+  expect(await screen.findByRole("link", { name: "Open agent" })).toBeInTheDocument();
+});
+
+it("asks before stopping a run or deleting its record", async () => {
+  const posts: string[] = [];
+  server.use(http.post("/api/pipeline-runs/run_1/stop", () => { posts.push("stop"); return HttpResponse.json({ error: { code: "conflict", message: "stale" } }, { status: 409 }); }));
+  renderRun();
+  fireEvent.click(await screen.findByRole("button", { name: "Stop run" }));
+  expect(screen.getByRole("dialog", { name: "Stop this run?" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(posts).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Stop run" }));
+  await waitFor(() => expect(posts).toEqual(["stop"]));
+  cleanup();
+
+  const deletes: string[] = [];
+  server.use(
+    http.get("/api/pipeline-runs/run_1", () => HttpResponse.json({ ...detail, run: { ...run, state: "stopped", final_outcome: "cancelled" } })),
+    http.delete("/api/pipeline-runs/run_1", () => { deletes.push("delete"); return new HttpResponse(null, { status: 204 }); }),
+  );
+  renderRun();
+  fireEvent.click(await screen.findByRole("button", { name: "Delete run record" }));
+  expect(screen.getByText(/agents, transcripts and tasks are kept/)).toBeInTheDocument();
+  expect(deletes).toEqual([]);
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete run record" }));
+  await waitFor(() => expect(deletes).toEqual(["delete"]));
 });
 
 it("surfaces retained stage cleanup and its repair action", async () => {

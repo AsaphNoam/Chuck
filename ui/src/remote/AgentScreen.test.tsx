@@ -1290,7 +1290,7 @@ describe("AgentScreen diff annotations", () => {
         http.post("/api/sessions/a1/annotations/validate", async ({ request }) => {
           posts.push(`validate ${JSON.stringify(await request.json())}`);
           return validateStatus === 422
-            ? HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an anchor, excerpt, and instruction" } }, { status: 422 })
+            ? HttpResponse.json({ error: { code: "validation", message: "annotation 1 needs an excerpt" } }, { status: 422 })
             : HttpResponse.json({ valid: true });
         }),
         http.post("/api/sessions", async ({ request }) => {
@@ -1316,7 +1316,7 @@ describe("AgentScreen diff annotations", () => {
       await annotateLine();
       fireEvent.click(screen.getByRole("radio", { name: "New agent" }));
       fireEvent.click(screen.getByRole("button", { name: "Continue to launch" }));
-      expect(await screen.findByText("annotation 1 needs an anchor, excerpt, and instruction")).toBeInTheDocument();
+      expect(await screen.findByText("annotation 1 needs an excerpt")).toBeInTheDocument();
       expect(screen.queryByRole("form", { name: "New agent" })).toBeNull();
       expect(posts.some((post) => post.startsWith("launch"))).toBe(false);
       expect(useAnnotationStore.getState().bySource.a1).toHaveLength(1);

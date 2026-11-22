@@ -16,6 +16,10 @@ function proposedName() {
 }
 
 const startAgain = "That code did not work. Show a new code in Chuck on your Mac and try again.";
+// A refusal after the code was accepted means the Mac declined the request, it
+// timed out, or a newer request replaced it; the server does not say which
+// (TS-13.R8), but the code itself was right (FS-20.R6).
+const notAllowed = "Chuck on your Mac did not allow this phone, or the request timed out. Show a new code in Chuck on your Mac and try again.";
 
 export function PairScreen({ onPaired }: { onPaired: () => void }) {
   const [code, setCode] = useState(() => window.location.hash.replace(/^#/, "").toUpperCase());
@@ -51,8 +55,10 @@ export function PairScreen({ onPaired }: { onPaired: () => void }) {
 
   const submit = async () => {
     setError(null);
+    let claimed = false;
     try {
       const { pending_id } = await claimPairing(code.trim(), name.trim());
+      claimed = true;
       setPhase("waiting");
       for (;;) {
         const result = await waitPairing(pending_id);
@@ -63,7 +69,7 @@ export function PairScreen({ onPaired }: { onPaired: () => void }) {
       onPaired();
     } catch (err) {
       setPhase("form");
-      if (err instanceof PhoneAPIError && err.code === "remote_pairing_invalid") setError(startAgain);
+      if (err instanceof PhoneAPIError && err.code === "remote_pairing_invalid") setError(claimed ? notAllowed : startAgain);
       else setError(err instanceof Error ? err.message : String(err));
     }
   };

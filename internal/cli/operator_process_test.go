@@ -115,6 +115,10 @@ func TestOperatorBuiltBinaryRealServerJourney(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	// `dashboard start` records its pid/port; this in-process server does the same.
+	if err := writePidfile(home, pidInfo{PID: os.Getpid(), Port: port}); err != nil {
+		t.Fatal(err)
+	}
 	run := func(input string, exit int, args ...string) json.RawMessage {
 		t.Helper()
 		c := exec.CommandContext(t.Context(), bin, args...)
@@ -274,9 +278,8 @@ func TestOperatorBuiltBinaryRealServerJourney(t *testing.T) {
 	}))
 	defer proxy.Close()
 	proxyPort := proxy.Listener.Addr().(*net.TCPAddr).Port
-	proxyCfg := cfg
-	proxyCfg.Port = proxyPort
-	if err := cfgStore.WriteConfig(proxyCfg); err != nil {
+	// The CLI addresses only the port this home's live pidfile records.
+	if err := writePidfile(home, pidInfo{PID: os.Getpid(), Port: proxyPort}); err != nil {
 		t.Fatal(err)
 	}
 	run("", 3, "agent", "send", id, "--attach", lossSource, "--request-id", "loss-1", "--json")
@@ -288,7 +291,7 @@ func TestOperatorBuiltBinaryRealServerJourney(t *testing.T) {
 	if submissions.Load() != 3 {
 		t.Fatalf("mutation replayed automatically: submissions=%d", submissions.Load())
 	}
-	if err := cfgStore.WriteConfig(cfg); err != nil {
+	if err := writePidfile(home, pidInfo{PID: os.Getpid(), Port: port}); err != nil {
 		t.Fatal(err)
 	}
 	proxy.Close()

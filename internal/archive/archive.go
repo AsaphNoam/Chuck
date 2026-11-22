@@ -172,7 +172,7 @@ func (a *Archive) searchProjectsFallback(q Query, raw string) ([]string, error) 
 	where, args := archiveWhere(q, "WHERE")
 	placeholders := make([]string, 0, len(terms))
 	for range terms {
-		placeholders = append(placeholders, `(s.name LIKE ? OR s.role LIKE ? OR s.project LIKE ? OR s.backend LIKE ?)`)
+		placeholders = append(placeholders, metadataLike)
 	}
 	textFilter := "(" + strings.Join(placeholders, " AND ") + ")"
 	if where == "" {
@@ -181,8 +181,7 @@ func (a *Archive) searchProjectsFallback(q Query, raw string) ([]string, error) 
 		where += " AND " + textFilter
 	}
 	for _, term := range terms {
-		likePattern := "%" + strings.ReplaceAll(term, "%", "\\%") + "%"
-		args = append(args, likePattern, likePattern, likePattern, likePattern)
+		args = append(args, metadataLikeArgs(term)...)
 	}
 	rows, err := a.db.Query(`
 SELECT DISTINCT s.project
@@ -332,7 +331,7 @@ func (a *Archive) searchFallback(q Query, raw string) (int, []Result, error) {
 
 	placeholders := make([]string, 0, len(terms))
 	for range terms {
-		placeholders = append(placeholders, `(s.name LIKE ? OR s.role LIKE ? OR s.project LIKE ? OR s.backend LIKE ?)`)
+		placeholders = append(placeholders, metadataLike)
 	}
 	textFilter := " (" + strings.Join(placeholders, " AND ") + ")"
 
@@ -345,8 +344,7 @@ func (a *Archive) searchFallback(q Query, raw string) (int, []Result, error) {
 
 	countArgs := args
 	for _, t := range terms {
-		likePattern := "%" + strings.ReplaceAll(t, "%", "\\%") + "%"
-		countArgs = append(countArgs, likePattern, likePattern, likePattern, likePattern)
+		countArgs = append(countArgs, metadataLikeArgs(t)...)
 	}
 
 	if err := a.db.QueryRow(`SELECT COUNT(*) FROM sessions s LEFT JOIN agents a ON a.agent_id = s.agent_id LEFT JOIN running r ON r.agent_id = s.agent_id`+whereClause, countArgs...).Scan(&total); err != nil {
@@ -355,8 +353,7 @@ func (a *Archive) searchFallback(q Query, raw string) (int, []Result, error) {
 
 	queryArgs := append([]any{}, args...)
 	for _, t := range terms {
-		likePattern := "%" + strings.ReplaceAll(t, "%", "\\%") + "%"
-		queryArgs = append(queryArgs, likePattern, likePattern, likePattern, likePattern)
+		queryArgs = append(queryArgs, metadataLikeArgs(t)...)
 	}
 	queryArgs = append(queryArgs, q.Limit, q.Offset)
 
@@ -466,6 +463,16 @@ func scanSearchResults(rows *sql.Rows) ([]Result, error) {
 		return nil, fmt.Errorf("archive: iterate search results: %w", err)
 	}
 	return out, nil
+}
+
+// metadataLike is the no-FTS fallback's per-term match over the same metadata
+// the FTS document and the project search fallback carry (name, role, project,
+// backend, group, model).
+const metadataLike = `(s.name LIKE ? OR s.role LIKE ? OR s.project LIKE ? OR s.backend LIKE ? OR s.grp LIKE ? OR s.model LIKE ?)`
+
+func metadataLikeArgs(term string) []any {
+	p := "%" + strings.ReplaceAll(term, "%", "\\%") + "%"
+	return []any{p, p, p, p, p, p}
 }
 
 func ftsQuery(q string) string {

@@ -2,6 +2,7 @@ import React from "react";
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { QUERY_KEYS } from "../../api/config";
@@ -94,7 +95,7 @@ afterAll(() => server.close());
 function renderWithQuery(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
   return {
-    ...render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>),
+    ...render(<QueryClientProvider client={qc}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>),
     queryClient: qc,
   };
 }
@@ -138,7 +139,7 @@ describe("OnboardingGate", () => {
         <div>Dashboard</div>
       </OnboardingGate>,
     );
-    expect(await screen.findByText("Create your first project")).toBeInTheDocument();
+    expect(await screen.findByText("Add your project")).toBeInTheDocument();
     expect(screen.queryByText("Configure your AI backend")).toBeNull();
   });
 
@@ -151,13 +152,13 @@ describe("OnboardingGate", () => {
         <div data-testid="dashboard">Dashboard</div>
       </OnboardingGate>,
     );
-    expect(await screen.findByText("Create your first project")).toBeInTheDocument();
+    expect(await screen.findByText("Add your project")).toBeInTheDocument();
 
     currentConfig = satisfiedConfig;
     await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.config });
 
     await waitFor(() => {
-      expect(screen.getByText("Create your first project")).toBeInTheDocument();
+      expect(screen.getByText("Add your project")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("dashboard")).toBeNull();
   });

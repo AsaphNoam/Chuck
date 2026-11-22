@@ -130,14 +130,18 @@ the New-Agent modal stays mounted across the 0→1 transition so an in-flight la
 
 **R22.** The server emits `notification` SSE events for significant transitions: `done` and
 `waiting_input` fire only when an agent's `state` actually changes into that state;
-`permission_required` fires when a permission request is raised. (`budget_exceeded` rides the same
+`permission_required` fires when a permission request is raised for a person; a request that
+`skip_permissions` auto-approves raises none. (`budget_exceeded` rides the same
 pipeline; its semantics belong to FS-06.) Each payload carries `notification_type`, `agent_id`,
 `agent_name`, `address` (`role@project`), `title`, and `body`.
 
 **R23.** A received notification is shown in-app as a toast (newest-first stack, capped at 4, each
 auto-dismissing after ~6s and dismissable on click). When the browser tab is hidden **and** desktop
 notifications are enabled **and** the browser has granted `Notification` permission, a desktop Web
-Notification is raised instead of the toast (deduped per agent via the notification `tag`).
+Notification is raised instead of the toast (deduped per agent via the notification `tag`). A
+permission request shows one toast: its `permission_required` toast replaces, and suppresses, the
+same agent's `waiting_input` toast. An agent's `waiting_input` and `permission_required` toasts
+leave as soon as a `state_update` shows it no longer waiting.
 
 **R24.** Notifications are mutable per type (`done`, `waiting_input`, `permission_required`,
 `budget_exceeded`) via Settings; a muted type is dropped client-side before any toast or desktop
@@ -163,6 +167,8 @@ FS-01.R10.
 
 **R28.** The Dashboard **Resume** action calls `POST /api/sessions/{id}/resume`. A rejected request
 shows the server's message in an error toast and leaves the card available for another attempt.
+The agent page's Resume uses the same toast and also keeps "Resume failed: <message>" under its
+header until the next attempt or until the agent runs.
 
 **R25.** A card's project subtitle displays the current configured project title, not its durable
 project id. If the corresponding project definition is unavailable (for example, it was force-deleted

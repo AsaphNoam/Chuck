@@ -860,6 +860,8 @@ describe("ChatPanel stopped states", () => {
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => expect(useUiStore.getState().toasts.at(-1)).toMatchObject({ title: "Resume failed", body: "resume refused" }));
+    // The reason outlives the toast on the page that offered Resume.
+    expect(screen.getByRole("alert")).toHaveTextContent("Resume failed: resume refused");
   });
 
   // FS-03.R89: a chat agent whose process died on error reads "Error" with its

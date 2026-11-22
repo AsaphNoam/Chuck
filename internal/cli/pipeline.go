@@ -21,7 +21,7 @@ import (
 func newPipelineCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "pipeline", Short: "Manage pipeline templates and durable runs"}
 	templates := &cobra.Command{Use: "template", Short: "Inspect and validate pipeline templates"}
-	listTemplates := &cobra.Command{Use: "list", Short: "List pipeline templates", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
+	listTemplates := &cobra.Command{Use: "list", Short: "List pipeline templates", Args: noPositionalArgs, RunE: func(c *cobra.Command, _ []string) error {
 		if pipelineOperatorMode(c) {
 			return operatorRun(c, http.MethodGet, "/api/pipelines", nil, nil)
 		}
@@ -30,7 +30,7 @@ func newPipelineCmd() *cobra.Command {
 	addOperatorFlags(listTemplates)
 	templates.AddCommand(listTemplates)
 	var templateID, templateFile string
-	validate := &cobra.Command{Use: "validate", Short: "Validate a version-2 template JSON file", Args: cobra.NoArgs, RunE: func(c *cobra.Command, _ []string) error {
+	validate := &cobra.Command{Use: "validate", Short: "Validate a version-2 template JSON file", Args: noPositionalArgs, RunE: func(c *cobra.Command, _ []string) error {
 		var body map[string]any
 		var err error
 		if c.Flags().Changed("request-file") {
@@ -72,7 +72,7 @@ func newPipelineCmd() *cobra.Command {
 	templateShow := pipelineOperatorPath("show <template_id>", http.MethodGet, "/api/pipelines", false)
 	documentPipelineCommand(templateShow, "Show a saved template.", "chuck pipeline template show quality")
 	templates.AddCommand(templateShow)
-	templateCreate := &cobra.Command{Use: "create", Short: "Save a validated pipeline template", Args: cobra.NoArgs, Long: "Save a version-2 template using the existing template request shape {\"id\":\"quality\",\"template\":{...}}. Example: chuck pipeline template create --request-file template.json", RunE: func(c *cobra.Command, _ []string) error {
+	templateCreate := &cobra.Command{Use: "create", Short: "Save a validated pipeline template", Args: noPositionalArgs, Long: "Save a version-2 template using the existing template request shape {\"id\":\"quality\",\"template\":{...}}. Example: chuck pipeline template create --request-file template.json", RunE: func(c *cobra.Command, _ []string) error {
 		if err := requirePipelineRequestFile(c); err != nil {
 			return err
 		}
@@ -331,12 +331,18 @@ func runPipelineRequest(method, path string, body any) error {
 	if err != nil {
 		return err
 	}
-	status, data, err := pipelineAPIRequest(dashboardPort(store), method, path, body)
+	port, err := dashboardPort(store)
+	if err != nil {
+		return err
+	}
+	status, data, err := pipelineAPIRequest(port, method, path, body)
 	if err != nil {
 		return fmt.Errorf("could not reach dashboard; run `chuck dashboard start` first: %w", err)
 	}
 	if status < 200 || status >= 300 {
-		return fmt.Errorf("pipeline request failed (%d): %s", status, strings.TrimSpace(string(data)))
+		// The shared envelope parser names the server reason and diagnostics
+		// instead of echoing the raw response body (FS-22.R11).
+		return fmt.Errorf("pipeline request failed (%d): %s", status, safeOperatorText(operatorHTTPError(status, bytes.TrimSpace(data)).Error()))
 	}
 	if len(bytes.TrimSpace(data)) > 0 {
 		var pretty bytes.Buffer
@@ -488,7 +494,7 @@ func pipelineOperatorPath(use, method, base string, destructive bool, suffix ...
 		return operatorRun(c, method, path, nil, nil)
 	}
 	if use == "list" {
-		cmd.Args = cobra.NoArgs
+		cmd.Args = noPositionalArgs
 	} else {
 		cmd.Args = cobra.ExactArgs(1)
 	}

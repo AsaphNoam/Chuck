@@ -17,7 +17,7 @@ import { usePipelineRuns } from "../../api/pipelines";
 import type { PipelineRunSummary } from "../../schemas/pipeline";
 import type { Task, TaskArm } from "../../schemas/task";
 import { WORK_RESULT_OUTCOMES } from "../../schemas/task";
-import { startTimeLabel } from "./taskWork";
+import { startTimeLabel, taskStatus } from "./taskWork";
 import { useAgentStore } from "../../store/agentStore";
 
 type WorkSourceKind = "task" | "pipeline_run";
@@ -28,7 +28,21 @@ type RunsQuery = ReturnType<typeof usePipelineRuns>;
 const WORK_OUTCOMES = WORK_RESULT_OUTCOMES;
 const EMPTY_SELECTION: WorkPrerequisiteSelection = { sourceKind: "task", sourceID: "", mode: "named", outcomes: ["success"] };
 
-export const errorMessage = (err: unknown) => err instanceof TaskAPIError ? err.message : "That did not work.";
+/** Field limits the server enforces (internal/server/task_handlers.go). */
+export const TASK_NAME_LIMIT = 200;
+export const TASK_INSTRUCTION_LIMIT = 16000;
+export const SIGNAL_NAME_LIMIT = 200;
+
+// The HTTP refusal text names wire fields; a person reads the form's words and
+// the limit instead (INV §8). Unlisted messages pass through unchanged.
+const PERSON_MESSAGES: Record<string, string> = {
+  "display_name is required and bounded": `Name is required and must be at most ${TASK_NAME_LIMIT} characters.`,
+  "instruction is required and bounded": `Instruction is required and must be at most ${TASK_INSTRUCTION_LIMIT.toLocaleString("en-US")} characters.`,
+  "signal_name is required and bounded": `Signal name is required and must be at most ${SIGNAL_NAME_LIMIT} characters.`,
+  "project and a bounded signal name are required": `Choose a project and enter a signal name of at most ${SIGNAL_NAME_LIMIT} characters.`,
+};
+
+export const errorMessage = (err: unknown) => err instanceof TaskAPIError ? PERSON_MESSAGES[err.message] ?? err.message : "That did not work.";
 
 function dependencyArms(selection: WorkPrerequisiteSelection, signal: string): TaskArmInput[] {
   const arms: TaskArmInput[] = [];
@@ -57,7 +71,7 @@ function prerequisiteError(selection: WorkPrerequisiteSelection): string {
 function sourceLabel(sourceKind: WorkSourceKind, sourceID: string, tasks: Task[], runs: PipelineRunSummary[]): string {
   if (sourceKind === "task") {
     const task = tasks.find((item) => item.task_id === sourceID);
-    return task ? `${task.display_name} · ${task.state}` : "Unavailable task";
+    return task ? `${task.display_name} · ${taskStatus(task).label}` : "Unavailable task";
   }
   const run = runs.find((item) => item.run_id === sourceID);
   return run ? `${run.display_name || "Pipeline run"} · ${run.state}` : "Unavailable run";
@@ -99,7 +113,7 @@ function PrerequisitePicker({
   const namedSourceCount = selection.sourceKind === "task" ? namedTasks.length : namedRuns.length;
   // Same name and state is disambiguated by the shared duplicate-name rule (FS-02.R69).
   const namedOptions = displayLabels([
-    ...namedTasks.map((task): LabelEntry => [task.task_id, `${task.display_name} · ${task.state}`]),
+    ...namedTasks.map((task): LabelEntry => [task.task_id, `${task.display_name} · ${taskStatus(task).label}`]),
     ...namedRuns.map((run): LabelEntry => [run.run_id, `${run.display_name || "Pipeline run"} · ${run.state}`]),
   ]);
   const knownSelection = selection.sourceKind === "task"
@@ -255,7 +269,7 @@ export function RearmForm({ task, onError }: { task: Task; onError: (message: st
       <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} omitTaskID={task.task_id} idPrefix={`rearm-${task.task_id}`} />
       <details className="task-advanced">
         <summary>Advanced signals</summary>
-        <label>Wait for signal<input value={signal} onChange={(event) => setSignal(event.target.value)} placeholder="ci-green" /></label>
+        <label>Wait for signal<input value={signal} maxLength={SIGNAL_NAME_LIMIT} onChange={(event) => setSignal(event.target.value)} placeholder="ci-green" /></label>
       </details>
       {validationError && <p className="form-error" role="alert">{validationError}</p>}
       <Button type="submit" variant="primary" busy={rearm.isPending}>Re-arm</Button>
@@ -442,6 +456,12 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
             setInstruction("");
             setSignal("");
             setStartAt("");
+            // A created task's waits and context belong to it; the next task
+            // starts with none rather than silently inheriting them.
+            setSelection(EMPTY_SELECTION);
+            setContextRefID("");
+            setContextLabel("");
+            setContextDescription("");
           })
           .catch((err: unknown) => {
             if (err instanceof TaskAPIError && ["unusable_source", "dependency_cycle", "context_not_found"].includes(err.code)) {
@@ -469,12 +489,12 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
         </label>
         <label>
           Name
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
+          <input value={name} maxLength={TASK_NAME_LIMIT} onChange={(e) => setName(e.target.value)} required />
         </label>
       </div>
       <label>
         Instruction
-        <AutoGrowTextarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="What should the agent do?" rows={4} required />
+        <AutoGrowTextarea value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="What should the agent do?" rows={4} maxLength={TASK_INSTRUCTION_LIMIT} required />
       </label>
       <fieldset className="task-form-section">
         <legend>Agent setup</legend>
@@ -488,7 +508,7 @@ export function CreateTaskForm({ projects, initialProject }: { projects: string[
         <summary>Advanced{advancedSummary ? ` · ${advancedSummary}` : ""}</summary>
         <div className="task-advanced-content">
           {project && <PrerequisitePicker project={project} selection={selection} onChange={setSelection} tasksQuery={tasksQuery} runsQuery={runsQuery} idPrefix="create" />}
-          <label>Wait for signal (optional)<input value={signal} onChange={(e) => setSignal(e.target.value)} placeholder="ci-green" /></label>
+          <label>Wait for signal (optional)<input value={signal} maxLength={SIGNAL_NAME_LIMIT} onChange={(e) => setSignal(e.target.value)} placeholder="ci-green" /></label>
           <label>Context reference ID<input value={contextRefID} onChange={(e) => setContextRefID(e.target.value)} placeholder="cx_…" /></label>
           <label>Context label<input value={contextLabel} onChange={(e) => setContextLabel(e.target.value)} /></label>
           <label>Context description<AutoGrowTextarea value={contextDescription} onChange={(e) => setContextDescription(e.target.value)} /></label>
@@ -538,7 +558,7 @@ export function FireSignalForm({ projects, project, name, onChange }: {
       </label>
       <label>
         Signal name
-        <input value={name} onChange={(e) => onChange({ project, name: e.target.value })} required />
+        <input value={name} maxLength={SIGNAL_NAME_LIMIT} onChange={(e) => onChange({ project, name: e.target.value })} required />
       </label>
       <Button type="submit" variant="primary" busy={fire.isPending}>Fire</Button>
       {error && <p className="form-error" role="alert">{error}</p>}

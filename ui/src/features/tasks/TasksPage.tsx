@@ -179,6 +179,7 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
   const retry = useRetryTask(task.project);
   const remove = useDeleteTask(task.project);
   const [error, setError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const stage = useStageOwnership(task);
   const actions = taskActions(task);
   const restricted = stage.owned || !stage.known;
@@ -244,8 +245,15 @@ function TaskDetail({ id, row, onSignal, onBusyChange, hiddenBy, onReveal }: {
       <div className="task-row-actions" data-slot="actions">
         {actions.cancel && !restricted && <Button onClick={() => act(() => cancel.mutateAsync(task.task_id))}>Cancel</Button>}
         {actions.retry && !restricted && <Button onClick={() => act(() => retry.mutateAsync(task.task_id))}>Retry</Button>}
-        {!restricted && <Button variant="danger" onClick={() => act(() => remove.mutateAsync(task.task_id))}>Delete</Button>}
+        {/* Same two-step confirm as a schedule's Delete; FS-16.R18 says what it leaves. */}
+        {!restricted && (confirmDelete ? (
+          <>
+            <Button variant="danger" onClick={() => { setConfirmDelete(false); act(() => remove.mutateAsync(task.task_id)); }}>Delete task</Button>
+            <Button onClick={() => setConfirmDelete(false)}>Keep</Button>
+          </>
+        ) : <Button variant="danger" onClick={() => setConfirmDelete(true)}>Delete…</Button>)}
       </div>
+      {confirmDelete && !restricted && <p className="task-waiting">Tasks still waiting on this one will need attention. Its agent, conversation and any recorded result are kept.</p>}
       {actions.recordResult && !restricted && <RecordResultForm task={task} onError={setError} />}
       {actions.rearm && !restricted && <RearmForm task={task} onError={setError} />}
       {error && <p className="form-error" role="alert">{error}</p>}

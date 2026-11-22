@@ -17,6 +17,8 @@ interface ModelRowProps {
   isDefault: boolean;
   radioGroup: string;
   capability: ModelCapability;
+  /** After a refused save, mark an empty provider model string on its own row. */
+  showBlankModel?: boolean;
   onSetDefault: () => void;
   onChange: (model: Model) => void;
   onRemove: () => void;
@@ -60,8 +62,9 @@ function SensitiveInput({ value, fieldKey, onChange }: {
   );
 }
 
-export function ModelRow({ modelId, model, isDefault, radioGroup, capability, onSetDefault, onChange, onRemove }: ModelRowProps) {
+export function ModelRow({ modelId, model, isDefault, radioGroup, capability, showBlankModel, onSetDefault, onChange, onRemove }: ModelRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const blankModel = !!showBlankModel && !model.model.trim();
   const pairs = toPairs(model.env);
 
   const updateEnv = (next: Pair[]) => onChange({ ...model, env: fromPairs(next) });
@@ -108,6 +111,8 @@ export function ModelRow({ modelId, model, isDefault, radioGroup, capability, on
         <input
           value={model.model}
           placeholder="Provider model string"
+          aria-label="Provider model string"
+          aria-invalid={blankModel || undefined}
           onChange={(e) => onChange({ ...model, model: e.target.value })}
           className="model-provider-string"
         />
@@ -118,6 +123,7 @@ export function ModelRow({ modelId, model, isDefault, radioGroup, capability, on
         </button>
         <button type="button" className="config-text-action-danger ad-button-danger" onClick={onRemove}>Remove</button>
       </div>
+      {blankModel && <span className="form-error">Enter the provider model string, for example sonnet or gpt-5.5.</span>}
       {showEditor && (
         <div className="model-env-editor">
           {(capability.effortAllowed || hasEffort) && (

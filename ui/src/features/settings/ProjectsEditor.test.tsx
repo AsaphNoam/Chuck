@@ -269,6 +269,24 @@ describe("ProjectsEditor", () => {
     expect(pending.value).toBe("");
   });
 
+  // J9 (INV §8): a typed-but-unadded directory is never silently dropped on save.
+  it("refuses to save while an additional directory is typed but not added", async () => {
+    let posts = 0;
+    server.use(http.post("/api/projects", () => { posts++; return HttpResponse.json({}, { status: 201 }); }));
+
+    renderWithQuery(<ProjectsEditor />);
+    await screen.findByText("My App");
+    fireEvent.click(screen.getByText("New project"));
+    fireEvent.change(screen.getByPlaceholderText("e.g. My App"), { target: { value: "Billing" } });
+    fireEvent.change(screen.getByPlaceholderText("~/Projects/my-app"), { target: { value: "/tmp/billing" } });
+    fireEvent.change(screen.getByPlaceholderText("~/extra-dir"), { target: { value: "/tmp/shared" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText("Add this directory or clear it before saving.")).toBeInTheDocument();
+    expect(posts).toBe(0);
+    expect(screen.getByPlaceholderText("~/extra-dir")).toHaveValue("/tmp/shared");
+  });
+
   // INV §8: a failed browse is visible and still leaves the form usable.
   it("surfaces a browse failure without touching the field", async () => {
     server.use(

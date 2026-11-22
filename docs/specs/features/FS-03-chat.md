@@ -165,6 +165,10 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
   If assignment-queued input is the only pending input, the empty composer hides Steer. A new
   draft or a steerable runtime hold can still be steered under the rules above.
 
+  While the event stream is reconnecting or down, Send and Steer are disabled and the composer
+  says it is reconnecting and that sending resumes when the connection returns; when it returns,
+  a send error left by the outage is cleared, and any unconfirmed send keeps its retry line.
+
   Steering is best-effort by nature and says so: a turn can end between the click and the delivery.
   When that happens the message is delivered as its own next turn rather than lost, and the person is
   told which of the two happened rather than left to infer it from the transcript. A message the

@@ -126,7 +126,7 @@ export function CardContextMenu() {
         Open chat
       </button>
       <button type="button" data-slot="item" onClick={() => openDialog("rename")}>Rename</button>
-      <button type="button" data-slot="item" disabled={!agent.running} onClick={() => openDialog("stop")}>Stop</button>
+      <button type="button" data-slot="item" disabled={!agent.running} title={agent.running ? undefined : "Agent is not running"} onClick={() => openDialog("stop")}>Stop</button>
       {!agent.running && (
         <button type="button" data-slot="item" onClick={() => {
           resumeAgent(agent.agent_id).catch((err) => pushError("Resume failed", err instanceof Error ? err.message : String(err)));

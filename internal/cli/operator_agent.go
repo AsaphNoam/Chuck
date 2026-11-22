@@ -258,7 +258,7 @@ func agentOperation(use, method, suffix string, nargs int, text, yes bool, requi
 }
 
 func newOperatorStatusCmd() *cobra.Command {
-	c := &cobra.Command{Use: "status", Short: "Inspect local service health and terminal capabilities", Args: cobra.NoArgs}
+	c := &cobra.Command{Use: "status", Short: "Inspect local service health and terminal capabilities", Args: noPositionalArgs}
 	addOperatorFlags(c)
 	c.Example = "chuck status --json"
 	c.RunE = func(c *cobra.Command, _ []string) error {

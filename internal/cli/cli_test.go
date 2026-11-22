@@ -2,11 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime/terminal"
 )
 
@@ -286,6 +288,41 @@ func TestPidfileRoundTrip(t *testing.T) {
 	}
 	if _, ok, _ := readPidfile(home); ok {
 		t.Fatal("pidfile still present after remove")
+	}
+}
+
+// INV §24 / FS-22.R4: with no live pidfile for this home the CLI reports the
+// dashboard unavailable instead of trying the configured or default port,
+// which may serve another home's dashboard.
+func TestDashboardPortFailsClosedWithoutLivePidfile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("CHUCK_HOME", home)
+	store := config.NewWithHome(home)
+	cfg := config.DefaultConfig()
+	cfg.Port = 4999
+	if err := store.EnsureLayout(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.WriteConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dashboardPort(store); !errors.Is(err, errDashboardNotRunning) {
+		t.Fatalf("no pidfile: err=%v", err)
+	}
+	if _, err := newOperatorClient(); operatorExitCode(err) != 3 || !strings.Contains(err.Error(), "chuck dashboard start") {
+		t.Fatalf("operator client without pidfile: err=%v", err)
+	}
+	if err := writePidfile(home, pidInfo{PID: 2_000_000_000, Port: 4888}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dashboardPort(store); !errors.Is(err, errDashboardNotRunning) {
+		t.Fatalf("stale pidfile: err=%v", err)
+	}
+	if err := writePidfile(home, pidInfo{PID: os.Getpid(), Port: 4888}); err != nil {
+		t.Fatal(err)
+	}
+	if port, err := dashboardPort(store); err != nil || port != 4888 {
+		t.Fatalf("live pidfile: port=%d err=%v", port, err)
 	}
 }
 

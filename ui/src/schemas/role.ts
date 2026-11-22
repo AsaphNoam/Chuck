@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, {
-  message: "must match ^[a-z0-9][a-z0-9-]{0,62}$",
+  message: "Use lowercase letters, numbers, and hyphens, starting with a letter or number (up to 63 characters).",
 });
 
 export const roleSchema = z.object({

@@ -23,7 +23,7 @@ import type {
 import type { Backend, BackendsConfig } from "../../schemas/backends";
 import { projectTitle } from "../../lib/labels";
 import { describeWorkspace } from "./proposalSummary";
-import { pipelineActionError, pipelineOptionLabels, pipelineParticipantLabel, pipelineStageLabels } from "./pipelineLabels";
+import { pipelineActionError, pipelineOptionLabels, pipelineParticipantLabel, pipelineStageLabels, workspaceConflictLines } from "./pipelineLabels";
 import { focusStartDiagnostic, isRuntimeDiagnostic, startDiagnosticField, startDiagnosticText } from "./startDiagnostics";
 
 type Assignment = PipelineStartRequest["orchestrator"];
@@ -114,6 +114,7 @@ export function RunStartForm({
   const [proposal, setProposal] = useState<typeof proposalSeed>();
   const [pendingRequest, setPendingRequest] = useState<PipelineStartRequest | null>(null);
   const [conflicts, setConflicts] = useState<PipelineWorkspaceConflict[]>([]);
+  const conflictLines = workspaceConflictLines(conflicts);
   const [diagnostics, setDiagnostics] = useState<PipelineDiagnostic[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -438,7 +439,7 @@ export function RunStartForm({
       {conflicts.length > 0 && <div className="pipeline-warning">
         <strong>Shared project workspace</strong>
         <p>These active agents or runs use the same project directory. Chuck does not isolate their filesystem changes.</p>
-        <ul>{conflicts.map((conflict) => <li key={`${conflict.kind}-${conflict.id}`}>{conflict.kind}: {conflict.name}</li>)}</ul>
+        <ul>{conflictLines.lines.map((line) => <li key={line}>{line}</li>)}{conflictLines.hidden > 0 && <li>and {conflictLines.hidden} more</li>}</ul>
         <button type="button" className="ad-button-primary" disabled={start.isPending} onClick={() => submit(true)}>Confirm shared workspace and start</button>
       </div>}
       {notice && <p className="form-info">{notice}</p>}
@@ -476,7 +477,7 @@ export function RunStartDialog({
 }) {
   return <Dialog.Root open={open} onOpenChange={onOpenChange}>
     <Dialog.Portal>
-      <Dialog.Overlay className="dialog-overlay" data-ui="dialog" data-slot="overlay" />
+      <Dialog.Overlay className="dialog-overlay pipeline-start-overlay" data-ui="dialog" data-slot="overlay" />
       <Dialog.Content className="dialog-content pipeline-start-modal" data-ui="dialog" data-slot="content" data-variant="default">
         <Dialog.Title data-slot="title">Start pipeline run</Dialog.Title>
         <Dialog.Description className="pipeline-start-description">Configure one frozen run snapshot. Nothing launches until the final review.</Dialog.Description>

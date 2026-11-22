@@ -202,7 +202,11 @@ describe("taskStatus and taskReason", () => {
   it("explains what armed work waits for, by name", () => {
     expect(taskReason(row("tk_c"))).toBe("Waits for Implement API → success");
     expect(taskReason(row("tk_t"))).toBe("Waits for signal ci-green; pipeline run → success");
-    expect(taskReason(row("tk_s"))).toBe("a prerequisite can no longer be satisfied");
+    // J15: a parked row names the arm that failed, not the generic park text.
+    expect(taskReason(row("tk_s"))).toBe("Cannot start: its prerequisite task was deleted; this needed Success. Re-arm or cancel it.");
+    const source = { ...row("tk_c").task, task_id: "tk_src", display_name: "Fail G", state: "finished" as const, outcome: "failure" };
+    const parked = { ...row("tk_s"), links: [{ kind: "prerequisite" as const, sourceID: "tk_src", source, outcomes: ["success"], state: "unsatisfiable" as const }] };
+    expect(taskReason(parked)).toBe("Cannot start: Fail G ended Failure; this needed Success. Re-arm or cancel it.");
     expect(taskReason(row("tk_k"))).toBe("Cleanup retrying: agent did not stop");
   });
 

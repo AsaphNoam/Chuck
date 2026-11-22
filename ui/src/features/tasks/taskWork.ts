@@ -386,9 +386,30 @@ export function taskStatus(task: Task): { label: string; tone: StatusTone } {
   }
 }
 
+/** parkedReason names the arm that can no longer be met and why, from the
+ *  recorded arm states, instead of the generic park text (FS-16.R8, R44). */
+function parkedReason(row: WorkRow): string {
+  const needed = (outcomes: string[]) => outcomes.map((outcome) => outcome[0]?.toUpperCase() + outcome.slice(1)).join(" or ");
+  const reasons = [
+    ...row.links.filter((link): link is Extract<TaskLink, { kind: "prerequisite" }> => link.kind === "prerequisite" && link.state === "unsatisfiable")
+      .map((link) => link.source
+        ? `${link.source.display_name} ended ${taskStatus(link.source).label}; this needed ${needed(link.outcomes)}`
+        : `its prerequisite task was deleted; this needed ${needed(link.outcomes)}`),
+    ...row.external.filter((wait) => wait.state === "unsatisfiable")
+      .map((wait) => wait.kind === "time" ? `start time ${startTimeLabel(wait.dueAt)} was missed`
+        : wait.kind === "run" ? `the pipeline run ended without ${needed(wait.outcomes)}`
+        : `signal ${wait.name} can no longer be met`),
+  ];
+  return reasons.length > 0 ? `Cannot start: ${reasons.join("; ")}. Re-arm or cancel it.` : "";
+}
+
 /** taskReason is the short wait or attention explanation that leads a row. */
 export function taskReason(row: WorkRow): string {
   const { task } = row;
+  if (task.state === "dependency_failed") {
+    const parked = parkedReason(row);
+    if (parked) return parked;
+  }
   if (task.attention_reason) return task.attention_reason;
   if (task.cleanup_last_error) return `Cleanup retrying: ${task.cleanup_last_error}`;
   if (task.state === "armed" || task.state === "dependency_failed") {

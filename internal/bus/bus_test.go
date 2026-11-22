@@ -99,6 +99,20 @@ func TestPermissionRuntimeEventEmitsNotification(t *testing.T) {
 	}
 }
 
+func TestAutoApprovedPermissionRaisesNoNotification(t *testing.T) {
+	b := New()
+	ch, unsub := b.Subscribe()
+	defer unsub()
+	data, _ := json.Marshal(runtime.PermissionRequestData{Name: "Bash", AutoApproved: true})
+	b.PublishRuntimeEvent(runtime.Event{AgentID: "a_1", Type: runtime.EvPermissionRequest, Data: data})
+	<-ch // new_message
+	select {
+	case ev := <-ch:
+		t.Fatalf("auto-approved request published %q", ev.Type)
+	default:
+	}
+}
+
 func TestPublishBudgetExceededNamesAgent(t *testing.T) {
 	b := New()
 	// Seed the snapshot so the notification can name the agent + address.

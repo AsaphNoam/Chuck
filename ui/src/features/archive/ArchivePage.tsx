@@ -157,7 +157,8 @@ export function ArchivePage() {
           aria-label="Search archive"
           aria-describedby="archive-search-scope"
         />
-        {total > 0 && <span className="archive-count">{total} result{total !== 1 ? "s" : ""}</span>}
+        {/* total counts project groups; each group loads its own agent rows. */}
+        {total > 0 && <span className="archive-count">{total} {debouncedQ ? "matching " : ""}project{total !== 1 ? "s" : ""}</span>}
       </div>
       <p className="form-info" id="archive-search-scope">
         {searchMode === "full_text"

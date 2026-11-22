@@ -184,6 +184,26 @@ describe("ThinkTankPage", () => {
     expect(document.querySelector('[data-slot="activity"]')).toBeNull();
   });
 
+  // X1: a failed attempt the agent later retried is not its "unfinished turn".
+  it("labels an unpublished attempt superseded by later work as an earlier attempt", async () => {
+    detail = { ...room(), phase: "ended", active: undefined };
+    const at = (seq: number, attempt: string, created_at: string) => ({ version: 1, room_id: "tt_fixture", seq, attempt_id: attempt, agent_id: "a_one",
+      agent_name: "Ari", project: "alpha", source_seq: seq, created_at, event: { type: "tool_call", data: { tool_call_id: `c${seq}`, name: "Read" } } });
+    server.use(http.get("/api/think-tanks/tt_fixture/activity", () => HttpResponse.json({ complete: true, activity: [
+      at(1, "tta_failed", "2026-10-06T08:00:00Z"), at(2, "tta_open", "2026-10-06T10:00:00Z"),
+    ] })));
+    renderRoom();
+    expect(await screen.findByText(/^Ari's earlier attempt, not published/)).toBeTruthy();
+    expect(screen.getByText(/^Ari's unfinished turn/)).toBeTruthy();
+  });
+
+  // X1: Pause during a turn is acknowledged where the control was pressed.
+  it("acknowledges a requested pause in the room's state", async () => {
+    detail = { ...room(), control: "pause_requested", active: { attempt_id: "a", agent_id: "a_one", turn: "discussion", state: "running", failure: "", started_at: "" } };
+    renderRoom();
+    expect(await screen.findByText("Pausing after this turn")).toBeTruthy();
+  });
+
   // FS-03.A57, TS-08.R104: an unfinished attempt (no published entry) reuses
   // the quiet turn projection, so its tools stay inspectable.
   it.each(["discussion", "ended"])("keeps an unfinished turn's tools inspectable in %s while refusing stale approvals", async (phase) => {

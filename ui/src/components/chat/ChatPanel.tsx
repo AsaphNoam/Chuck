@@ -106,6 +106,8 @@ function AgentPanel({ id }: { id: string }) {
   const [quotaCancelPending, setQuotaCancelPending] = useState(false);
   const [quotaCancelError, setQuotaCancelError] = useState<string | undefined>();
   const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | undefined>();
+  useEffect(() => setResumeError(undefined), [id]);
 
   // The agent often isn't in the store yet at mount (it hydrates over SSE), so
   // the useState initializer above can't see its interface. Once it loads, apply
@@ -248,13 +250,16 @@ function AgentPanel({ id }: { id: string }) {
   const projectTitle = projectTitleFor(projects, agent.project);
   const sessionSettings = (selectedModel?.efforts ?? []).length > 0 || !!currentModel?.fast;
   const failed = stoppedOnError(agent);
-  // Resume reuses the card menu's endpoint and failure toast (FS-02.R27/R28).
+  // Resume reuses the card menu's endpoint and failure toast (FS-02.R27/R28);
+  // the page also keeps the refusal beside Resume until the next attempt.
   const resume = async () => {
     if (resuming) return;
     setResuming(true);
+    setResumeError(undefined);
     try {
       await resumeAgent(agent.agent_id);
     } catch (error) {
+      setResumeError(runtimeErrorMessage(error));
       pushError("Resume failed", runtimeErrorMessage(error));
     } finally {
       setResuming(false);
@@ -313,6 +318,9 @@ function AgentPanel({ id }: { id: string }) {
           </button>
         )}
       </header>
+      {!agent.running && resumeError && (
+        <p className="archive-error" role="alert">Resume failed: {resumeError}</p>
+      )}
       {failed && (
         <p className="archive-error" role="status">
           Stopped on error{agent.detail ? `: ${agent.detail}` : ""}. {restartHint(agent.interface)}

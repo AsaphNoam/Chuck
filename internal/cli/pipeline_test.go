@@ -2,10 +2,14 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -30,6 +34,40 @@ func TestParsePipelineCLIValues(t *testing.T) {
 	}
 	if _, err := parseRoomAssignments([]string{"debate=codex/gpt"}, nil); err == nil {
 		t.Fatal("room participant without stage.participant succeeded")
+	}
+}
+
+// FS-22.R11: pipeline refusals show the server reason and its field
+// diagnostics, bounded, in both the operator and legacy paths, never raw JSON.
+func TestPipelineErrorsShowAPIDiagnostics(t *testing.T) {
+	var diags []string
+	for i := 0; i < 12; i++ {
+		diags = append(diags, fmt.Sprintf(`{"field":"stages[%d].id","code":"required","message":"stage id is required"}`, i))
+	}
+	body := `{"error":{"code":"validation","message":"pipeline validation failed","details":{"pipeline_code":"invalid_template","diagnostics":[` + strings.Join(diags, ",") + `]}}}`
+	err := operatorHTTPError(http.StatusBadRequest, []byte(body))
+	var op *operatorError
+	if !errors.As(err, &op) || op.Code != "validation" || op.ExitCode != 1 ||
+		!strings.HasPrefix(op.Message, "pipeline validation failed: stages[0].id: stage id is required; ") ||
+		!strings.HasSuffix(op.Message, "; and 2 more") || strings.Contains(op.Message, "stages[10]") {
+		t.Fatalf("operator error = %#v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	port, _ := strconv.Atoi(u.Port())
+	home := t.TempDir()
+	t.Setenv("CHUCK_HOME", home)
+	if err := writePidfile(home, pidInfo{PID: os.Getpid(), Port: port}); err != nil {
+		t.Fatal(err)
+	}
+	err = runPipelineRequest(http.MethodPost, "/api/pipelines/validate", map[string]any{"id": "q"})
+	if err == nil || strings.Contains(err.Error(), `{"error"`) || !strings.Contains(err.Error(), "pipeline request failed (400): pipeline validation failed: stages[0].id: stage id is required") {
+		t.Fatalf("legacy error = %v", err)
 	}
 }
 

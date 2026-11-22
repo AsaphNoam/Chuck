@@ -349,15 +349,29 @@ func cancelledOutcome() json.RawMessage {
 }
 
 // StopAll stops every live agent. The server calls this on shutdown so no
-// orphaned CLI process groups survive (techspec §8.5).
+// orphaned CLI process groups survive (techspec §8.5). Stop returns before the
+// exit teardown records the clean journal close, so StopAll also waits for
+// that (bounded by ctx); otherwise the server can exit first and the next
+// start reports "Conversation history may be incomplete".
 func (c *ChatRuntime) StopAll(ctx context.Context) {
 	c.mu.Lock()
 	ids := make([]string, 0, len(c.agents))
-	for id := range c.agents {
+	closed := make([]chan struct{}, 0, len(c.agents))
+	for id, as := range c.agents {
 		ids = append(ids, id)
+		if as.persistenceDone != nil {
+			closed = append(closed, as.persistenceDone)
+		}
 	}
 	c.mu.Unlock()
 	StopAgents(ctx, ids, c.Stop)
+	for _, done := range closed {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // StopAgents starts every owned stop before waiting for any one grace period.

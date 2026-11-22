@@ -33,8 +33,8 @@ Requirements are user- and API-observable. R-item numbering is continuous throug
 - **R5 — retired 2026-07-25:** Whole-session FTS documents and their cross-turn matching semantics
   are superseded by R25; retaining them made indexing cost grow with the complete transcript.
 - **R6.** On a build compiled **without** the `sqlite_fts5` tag (the shipped no-FTS5 fallback path),
-  search transparently falls back to a metadata `LIKE` substring filter over name, role, project, and
-  backend, with AND semantics across terms. Transcript content is not searchable in this build; the
+  search transparently falls back to a metadata `LIKE` substring filter over name, role, project,
+  backend, group and model (the metadata the FTS document carries), with AND semantics across terms. Transcript content is not searchable in this build; the
   query still returns correctly-filtered metadata results rather than an error. The fallback also
   triggers on a tagged binary whenever the FTS5 module is reported missing at runtime.
 - **R7 — retired 2026-07-25:** Whole-session `matched_in` projection is superseded by the

@@ -21,7 +21,11 @@ func runResumeByID(agentID string) int {
 		fmt.Printf("config: %v\n", cerr)
 		return 1
 	}
-	port := dashboardPort(cfgStore)
+	port, perr := dashboardPort(cfgStore)
+	if perr != nil {
+		fmt.Println(perr)
+		return 1
+	}
 
 	resp, body, err := postResume(port, agentID, nil)
 	if err != nil {

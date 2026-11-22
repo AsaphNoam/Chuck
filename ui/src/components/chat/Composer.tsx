@@ -13,6 +13,7 @@ import { addFiles, attachmentErrorForStorage, hasPersistedAttachmentDraft, isPre
 import { useInputDelivery } from "./useInputDelivery";
 import { DraftAttachments } from "./AttachmentView";
 import type { AttachmentCapabilities } from "../../api/types";
+import { useUiStore } from "../../store/uiStore";
 
 const NO_QUEUED: never[] = [];
 
@@ -27,6 +28,8 @@ function alreadyDelivered(agentId: string, text: string, beforeSeq: number, requ
   return (useTranscriptStore.getState().byAgent[agentId] ?? []).some((event) =>
     matchesPromptDelivery(event, text, requestId, beforeSeq));
 }
+
+const OFFLINE_REASON = "Reconnecting to Chuck — sending resumes when the connection returns.";
 
 export function Composer({ agentId, busy, running = true, steerable = false, variant, attachmentCapabilities }: {
   agentId: string;
@@ -95,6 +98,17 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
     clearDraft: () => replaceDraftBaseline(""),
     setError, setNotice, setAttachmentError,
   });
+
+  // While the event stream is down, a send cannot reach Chuck: Send and Steer
+  // say so instead of looking live, and the outage's own send error leaves
+  // once the connection returns (the retry line keeps any unconfirmed send).
+  const connection = useUiStore((state) => state.connection);
+  const offline = connection === "reconnecting" || connection === "down";
+  const wasOffline = useRef(offline);
+  useEffect(() => {
+    if (wasOffline.current && connection === "open") setError(null);
+    wasOffline.current = offline;
+  }, [connection, offline]);
 
   useLayoutEffect(() => editing.flush(autocomplete.syncTrigger));
 
@@ -168,6 +182,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
   }, [agentId, running, held, heldId, heldRequestId, releaseHeld]);
 
   const submit = () => {
+    if (offline) return;
     if (!filesReady) { setAttachmentError("Restoring attachments… wait before sending."); return; }
     if (!text.trim() && files.length === 0) return;
     if (capabilityError) { setError(capabilityError); return; }
@@ -176,7 +191,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
 
   const steer = () => {
     const typed = text.trim() ? text : "";
-    if (!typed && files.length === 0 && !heldId) return;
+    if (offline || (!typed && files.length === 0 && !heldId)) return;
     if (!filesReady) { setAttachmentError("Restoring attachments… wait before steering."); return; }
     if (capabilityError) { setError(capabilityError); return; }
     void deliver(typed, files, true, !typed && !files.length ? { held: { id: heldId, requestId: heldRequestId } } : {});
@@ -266,9 +281,9 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
       <div className="composer-actions">
         <RunningTasks key={agentId} agentId={agentId} />
         <button type="button" className="ad-button-secondary composer-attach" aria-label="Attach files" title="Attach files" disabled={sending} onClick={() => pickerRef.current?.click()}>Attach</button>
-        <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title="Send" disabled={!filesReady || sending || (!text.trim() && files.length === 0) || !!capabilityError || (matchingRetry(text, files)?.retryable === false)}>{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
+        <button type="submit" className="composer-icon ad-button-icon-primary" aria-label="Send" title={offline ? OFFLINE_REASON : "Send"} disabled={offline || !filesReady || sending || (!text.trim() && files.length === 0) || !!capabilityError || (matchingRetry(text, files)?.retryable === false)}>{!variant && <span className="composer-send-label">Send</span>}<SendIcon /></button>
         {busy && steerable && (!queuedInput.length || heldId || text.trim() || files.length > 0) && (
-          <button type="button" className="ad-button-secondary" title={sending ? "Wait for the current send to finish." : undefined} disabled={sending || !!capabilityError || (matchingRetry(text, files)?.retryable === false)} onClick={() => void steer()}>Steer</button>
+          <button type="button" className="ad-button-secondary" title={offline ? OFFLINE_REASON : sending ? "Wait for the current send to finish." : undefined} disabled={offline || sending || !!capabilityError || (matchingRetry(text, files)?.retryable === false)} onClick={() => void steer()}>Steer</button>
         )}
         {held && (
           <button type="button" className="ad-button-secondary" onClick={() => void withdraw()}>Withdraw queued</button>
@@ -290,6 +305,7 @@ export function Composer({ agentId, busy, running = true, steerable = false, var
         )}
       </div>
       </div>
+      {offline && <p className="composer-notice" role="status">{OFFLINE_REASON}</p>}
       {!filesReady && <p className="composer-retry" role="status">Restoring attachments…</p>}
       {retry && <p className="composer-retry" role="status"><span>Previous message was not confirmed.</span> {retry.retryable === false ? <span>Use the recovered message above to decide whether to send it again.</span> : <button type="button" disabled={!filesReady || sending} onClick={() => void deliver(retry.text, retry.files, retry.steer, { retry })}>Retry previous send</button>}</p>}
       {draggingFiles && <p className="composer-drop-hint" aria-live="polite">Drop files to attach</p>}

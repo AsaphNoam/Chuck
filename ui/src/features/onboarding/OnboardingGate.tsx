@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useConfig } from "../../api/config";
 import { OnboardingWizard } from "./OnboardingWizard";
 
@@ -8,6 +9,7 @@ interface OnboardingGateProps {
 
 export function OnboardingGate({ children }: OnboardingGateProps) {
   const { data: config, isLoading } = useConfig();
+  const navigate = useNavigate();
   const [dismissed, setDismissed] = useState(false);
   const wizardOpened = useRef(false);
 
@@ -25,7 +27,11 @@ export function OnboardingGate({ children }: OnboardingGateProps) {
     return (
       <OnboardingWizard
         steps={config.onboarding.steps}
-        onComplete={() => setDismissed(true)}
+        onComplete={(launchedAgentId) => {
+          setDismissed(true);
+          // A completed Launch opens the first agent's chat (FS-04.R20).
+          if (launchedAgentId) navigate(`/agent/${launchedAgentId}`);
+        }}
       />
     );
   }

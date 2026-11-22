@@ -31,7 +31,7 @@ VALUES ('a1', 'Alpha Agent', 'reviewer', 'project-alpha', 'claude', 'sonnet', 'c
 
 	if _, err := db.Exec(`
 INSERT INTO sessions(agent_id, name, role, project, backend, model, interface, cwd, system_prompt, created_at, updated_at, grp)
-VALUES ('a2', 'Beta Agent', 'implementer', 'project-beta', 'claude', 'sonnet', 'chat', '/tmp/a2', '', '2026-07-01T10:00:00Z', '2026-07-01T12:00:00Z', '')
+VALUES ('a2', 'Beta Agent', 'implementer', 'project-beta', 'claude', 'opus-4-8', 'chat', '/tmp/a2', '', '2026-07-01T10:00:00Z', '2026-07-01T12:00:00Z', '')
 `); err != nil {
 		t.Fatalf("insert session for a2: %v", err)
 	}
@@ -65,6 +65,15 @@ VALUES ('a2', 'Beta Agent', 'implementer', 'project-beta', 'claude', 'sonnet', '
 	}
 	if resp.Results[0].AgentID != "a2" {
 		t.Fatalf("expected agent_id='a2', got '%s'", resp.Results[0].AgentID)
+	}
+
+	// The model name is metadata too, as in the FTS build (J8).
+	resp, err = archive.Search(Query{Q: "opus", Limit: 50})
+	if err != nil {
+		t.Fatalf("Search for 'opus': %v", err)
+	}
+	if len(resp.Results) != 1 || resp.Results[0].AgentID != "a2" {
+		t.Fatalf("model search = %+v, want only a2", resp.Results)
 	}
 
 	// Search for "Alpha" (should match the first session's name)

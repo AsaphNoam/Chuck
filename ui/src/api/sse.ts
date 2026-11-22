@@ -212,6 +212,8 @@ class SseClient {
       return;
     }
     useAgentStore.getState().applyStateUpdate(envelope.data);
+    // An answered prompt leaves no toast asking for it.
+    if (envelope.agent_id && envelope.data.state && envelope.data.state !== "waiting_input") useUiStore.getState().dismissAttention(envelope.agent_id);
     if (envelope.agent_id && envelope.data.last_sent_at) {
       const sentAt = envelope.data.last_sent_at;
       window.setTimeout(() => useAgentStore.getState().clearLastSentAt(envelope.agent_id!, sentAt), 2_000);
