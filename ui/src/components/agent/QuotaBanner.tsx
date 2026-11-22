@@ -42,7 +42,9 @@ export function QuotaBanner({
   const [dismissedEpisode, setDismissedEpisode] = useState<string>();
   const quota = decodeQuotaState(value);
   if (!quota) return null;
-  const dismissible = quota.continuation_state === "disabled";
+  // Automatic continuation is off for this interruption: never scheduled, or
+  // cancelled by disabling Auto continue or by the person (FS-01.R40/R43).
+  const dismissible = quota.continuation_state === "disabled" || quota.continuation_state === "cancelled";
   if (dismissible && dismissedEpisode === quota.episode_id) return null;
 
   const resetAt = formatQuotaTime(quota.reset_at);

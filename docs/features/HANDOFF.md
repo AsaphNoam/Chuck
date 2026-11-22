@@ -14,7 +14,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   on 2026-11-22 at `74699ab6` ([notes](../archive/state/RELEASE-v0.25.0-notes.md)).
   [Release CI](https://github.com/AsaphNoam/Chuck/actions/runs/44996541049) passed; the
   downloaded archive's size and SHA-256 match the manifest, and the installer is attached. The
-  operator authorized shipping with QUOTA-DISMISS-1 open as Worth fixing.
+  operator authorized shipping with QUOTA-DISMISS-1 open; it is fixed on main after v0.25.0.
 - **Architecture:** the v0.25.0 review is complete in
   [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json); the gate passed. The
   next release needs its own review (receipt `v0.25.0-next.json`).
@@ -64,9 +64,6 @@ None.
   switch shows it above the composer.
 
 ## Review queue
-
-- **Dismiss quota banner when automatic continuation is off** (FS-01.R40): reviewed
-  `f595d484` at `07bc14f6`. Open for `/fix`; see QUOTA-DISMISS below (deferred past v0.25.0).
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
@@ -153,26 +150,6 @@ open until a cause is found.
   `task_assignment_binding_test.go:56: provider prompts = 2, want 1` (a second prompt reached
   the provider; either the retry was counted before the check or a binding refusal sent an
   assignment — the latter would break FS-16 binding-before-effects).
-
-### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Worth fixing** (medium; operator-deferred from Must fix on 2026-11-22 to release v0.25.0 with
-  it open — not a regression, since no quota banner offered Dismiss before `f595d484`) —
-  QUOTA-DISMISS-1 (FS-01.R40/R43, TS-03.R60; INV §10/§11/§17).
-  Let a chat reach quota with Auto continue enabled and a check or continuation scheduled.
-  Turning Auto continue off calls `CancelPendingQuotas`, which publishes that same episode as
-  `cancelled` in live updates and reconnect snapshots. `QuotaBanner.tsx` offers Dismiss only
-  for `disabled`, so the card and desktop/phone chats keep a banner the operator cannot hide
-  through the specified action. The live config HTTP test confirms the cancellation projection;
-  Chromium on the three actual UI routes reproduced the missing button using that wire shape.
-  Define how interruption-level dismissal eligibility reaches all three surfaces while preserving
-  cancellation, re-enable and reconnect behavior. Cover toggling off after the banner appears,
-  manual cancellation with Auto continue enabled, and a new episode after local dismissal.
-- **Worth fixing** (medium) — QUOTA-DISMISS-2 (INV §18, workflow §7). The same
-  `quota_intents.state` owner had recent repairs at `4c896077` and `95779e0c`. Inventory
-  its writers, the entry points for policy disable and continuation cancellation, and where the
-  legal transitions and reason codes are declared. Use the existing status-table writer guard
-  and identify which fields the projection needs for dismissal eligibility.
 
 ### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

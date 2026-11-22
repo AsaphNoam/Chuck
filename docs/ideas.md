@@ -5,6 +5,25 @@ work. The specifications describe the product today; this file does not.
 
 ## New ideas
 
+- **One declared rule for quota episode state.** QUOTA-DISMISS-2 inventory (2026-11-22), following
+  `4c896077`, `95779e0c` and the QUOTA-DISMISS-1 banner repair. `quota_intents.state` writers
+  (guarded by `TestStatusTableWriterInventory`): `state/quota.go` (observe/insert, refill of an
+  unknown reset, claim, defer, snapshot postpone, owner/manual holds, complete, hold, single
+  cancel, `CancelPendingQuotas`, restart recovery), `state/quota_checks.go` (`FinishQuotaCheck`),
+  `state/quota_controls.go` (`CancelQuotaSnapshots`), `state/quota_success.go` (`ResolveQuota`),
+  `state/think_tank_turns.go` (room end cancels room-owned episodes) and the index rebuild.
+  Cancellation entry points: Auto continue disable (`server/config_handlers.go`,
+  `CancelPendingQuotas`), explicit quota Cancel (`server/sessions.go`), manual-control
+  supersession captured per route (`server/quota_controls.go` → `CancelQuotaSnapshots`),
+  group/project controls (`server/groups.go`) and room end. Legal transitions are declared
+  nowhere: each writer's SQL `WHERE state IN (…)` is the rule, and reason codes are bare strings
+  across `quota.go`/`quota_checks.go` with UI labels in `QuotaBanner.tsx`. Divergent rule left
+  open: disabling Auto continue cancels only `scheduled/deferred/claimed`, so an `unknown_reset`
+  (credit/plan intervention) or `needs_attention` “Continue manually” episode keeps its state and
+  still offers no Dismiss, although nothing automatic is pending. The UI now infers dismissal
+  from `continuation_state ∈ {disabled, cancelled}`; a declared “automation pending” fact in the
+  projection would let every surface stop re-deriving it.
+
 - **One rule for task execution across continuations.** INLINE-TASK-7 inventory (2026-11-21),
   following quota admission (`95779e0c`) and pipeline recovery (`0a8bda69`) repairs. Urgent inline
   continuation, binding, provenance and guidance findings INLINE-TASK-1–4 were repaired; the

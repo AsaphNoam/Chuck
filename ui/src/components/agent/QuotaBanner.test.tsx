@@ -32,6 +32,22 @@ describe("QuotaBanner", () => {
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
 
+  it("offers Dismiss once a shown continuation is cancelled, and a new interruption reappears", () => {
+    const scheduled = { ...quota, reset_at: "2026-10-11T13:00:00Z", due_at: "2026-10-11T13:01:00Z", continuation_state: "scheduled" };
+    const { rerender } = render(<QuotaBanner value={scheduled} onCancel={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument();
+
+    // Disabling Auto continue and a manual Cancel both republish the same episode as cancelled.
+    rerender(<QuotaBanner value={{ ...scheduled, revision: 4, due_at: null, continuation_state: "cancelled" }} onCancel={vi.fn()} />);
+    expect(screen.getByText("Continuation cancelled")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("Quota reached")).not.toBeInTheDocument();
+
+    rerender(<QuotaBanner value={{ ...scheduled, episode_id: "qe_2", revision: 1 }} onCancel={vi.fn()} />);
+    expect(screen.getByText("Quota reached")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument();
+  });
+
   it("shows a clear unknown reset and no invented cancel action", () => {
     render(<QuotaBanner value={quota} />);
     expect(screen.getByText("Quota reached")).toBeInTheDocument();
