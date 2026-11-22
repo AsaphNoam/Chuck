@@ -120,6 +120,17 @@ describe("Project Files dialog", () => {
     expect(within(dialog).getByText("No files match this search.")).toBeInTheDocument();
   });
 
+  // FILES-TYPE-PICKER-1: the search box's click-to-focus handler also runs for
+  // clicks on the attached type picker, moving focus to the search input and
+  // closing the native dropdown just after it opens. Un-skip with the fix.
+  it.skip("keeps focus on the type picker when it is clicked", async () => {
+    const dialog = await openFiles();
+    const typePicker = within(dialog).getByRole("combobox", { name: "Add a file type filter" });
+    typePicker.focus();
+    fireEvent.click(typePicker);
+    expect(typePicker).toHaveFocus();
+  });
+
   it("distinguishes an empty folder from no matches", async () => {
     const dialog = await openFiles();
     fireEvent.change(within(dialog).getByRole("combobox", { name: "Folder" }), { target: { value: "empty" } });
