@@ -459,6 +459,23 @@ func waitLifecycleClaim(t *testing.T, srv *Server, id string) {
 	}
 }
 
+// waitTaskSettled waits for a dispatched task to be running and for its launch
+// to release the agent's lifecycle claim. The turn preparer confirms the task
+// running before the launch returns, and a Stop in that window is refused by
+// design (TS-01.R16), so a test that stops the assignee waits for both.
+func waitTaskSettled(t *testing.T, srv *Server, taskID string) state.Task {
+	t.Helper()
+	task := waitTaskState(t, srv, taskID, state.TaskRunning)
+	deadline := time.Now().Add(5 * time.Second)
+	for srv.lifecycleInFlight(task.AssignedAgentID) {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for the launch to release %s", task.AssignedAgentID)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return task
+}
+
 // FS-01.A17 / TS-01.R16 (INV §4) — Stop joins the same exclusive lifecycle claim
 // as resume, so a Stop arriving while a wake is inside Registry.Resume cannot
 // tear down the wake's registration. Registry.Stop reads an in-progress resume's

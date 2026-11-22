@@ -298,7 +298,7 @@ func TestAPersonRecordsAResultOnlyWhereNoAgentWill(t *testing.T) {
 
 	task := createTaskHTTP(t, ts, launchTaskBody("abandoned"))
 	srv.dispatchReadyTasks(context.Background())
-	running := waitTaskState(t, srv, task.TaskID, state.TaskRunning)
+	running := waitTaskSettled(t, srv, task.TaskID)
 	if resp, body := post(t, ts.URL+"/api/sessions/"+running.AssignedAgentID+"/stop", nil); resp.StatusCode != 200 {
 		t.Fatalf("stop status = %d: %s", resp.StatusCode, body)
 	}

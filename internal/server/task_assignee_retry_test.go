@@ -25,7 +25,7 @@ func TestDeferredAssignmentResumesOriginalAgent(t *testing.T) {
 				srv, _ := wakeTestServer(t)
 				task := newLaunchTask(t, srv, "retain assignee")
 				srv.dispatchReadyTasks(context.Background())
-				running := waitTaskState(t, srv, task.TaskID, state.TaskRunning)
+				running := waitTaskSettled(t, srv, task.TaskID)
 				id := running.AssignedAgentID
 				if err := srv.StopStage(context.Background(), id); err != nil {
 					t.Fatal(err)

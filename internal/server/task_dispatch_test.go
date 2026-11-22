@@ -927,7 +927,7 @@ func TestAnAgentThatGoesAwayLeavesItsTaskInterrupted(t *testing.T) {
 	srv, ts := wakeTestServer(t)
 	task := newLaunchTask(t, srv, "long job")
 	srv.dispatchReadyTasks(context.Background())
-	running := waitTaskState(t, srv, task.TaskID, state.TaskRunning)
+	running := waitTaskSettled(t, srv, task.TaskID)
 
 	if resp, body := post(t, ts.URL+"/api/sessions/"+running.AssignedAgentID+"/stop", nil); resp.StatusCode != 200 {
 		t.Fatalf("stop status = %d: %s", resp.StatusCode, body)

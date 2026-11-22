@@ -205,17 +205,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### DEFERRED-STOP-FLAKE — Stop right after task dispatch hit a held lifecycle claim (2026-11-22) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-- **Must fix** (medium) — DEFERRED-STOP-FLAKE-1 (INV §4/§11; workflow §2). The full
-  `make test` run of the ARCH-v025 repair tree (clean worktree of `520e4329` plus the repair)
-  failed once: `TestDeferredAssignmentResumesOriginalAgent/continuation_failure`,
-  `task_assignee_retry_test.go:31`, `StopStage` returned "a lifecycle transition is already in
-  progress" after `waitTaskState` saw the task running. Ten focused reruns passed, which does not
-  close it. Likely the dispatch's start claim outlives the visible running state, so an operator
-  Stop at that moment is refused. Establish whether that claim window is a product ordering
-  (Stop should wait or succeed) or a fixture race, and make the test control that schedule.
-
 ### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off — **Fix model:** medium — Codex Terra or Claude Opus.
 
 - **Must fix** (medium) — QUOTA-DISMISS-1 (FS-01.R40/R43, TS-03.R60; INV §10/§11/§17).
