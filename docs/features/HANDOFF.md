@@ -140,22 +140,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### FILES-TYPE-PICKER — investigation of "file type dropdown opens then closes" (2026-11-22) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
-
-Report (verbatim): "clicking on the file type dropdown just renders for a fraction of a second then
-closes". Version: v0.25.0-era `main` (`5d4af27e`); environment and logs not supplied. Code defect
-against FS-11.R12 (the attached type picker must let a person select types).
-
-- **Must fix** (trivial/easy, **confirmed**) — FILES-TYPE-PICKER-1 (INV §13).
-  `ui/src/features/dashboard/ProjectFilesDialog.tsx:173`: the `.project-files-search` wrapper's
-  `onClick={() => searchRef.current?.focus()}` also fires for clicks on the nested **Add a file type
-  filter** `<select>`. The native popup opens on mousedown, then the bubbling click moves focus to
-  the search input and the popup closes, so no type can be chosen by pointer. Present since the
-  dialog shipped (`f2239ad0`). Reproduced by the skipped test "keeps focus on the type picker when
-  it is clicked" in `ProjectFilesDialog.test.tsx` (fails when un-skipped). Fix: focus search only
-  when the click did not land on an interactive child (e.g. `event.target === event.currentTarget`),
-  or stop propagation on the select's click; un-skip the test and check a real browser per INV §13.
-
 ### CI-FLAKE — server lifecycle tests failed in main CI at `74699ab6` (2026-11-22) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 [Run 44996540911](https://github.com/AsaphNoam/Chuck/actions/runs/44996540911), `make test`.

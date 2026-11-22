@@ -98,6 +98,13 @@ try {
       // Let the shared dialog entrance finish before measuring or capturing.
       await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
       record(`${label}: search focused on open`, await dialog.getByRole("searchbox", { name: "Search files" }).evaluate((el) => el === document.activeElement));
+      // FILES-TYPE-PICKER-1: a real click on the type picker keeps focus there
+      // (so its dropdown stays open); a click on the box's padding still focuses search.
+      const typePicker = dialog.getByRole("combobox", { name: "Add a file type filter" });
+      await typePicker.click();
+      record(`${label}: type picker keeps focus when clicked`, await typePicker.evaluate((el) => el === document.activeElement));
+      await dialog.locator(".project-files-search").click({ position: { x: 2, y: 2 } });
+      record(`${label}: search box padding click focuses search`, await dialog.getByRole("searchbox", { name: "Search files" }).evaluate((el) => el === document.activeElement));
       const box = await dialog.boundingBox();
       record(`${label}: dialog fits the viewport`, box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= 800, JSON.stringify(box));
       const longRow = dialog.locator(`tr[data-path="${LONG_DIR}/${LONG_NAME}"]`);

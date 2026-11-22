@@ -170,7 +170,7 @@ export function ProjectFilesDialog({ projectId, title, resourceDir, onClose, ret
                     {folders.map((path) => <option key={path} value={path}>{path}</option>)}
                   </select>
                 </label>
-                <div className="project-files-search" onClick={() => searchRef.current?.focus()}>
+                <div className="project-files-search" onClick={(event) => { if (event.target === event.currentTarget) searchRef.current?.focus(); }}>
                   {types.map((type) => (
                     <button key={type} type="button" className="project-files-badge" aria-label={`Remove ${typeLabel(type)} filter`} onClick={(event) => { event.stopPropagation(); setTypes(types.filter((t) => t !== type)); searchRef.current?.focus(); }}>
                       {typeLabel(type)} <span aria-hidden="true">×</span>
