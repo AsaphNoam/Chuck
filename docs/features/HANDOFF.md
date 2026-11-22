@@ -86,7 +86,7 @@ None.
 ## Review queue
 
 - **Dismiss quota banner when automatic continuation is off** (FS-01.R40): reviewed
-  `f595d484` at `07bc14f6`. Open for `/fix`; see QUOTA-DISMISS below.
+  `f595d484` at `07bc14f6`. Open for `/fix`; see QUOTA-DISMISS below (deferred past v0.25.0).
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
@@ -207,7 +207,9 @@ specs, live user state or unrelated dirty files changed.
 
 ### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off — **Fix model:** medium — Codex Terra or Claude Opus.
 
-- **Must fix** (medium) — QUOTA-DISMISS-1 (FS-01.R40/R43, TS-03.R60; INV §10/§11/§17).
+- **Worth fixing** (medium; operator-deferred from Must fix on 2026-11-22 to release v0.25.0 with
+  it open — not a regression, since no quota banner offered Dismiss before `f595d484`) —
+  QUOTA-DISMISS-1 (FS-01.R40/R43, TS-03.R60; INV §10/§11/§17).
   Let a chat reach quota with Auto continue enabled and a check or continuation scheduled.
   Turning Auto continue off calls `CancelPendingQuotas`, which publishes that same episode as
   `cancelled` in live updates and reconnect snapshots. `QuotaBanner.tsx` offers Dismiss only
