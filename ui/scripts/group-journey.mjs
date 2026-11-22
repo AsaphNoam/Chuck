@@ -20,6 +20,8 @@ async function api(path, body, method = body === undefined ? "GET" : "POST") {
   if (!r.ok) throw new Error(`${path}: ${JSON.stringify(data)}`);
   return data;
 }
+// Phone project groups start collapsed; open each so its agent rows render.
+const expandPhoneGroups = async (page) => { const closed = page.locator('.phone-agent-group-header > button[aria-expanded="false"]'); while (await closed.count()) await closed.first().click(); };
 const launch = async (name, group, project = "my-app") => (await api("/api/sessions", {name,group,project,role:"implementer",backend:"claude",model:"sonnet",interface:"chat"})).agent.agent_id;
 const desktopContext = await browser.newContext({viewport:{width:1024,height:900}});
 const phoneContext = await browser.newContext({viewport:{width:390,height:844},ignoreHTTPSErrors:true});
@@ -31,8 +33,9 @@ try {
   // The loopback static fallback rejects unknown POSTs with 405; neither status admits a route.
   check("legacy group route absent on desktop", [404,405].includes((await desktopContext.request.post(fixture.desktop + "/api/groups/auth/release", { data: {} })).status()));
   check("legacy group route absent on phone", (await phoneContext.request.post(fixture.phone + "/api/groups/auth/release", { headers: { Origin: fixture.phone }, data: {} })).status() === 404);
-  // Fresh homes seed no project (FS-04.R14), so the journey creates the one it uses.
-  await api("/api/projects", {project:"my-app",title:"My App",color:[100,180,255],cwd:"/tmp",add_dirs:[],context_prompt:""});
+  // The fixture home already has my-app (writeFixtureProject); point it at an existing directory.
+  const projects = await api("/api/projects");
+  await api("/api/projects/my-app", {...projects["my-app"],cwd:"/tmp"}, "PUT");
   for (const session of await api("/api/sessions")) await api(`/api/sessions/${session.agent_id}/archive`,{},"POST");
   for (const skin of ["", "sky-grove", "studio"]) {
     const name = skin || "core";
@@ -48,6 +51,7 @@ try {
     const destination = desktop.getByRole("region",{name:"Group Destination with a very long group name for readable controls",exact:true});
     await source.getByText(`Builder ${name}`,{exact:true}).waitFor();
     await phone.getByRole("region",{name:"Build/review group",exact:true}).waitFor();
+    await expandPhoneGroups(phone);
     await phone.getByRole("region",{name:"Ungrouped group",exact:true}).getByText(`Ungrouped ${name}`,{exact:true}).waitFor();
     await desktop.screenshot({path:join(out,`${name}-desktop-1024.png`),fullPage:true});
     await phone.screenshot({path:join(out,`${name}-phone-390.png`),fullPage:true});
@@ -75,8 +79,9 @@ try {
     await phone.getByText(`Builder ${name}`,{exact:true}).click();
     await phone.getByRole("tab",{name:"Manage",exact:true}).click();
     const picker = phone.getByRole("combobox",{name:"Group",exact:true});
+    // Build/review now has no my-app agent, so it is not a project suggestion (FS-02.A61); type it.
     await picker.fill("Build/review");
-    await phone.getByRole("button",{name:"Build/review",exact:true}).click();
+    await picker.press("Enter");
     await phone.getByRole("button",{name:"Save group",exact:true}).click();
     await source.getByText(`Builder ${name}`,{exact:true}).waitFor();
     check(`${name}: phone reassignment updates desktop`,true);

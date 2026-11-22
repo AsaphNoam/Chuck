@@ -37,11 +37,17 @@ const adapterCommand: Record<"opencode-acp" | "openhands-acp", string> = {
   "openhands-acp": "openhands",
 };
 
+// Official installation pages for those CLIs; Chuck never installs them.
+const adapterInstallURL: Record<"opencode-acp" | "openhands-acp", string> = {
+  "opencode-acp": "https://opencode.ai/docs",
+  "openhands-acp": "https://docs.openhands.dev/openhands/usage/cli/installation",
+};
+
 function credentialGuidance(status: string, detail: string | null, type: BackendType): string {
   if (detail === "cli_not_installed") {
     return hasProviderSource(type)
       ? `${providerName(type)} was not found. Install it (${providerInstallURL(type)}), or choose Chuck bundle for this backend in Settings → Backends, then check again.`
-      : `The ${BACKEND_TYPE_LABELS[type]} CLI was not found. Chuck runs \`${adapterCommand[type]} acp\`, so install the ${BACKEND_TYPE_LABELS[type]} CLI so that \`${adapterCommand[type]}\` is on the PATH of the environment Chuck runs in, then check again.`;
+      : `The ${BACKEND_TYPE_LABELS[type]} CLI was not found. Chuck runs \`${adapterCommand[type]} acp\`, so install the ${BACKEND_TYPE_LABELS[type]} CLI (${adapterInstallURL[type]}) so that \`${adapterCommand[type]}\` is on the PATH of the environment Chuck runs in, then check again.`;
   }
   if (detail === "bundle_unavailable") {
     return `The Chuck bundle for ${providerName(type)} is not available in this installation. Choose Installed provider in Settings → Backends, or reinstall Chuck, then check again.`;

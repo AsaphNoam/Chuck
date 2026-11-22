@@ -53,7 +53,8 @@ try {
     const prefix = `${label} 1024px`;
     check(`${prefix}: viewport exact`, state.viewport === 1024, `${state.viewport}px`);
     check(`${prefix}: scheduled and unknown reset states visible`,
-      await page.getByText("Reset time unknown", { exact: true }).first().isVisible()
+      // Scoped to banners: the collapsed subscription disclosure has the same text, hidden.
+      await page.locator(".quota-banner").getByText("Reset time unknown", { exact: true }).first().isVisible()
       && await banner.getByText(/^Reset /).isVisible()
       && await banner.getByRole("button", { name: "Cancel continuation" }).isVisible());
     // FS-01.R50: a check time is never presented as a reset.

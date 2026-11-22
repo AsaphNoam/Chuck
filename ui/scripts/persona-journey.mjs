@@ -44,8 +44,9 @@ async function submitAndCheckRole(page, button, expected, name) {
   return (await response.json()).agent.agent_id;
 }
 try {
-  // Fresh homes seed no project (FS-04.R14), so the journey creates the one it uses.
-  await api("/api/projects", { project: "my-app", title: "My App", color: [100, 180, 255], cwd: "/tmp", add_dirs: [], context_prompt: "" });
+  // The fixture home already has my-app (writeFixtureProject); point it at an existing directory.
+  const projects = await api("/api/projects");
+  await api("/api/projects/my-app", { ...projects["my-app"], cwd: "/tmp" }, "PUT");
   const roles = await api("/api/roles");
   await api(roles.quiet ? "/api/roles/quiet" : "/api/roles", { role: "quiet", title: "Quiet persona", system_prompt: "persona text", chuck_aware: false, skip_permissions: null }, roles.quiet ? "PUT" : "POST");
   for (const skin of ["", "sky-grove", "studio"]) {
@@ -131,9 +132,7 @@ try {
     await desktop.getByRole("button", { name: "Validate & Continue", exact: true }).waitFor();
     unlinkSync(readinessMarker);
     await desktop.getByRole("button", { name: "Validate & Continue", exact: true }).click();
-    await desktop.getByPlaceholder("e.g. My App").fill(`Persona onboarding ${name}`);
-    await desktop.getByPlaceholder("~/Projects/my-app").fill("/tmp");
-    await desktop.getByRole("button", { name: "Create project", exact: true }).click();
+    // The home already has projects, so the resumed wizard skips the Project step (FS-04.R67).
     // Source linking is optional; this journey tests ordinary creation.
     const sourceContinue = desktop.getByRole("button", { name: "Continue", exact: true });
     await sourceContinue.waitFor();

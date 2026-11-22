@@ -685,7 +685,9 @@ try {
           failAnnotationDelivery = true;
           const launchCount = launches.length;
           await launch.getByRole("button", { name: "Launch and send", exact: true }).click();
-          await tray(6).getByRole("button", { name: "Retry delivery to a3", exact: true }).click();
+          // The stubbed launch never streams a3 into recipients, so the label has no name here;
+          // AgentScreen.test.tsx covers "Retry delivery to <name>".
+          await tray(6).getByRole("button", { name: /^Retry delivery/ }).click();
           await page.waitForFunction(() => location.pathname === "/agent/a3");
           const sent = annotationPosts.at(-1);
           const failed = annotationPosts.at(-2);
@@ -697,13 +699,14 @@ try {
           await recording.uncheck();
           await tray(6).getByRole("combobox", { name: "Agent", exact: true }).selectOption("a2");
           await tray(6).getByRole("button", { name: "Send annotations", exact: true }).click();
-          await page.getByText("Annotations sent to Existing recipient.", { exact: true }).waitFor();
+          // Delivery has no sent notice (FS-13); the closed tray is the success signal.
+          await tray(6).waitFor({ state: "detached" });
           const sent = annotationPosts.at(-1);
           if (!sent.omit_source_record || sent.target?.agent_id !== "a2") throw new Error(`${label}: existing recipient wire ${JSON.stringify(sent)}`);
           await page.screenshot({ path: `${prefix}-unrecorded-success.png`, animations: "disabled" });
         } else {
           await tray(6).getByRole("button", { name: "Send annotations", exact: true }).click();
-          await page.getByText("Annotations sent to this agent.").waitFor();
+          await tray(6).waitFor({ state: "detached" });
           const sent = annotationPosts.at(-1);
           if (sent.target?.kind !== "self" || sent.annotations[2]?.start_line !== 3 || sent.annotations[1]?.start_line !== undefined) throw new Error(`${label} self delivery: ${JSON.stringify(sent)}`);
         }

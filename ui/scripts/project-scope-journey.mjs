@@ -32,8 +32,9 @@ const desktop = await desktopContext.newPage();
 const phone = await phoneContext.newPage();
 for (const page of [desktop, phone]) page.on("pageerror", (e) => errors.push(e.message));
 try {
-  // Fresh homes seed no project (FS-04.R14), so the journey creates the one it uses.
-  await api("/api/projects", { project: "my-app", title: "My App", color: [100, 180, 255], cwd: "/tmp", add_dirs: [], context_prompt: "" });
+  // The fixture home already has my-app (writeFixtureProject); point it at an existing directory.
+  const projects = await api("/api/projects");
+  await api("/api/projects/my-app", { ...projects["my-app"], cwd: "/tmp" }, "PUT");
   for (const session of await api("/api/sessions")) await api(`/api/sessions/${session.agent_id}/archive`, {}, "POST");
   // Legacy shared collapse choice: "Shared" collapsed everywhere until a project overrides it.
   const layout = await api("/api/layout");
@@ -119,7 +120,7 @@ try {
   check("A24 desktop: no other-project recipients by default", !names.some((n) => n.startsWith("Theirs")));
   await tray.getByLabel("Include other projects").check();
   names = await optionTexts(recipient);
-  check("A24 desktop: outside recipients labelled by project", names.some((n) => n.startsWith("Theirs") && n.includes("@other")));
+  check("A24 desktop: outside recipients labelled by project", names.some((n) => n.startsWith("Theirs") && n.includes("Other project")));
   await recipient.selectOption(theirs);
   await tray.getByLabel("Include other projects").uncheck();
   check("A24 desktop: hiding clears outside selection, keeps draft", (await recipient.inputValue()) === "" && (await tray.getByRole("textbox", { name: "Instruction", exact: true }).inputValue()) === "Seeded instruction");
@@ -156,8 +157,9 @@ try {
     await route.fulfill({ status: 202, json: { accepted: true, seq: 0 } });
   });
   await tray.getByRole("button", { name: "Send annotations", exact: true }).click();
-  await desktop.getByRole("status").filter({ hasText: "Annotations sent to Theirs." }).waitFor();
-  check("A25 desktop: unchecked wire and zero-sequence destination feedback", assigned?.omit_source_record === true && assigned?.target?.agent_id === theirs && await tray.count() === 0);
+  // Delivery has no sent notice (FS-13); the cleared tray is the success signal.
+  await tray.waitFor({ state: "detached" });
+  check("A25 desktop: unchecked wire and zero-sequence delivery clears the tray", assigned?.omit_source_record === true && assigned?.target?.agent_id === theirs && await tray.count() === 0);
   await desktop.screenshot({ path: join(out, "desktop-annotation-unrecorded-success.png"), fullPage: true });
   await desktop.unroute(`**/api/sessions/${mine}/annotations`);
 
@@ -184,7 +186,7 @@ try {
   const phoneEmpty = phone.getByText("No other chat agent is running in this project.");
   check("A24 phone: no other-project recipients by default", (await phoneEmpty.count()) === 1 || !(await optionTexts(phoneRecipient)).some((n) => n.startsWith("Theirs")));
   await phone.getByLabel("Include other projects").check();
-  check("A24 phone: outside recipients labelled by project", (await optionTexts(phoneRecipient)).some((n) => n.startsWith("Theirs") && n.includes("@other")));
+  check("A24 phone: outside recipients labelled by project", (await optionTexts(phoneRecipient)).some((n) => n.startsWith("Theirs") && n.includes("Other project")));
   for (const width of [360, 390, 430]) {
     await phone.setViewportSize({ width, height: 844 });
     check(`phone ${width}px no overflow`, await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

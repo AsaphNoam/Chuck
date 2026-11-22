@@ -164,10 +164,10 @@ describe("BackendStep", () => {
   });
 
   // J2: a missing OpenCode/OpenHands CLI names the command Chuck runs
-  // (FS-09.R11/R12) so the operator knows what must be on PATH.
+  // (FS-09.R11/R12) and its official install page (FS-04.R17).
   it.each([
-    ["opencode-acp", "opencode", /OpenCode.*`opencode acp`.*`opencode`.*PATH/],
-    ["openhands-acp", "openhands", /OpenHands.*`openhands acp`.*`openhands`.*PATH/],
+    ["opencode-acp", "opencode", /OpenCode.*`opencode acp`.*opencode\.ai\/docs.*`opencode`.*PATH/],
+    ["openhands-acp", "openhands", /OpenHands.*`openhands acp`.*docs\.openhands\.dev\/openhands\/usage\/cli\/installation.*`openhands`.*PATH/],
   ])("names the missing %s command", async (type, id, expected) => {
     const doc = {
       ...seededBackendsDoc,

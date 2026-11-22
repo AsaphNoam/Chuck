@@ -59,8 +59,9 @@ const desktop = await desktopContext.newPage();
 const phone = await phoneContext.newPage();
 for (const page of [desktop, phone]) page.on("pageerror", (e) => errors.push(e.message));
 
-// Fresh homes seed no project (FS-04.R14), so the sweep creates the one it uses.
-await api("/api/projects", { project: "my-app", title: "My App", color: [100, 180, 255], cwd: "/tmp", add_dirs: [], context_prompt: "" });
+// The fixture home already has my-app (writeFixtureProject); point it at an existing directory.
+const projects = await api("/api/projects");
+await api("/api/projects/my-app", { ...projects["my-app"], cwd: "/tmp" }, "PUT");
 for (const session of await api("/api/sessions")) await api(`/api/sessions/${session.agent_id}/archive`, {}, "POST");
 for (const skin of ["", "sky-grove", "studio"]) {
   const name = skin || "core";
@@ -111,6 +112,10 @@ for (const skin of ["", "sky-grove", "studio"]) {
   }
   await step(`${name} phone project`, async () => {
     await phone.goto(fixture.phone + "/project/my-app");
+    // Phone project groups start collapsed; open each so its agent rows render.
+    const closed = phone.locator('.phone-agent-group-header > button[aria-expanded="false"]');
+    await phone.locator(".phone-agent-group-header").first().waitFor();
+    while (await closed.count()) await closed.first().click();
     await phone.getByText(`Builder ${name}`, { exact: true }).first().waitFor();
     await shot(phone, `${name}-phone-project`, true);
   });

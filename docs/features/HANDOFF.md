@@ -154,19 +154,13 @@ open until a cause is found.
 ### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 Repros: [run record](../archive/reviews/usability-review-run-2026-11-21.md). Must-fix and
-Worth-fixing items closed on 2026-11-21/22 by the two usability fix commits; what remains:
+Worth-fixing items closed on 2026-11-21/22 by the two usability fix commits and the trivial/easy
+follow-up; what remains:
 
 - **Worth fixing** (medium) — J16. Budget-queued task rows cannot say they wait for a slot: the
   server reports no capacity-wait cause (FS-16.R44 shows a cause only when reported), and a ready task
   that borrows a running agent uses no slot, so the UI cannot tell queued from about to start. The
   dispatcher or projection must report it (INV §18).
-- **Worth fixing** (trivial/easy) — J2. OpenCode/OpenHands setup gives no install command; none is
-  verifiable from the repo. The four browser journey scripts that now create `my-app` themselves
-  were only syntax-checked.
-- **Worth fixing** (trivial/easy, unverified) — real-browser checks owed for the per-attempt run
-  cards, the restyled paused-run actions and the Start-run reduced-motion rule (INV §13).
-  `ui/scripts/quota-render.mjs` "scheduled and unknown reset states visible" failed for Sky & Grove
-  and Studio during the X6 fix, before the panel opens; not investigated.
 - **Worth fixing** (undetermined) — J3. The clean-close shutdown wait covers chat runtimes only; the
   terminal registry's StopAll was not audited for the same false history-gap notice.
 
