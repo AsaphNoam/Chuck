@@ -20,9 +20,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   are recorded there. The operator resolved EXEC-6c by retaining the existing shrink-only
   test-fixture exceptions in TS-01.R50. The next-release source assessment at `96c0b4a5`
   is recorded in [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json).
-  Its ARCH-v025 findings are fixed and recorded there; QUOTA-DISMISS stays open below. The
-  release review is incomplete: committed release
-  preparation and coverage of any subsequently included dirty work are still required.
+  Its ARCH-v025 findings are fixed and recorded there; QUOTA-DISMISS stays open below as
+  Worth fixing. The release review is complete: on 2026-11-22 a fresh reviewer covered
+  `2997aadb`, `04305b5d`, `a644d024` and the `45a5c819` preparation with no new finding.
 - **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
   was still running when release CI completed. The prior waiting-input UI fixture failure had a
   local repair. Native, provider and device gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md)

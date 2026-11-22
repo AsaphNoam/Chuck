@@ -2,8 +2,8 @@
   "schema": 1,
   "previous_release": "v0.24.0",
   "reviewed_commit": "96c0b4a5fe73dbe5d5f75120daa63828e3e9148d",
-  "review_complete": false,
-  "reviewer": "Fresh Codex parent reviewer plus three independent GPT-6.1 Sol high-effort slice reviewers, 2026-11-21; no product authorship in the assessed range. Parent independently checked both finding traces and ran the phone reconnect probe.",
+  "review_complete": true,
+  "reviewer": "Fresh Codex parent reviewer plus three independent GPT-6.1 Sol high-effort slice reviewers, 2026-11-21; no product authorship in the assessed range. Parent independently checked both finding traces and ran the phone reconnect probe. Completion: fresh Claude Opus 5.5 architectural reviewer, 2026-11-22, independently assessed the post-source work 07bc14f6 (re-check; already inside the source range), 2997aadb, 04305b5d, a644d024 and 45a5c819; no authorship in that work.",
   "coverage": [
     "Scope/prerequisite: source assessment of v0.24.0..96c0b4a5 (86 commits, 270 files), isolated git archive. No next-release preparation has been committed, and 57 tracked dirty files plus two untracked files were excluded and preserved. Therefore this is an incomplete release review, not an explicitly requested narrow audit or release certification. Complete preparation and independently assess subsequently included work before completing this receipt. Finding fixes use updates here without a full review rerun solely for those fixes. Evidence/commands/reproducers: docs/archive/reviews/architecture/v0.24.0-next-evidence.md.",
     "Saved work/context: authority is the retained journal plus the shared active revision fold, edit_transitions, selected native session and acknowledged attachment/input receipt. Traced Edit through native preparation, Stop/Cancel, rollback, restart, clone-prefix, immutable context refs, attachments and reindex. Existing Edit/recovery and transcript/contextref/state checks pass. ARCH-EDIT-CONTEXT-1 independently reproduces at real HTTP/store/fake-ACP session/new: after backend switching, first-message Edit folds the old turn out of local history but reuses its snapshot HistoryPrimer in the new startup prompt. Existing deferred lifecycle/dispatch/selection issues retain docs/ideas.md ownership. No credentialed provider claim.",
@@ -11,23 +11,64 @@
     "Execution/workspace/information access: frozen snap.WorkspaceID/Cwd and shared composers remain authoritative for ordinary resume/Switch/clone; runtime-only knowledge overlays do not rewrite persona/workspace. Embedded guidance/package and frozen configuration checks pass. Project Files owns descriptor-relative no-follow access, separate from chat-file authority, with bounded catalog slots/items/bytes/depth/time; real-filesystem HTTP handler tests cover scope, symlinks and local/remote refusal. Finder uses the same opened-file authority with injected native runner; actual Finder selection remains owed. HTML uses an opaque script sandbox plus restrictive CSP; CSV stays literal React text. Four focused Go packages and 28 related component tests pass; no browser geometry/native claim.",
     "Operator observation/control: server transcript/revision and bounded SSE catchup own CLI follow; request IDs preserve Edit retries and command acceptance remains distinct from model completion. Focused CLI Follow/Edit checks pass with loopback-capable execution. Desktop revision invalidation, delivery/Steer resolution and transcript stores pass in the 87-test UI selection. ARCH-REVISION-1 independently reproduces missed-event reconnect with loaded phone pages: active server responses and hydrated revision change, but stale cached pages remain. Its live-revision-event control passes. ARCH-REVISION-2 inventories original startup contexts and active readers after recent Edit consumer fixes. Phone evidence is component/serialized-stream, not a physical paired device.",
     "Capacity/cost/limits: source-traced turn/quota admission and existing bounded recovery sweep, project catalog admission, CLI observer queue/frame/byte caps and browser diagnostic allowlists/global 30-per-minute limiter. Existing stream-burst UI check bounds prompt/transcript reads while rendering the final reply. No representative latency, RSS, database-growth or provider-cost measurements; no overall performance claim. Reconnect's broad query invalidation and per-turn provider usage-read cost remain the prior receipt's unmeasured limits, not newly confirmed defects.",
-    "Runtime/release artifacts: host Go 1.26.6, Node 22.23.1, darwin/arm64. Private pins remain Node 22.22.0, Claude ACP 0.85.1, Codex ACP 2.1.1 and Codex native 0.159.3; adapter component labels advance to +chuck.3. All six patches reconstruct from locally available pristine dependencies with zero fuzz and final hashes matching assemble.sh; complete-turn/quota/background-quota contracts pass. Claude complete-turn evidence invokes pinned SDK over private fixture transcripts; Codex uses extracted patched source with stub app-server. Managed current freshly resolves to chuck-0.20.0; no install, full assembly, private-Node/provider run or dashboard update. Packaged fork/Edit, inline assignments, quota, Finder and device gates remain in ACCEPTANCE-GATES.md. Full Go variants, full UI/build and race matrix were not run by this review; release preparation must supply/reuse valid closure evidence. The architecture gate currently refuses the missing/incomplete receipt as intended."
+    "Runtime/release artifacts: host Go 1.26.6, Node 22.23.1, darwin/arm64. Private pins remain Node 22.22.0, Claude ACP 0.85.1, Codex ACP 2.1.1 and Codex native 0.159.3; adapter component labels advance to +chuck.3. All six patches reconstruct from locally available pristine dependencies with zero fuzz and final hashes matching assemble.sh; complete-turn/quota/background-quota contracts pass. Claude complete-turn evidence invokes pinned SDK over private fixture transcripts; Codex uses extracted patched source with stub app-server. Managed current freshly resolves to chuck-0.20.0; no install, full assembly, private-Node/provider run or dashboard update. Packaged fork/Edit, inline assignments, quota, Finder and device gates remain in ACCEPTANCE-GATES.md. Full Go variants, full UI/build and race matrix were not run by this review; release preparation must supply/reuse valid closure evidence. The architecture gate currently refuses the missing/incomplete receipt as intended.",
+    "Completion scope (2026-11-22): release preparation 45a5c819 is committed. Post-source substantive commits assessed: 2997aadb (usability Worth-fixing, 83 files), 04305b5d (resumable onboarding, no seeded project, tri-state fork support), a644d024 (fixture-only lifecycle-claim wait) and 45a5c819 (operating-chuck text and regenerated embedded index); 07bc14f6 (usability Must-fix: stage-task person-control refusal, detached Switch context, per-attempt cards) was re-checked though it lies inside the source range. 520e4329/fe808e50 are administrative; 43b03731 is the recorded fix. The source assessment's excluded dirty work is assessed only as later committed in these commits; it was not diffed against that preserved dirty snapshot. Evidence: docs/archive/reviews/architecture/v0.24.0-next-evidence.md#completion-coverage-2026-11-22. No new architectural finding; existing owners retained.",
+    "Completion — saved work/control: StopAll now waits per agent on persistenceDone, closed exactly once by closePersistence on every onTransportClosed path (stopComplete, stopped, crash); agents enter c.agents only after the transport loop exists, so no waiter lacks a closer, and the wait is bounded by the server's single 5 s shutdown context (which also covers quiesce, provider StopGrace and HTTP shutdown). 07bc14f6's WithoutCancel Switch runs teardown/start/rollback to an outcome; shutdown quiesce still bounds it. Fork is tri-state: pre-change snapshots stored an explicit boolean and decode unchanged; only empty/malformed/reindexed '{}' rows become unknown, which Clone/Edit refuse with 422 fork_support_unknown rather than forking; live negotiation always writes an explicit value; openFork uses CanFork. Terminal StopAll transcript-close parity stays owned by the live J3 item. Limits: slow-exiting providers can still exhaust the shared 5 s budget before the close is recorded (unmeasured).",
+    "Completion — configuration/onboarding/CLI: fresh homes seed no project and default_project ''; every server/UI consumer (PUT validation, NewAgent, LaunchStep, RunStartForm, ChuckyBuilder) treats '' as unset; existing homes keep their projects and default. backfillOnboardingCompletion uses the same configMu + writeConfig path as PUT /api/config, skips absent/corrupt config, and needs an agent record; homes configured without any agent reopen the resumable wizard once (FS-04.R67, specified). CLI dashboardPort fails closed without this home's live pidfile; every dashboard start (foreground, detached child) writes it, and agent children inherit the server environment and hence CHUCK_HOME, so agent-run operator commands reach the same dashboard. Unknown-subcommand/positional refusals are usage errors, not effects.",
+    "Completion — observation/delivery: auto-approved requests carry auto_approved and skip only the bus notification; the request, its auto_approve resolution and history are unchanged. The waiting_input status is written before EvPermissionRequest is emitted, so the UI dismissal on a non-waiting state_update cannot remove a live request's toast through ordering. Composer disables Send/Steer only for reconnecting/down, which always re-enter connect(); drafts and the unconfirmed-send retry line are retained, so no input is lost. Pipeline Open agent is withheld only for a paused run whose non-room task is interrupted (or legacy restart/launch/resume failures) and names the Resume/Retry routes; Stop/Delete gain confirmation only. Package text matches FS-11.R11-R16 and FS-01.R60-R61; only index.html is tracked and assemble.sh rebuilds dist. Probes: focused StopAll (-race -count=3), state fork gates, server onboarding backfill/clone-unknown, CLI fail-closed/usage/diagnostics and bus auto-approve tests pass at 45a5c819. Limits: no full Go/UI suite (reused the commits' recorded make test, npm test 1398/1398 and builds), no browser, packaged provider, installed dashboard or device run."
   ],
   "findings": [
-    { "id": "ARCH-EDIT-CONTEXT-1", "severity": "must_fix" },
-    { "id": "ARCH-REVISION-1", "severity": "must_fix" },
-    { "id": "ARCH-REVISION-2", "severity": "worth_fixing" },
-    { "id": "QUOTA-DISMISS-1", "severity": "must_fix" },
-    { "id": "QUOTA-DISMISS-2", "severity": "worth_fixing" }
+    {
+      "id": "ARCH-EDIT-CONTEXT-1",
+      "severity": "must_fix"
+    },
+    {
+      "id": "ARCH-REVISION-1",
+      "severity": "must_fix"
+    },
+    {
+      "id": "ARCH-REVISION-2",
+      "severity": "worth_fixing"
+    },
+    {
+      "id": "QUOTA-DISMISS-1",
+      "severity": "worth_fixing",
+      "note": "Reclassified from must_fix by operator decision 2026-11-22 (release v0.25.0 with it open; not a regression, as no quota banner offered Dismiss before f595d484); recorded at 45a5c819. Live owner: HANDOFF QUOTA-DISMISS."
+    },
+    {
+      "id": "QUOTA-DISMISS-2",
+      "severity": "worth_fixing"
+    }
   ],
   "updates": [
     {
       "kind": "fix",
-      "commits": ["43b03731f8fff7af8dd817cd978f0868fa80b485"],
-      "finding_ids": ["ARCH-EDIT-CONTEXT-1", "ARCH-REVISION-1", "ARCH-REVISION-2"],
-      "closes": ["ARCH-EDIT-CONTEXT-1", "ARCH-REVISION-1", "ARCH-REVISION-2"],
+      "commits": [
+        "43b03731f8fff7af8dd817cd978f0868fa80b485"
+      ],
+      "finding_ids": [
+        "ARCH-EDIT-CONTEXT-1",
+        "ARCH-REVISION-1",
+        "ARCH-REVISION-2"
+      ],
+      "closes": [
+        "ARCH-EDIT-CONTEXT-1",
+        "ARCH-REVISION-1",
+        "ARCH-REVISION-2"
+      ],
       "verified": true,
       "evidence": "2026-11-22. ARCH-EDIT-CONTEXT-1: firstMessagePrimer derives the pre-message bridge (empty outside a fork, a fork's only while no later switch, else edit_unavailable); TestEditFirstMessageAfterBackendSwitchOmitsSupersededBridge reads the real fake-ACP session/new on Codex and Claude and fails on both without the fix; TS-04.R113 updated. ARCH-REVISION-1: hydration advances revisionEpoch on a changed history_revision and AgentScreen drops older pages/in-flight reads of another revision; the reconnect and in-flight-read tests in streamRefresh.test.tsx fail without the fix. ARCH-REVISION-2: inventory routed to docs/ideas.md ('One revision rule for history-derived contexts and readers'). An Opus independent check found two provenance gaps in the first draft (lost switch marker, switch kept through an earlier edit); both repaired before commit. Clean worktree of 520e4329 plus the fix: go test ./... and -tags sqlite_fts5 ./... pass, check-specs ok, UI npm test (1,373), tsc -b and vite build pass; focused -race passes. One earlier make test run failed TestDeferredAssignmentResumesOriginalAgent intermittently, recorded as DEFERRED-STOP-FLAKE-1. No packaged provider or physical device claim."
+    },
+    {
+      "kind": "coverage",
+      "commits": [
+        "2997aadb2454cb71fe8d9af958ba60f63f365e7c",
+        "04305b5d3bd8377bcc0dae08bd274ea01b545372",
+        "a644d024c9eb37a7309372d84a615f58712fa96e",
+        "45a5c8199b4adb8add3bcdfaa4590d97e2ba0385"
+      ],
+      "verified": true,
+      "evidence": "2026-11-22 independent completion assessment (Claude Opus 5.5, no authorship). Source traces into unchanged consumers: chat onTransportClosed/closePersistence and server shutdown budget; capability decode, Clone/Edit gates and indexer; config seed/ReadConfig/writeConfig, onboarding computation and all default_project consumers; CLI pidfile writers and dashboardPort callers; bus/permission emission order and uiStore toast dismissal; Composer connection states; RunBrowser recovery gating; release assembly rebuild. Reused the commits' recorded make test (both Go variants), make build, ui npm test 1398/1398 and npm run build. Focused probes at 45a5c819 pass: go test -race -count=3 TestStopAllWaitsForCleanTranscriptClose (runtime); Fork gates (state); TestBackfillOnboardingCompletionForUsedHome, TestCloneRefusesUnreportedForkDistinctly, Onboarding (server); TestDashboardPortFailsClosedWithoutLivePidfile, positional/unknown-subcommand, pipeline diagnostics, unknown project (cli); permission/auto-approve (bus). No new finding. No browser, packaged provider, installed or device evidence."
     }
   ]
 }
