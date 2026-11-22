@@ -4,31 +4,25 @@ Settled history through v0.23.0 preparation is archived in
 [HANDOFF-through-2026-11-08](../archive/state/HANDOFF-through-2026-11-08.md).
 Settled review units in the v0.24.0 range are archived in
 [HANDOFF-through-2026-11-16](../archive/state/HANDOFF-through-2026-11-16.md).
+What v0.25.0 settled is archived in
+[HANDOFF-through-2026-11-22](../archive/state/HANDOFF-through-2026-11-22.md).
 Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live queues.
 
 ## Current position
 
-- **Release:** [v0.24.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.24.0) published
-  on 2026-11-16 at `4d511e1d`. The local build and 1,293 UI tests passed.
-  [Release CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819855461) passed assembly,
-  transaction/bootstrap and fresh installation. The published archive's size and SHA-256 match
-  the manifest, and the installer is attached.
-- **Architecture:** v0.24.0 shipped under the
-  [v0.24.0-only waiver](../archive/state/RELEASE-v0.24.0-notes.md). The owed combined review of
-  `v0.23.0..d26e5fe2` is now recorded in the
-  [receipt](../archive/reviews/architecture/v0.23.0-next.json); it did not gate v0.24.0. Its fixes
-  are recorded there. The operator resolved EXEC-6c by retaining the existing shrink-only
-  test-fixture exceptions in TS-01.R50. The next-release source assessment at `96c0b4a5`
-  is recorded in [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json).
-  Its ARCH-v025 findings are fixed and recorded there; QUOTA-DISMISS stays open below as
-  Worth fixing. The release review is complete: on 2026-11-22 a fresh reviewer covered
-  `2997aadb`, `04305b5d`, `a644d024` and the `45a5c819` preparation with no new finding.
-- **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/43819859225)
-  was still running when release CI completed. The prior waiting-input UI fixture failure had a
-  local repair. Native, provider and device gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md)
-  remain owed.
-- **Installed runtime:** managed current was v0.20.0 at audit; no install or running-dashboard
-  update is part of this release preparation. Global PATH adapters remain unpatched.
+- **Release:** [v0.25.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.25.0) published
+  on 2026-11-22 at `74699ab6` ([notes](../archive/state/RELEASE-v0.25.0-notes.md)).
+  [Release CI](https://github.com/AsaphNoam/Chuck/actions/runs/44996541049) passed; the
+  downloaded archive's size and SHA-256 match the manifest, and the installer is attached. The
+  operator authorized shipping with QUOTA-DISMISS-1 open as Worth fixing.
+- **Architecture:** the v0.25.0 review is complete in
+  [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json); the gate passed. The
+  next release needs its own review (receipt `v0.25.0-next.json`).
+- **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/44996540911) at
+  `74699ab6` failed two server lifecycle tests (CI-FLAKE below). Native, provider and device
+  gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md) remain owed.
+- **Installed runtime:** managed current was v0.20.0 at audit; v0.25.0 is not installed locally.
+  Global PATH adapters remain unpatched.
 - **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
   Full Go suites need loopback-capable execution.
 
@@ -42,17 +36,6 @@ None.
 
 ## Resolved decisions
 
-- Inline task delivery and guidance cleanup (FS-16.R60–R61, FS-18.R22–R23) keeps native-command
-  handling on fresh launches and attributed content on continuations. Implemented 2026-11-21;
-  review repairs finished at `10d01e1b`.
-- Project Files starts with all shared folders and offers a folder selector. HTML opens in a
-  sandboxed viewer in a new browser tab. The shared folder is desktop-only and symbolic links
-  cannot be followed. Shipped 2026-11-20 (FS-11.R11–R16).
-- Message action design is ready in
-  [message-hover-actions-and-current-conversation-edit.md](../ready-changes/message-hover-actions-and-current-conversation-edit.md)
-  (FS-01.R60–R62/A42–A44). The last sent message has Copy/Edit/Fork; other messages have
-  Copy/Fork as top-right hover icons. Fresh-context design review found no material findings
-  on 2026-11-20; the change is waiting to start.
 - Keep the current HTTP error envelopes and provider model-ID ownership. Revisit each
   compatibility contract when there is a concrete caller need and a migration plan.
 - Keep **Open agent** hidden after a failed launch or resume. Explain the pause and offer
@@ -60,16 +43,9 @@ None.
 - Treat an unechoed model or effort request as **Unconfirmed** where confirmation evidence is
   available. The current launch path discards that distinction before the UI sees it, so the
   display change is deferred. The operator approved using existing evidence only.
-- WITHDRAW-SEND-3 and STEER-HOLD-4: show assignment-queued input once, labelled as queued for
-  the assignment's next turn. Implemented under FS-03.R48 (2026-11-20): it sits at the
-  transcript tail, the empty composer hides Steer when only assignment-queued input is pending,
-  and runtime-held input keeps its Withdraw action.
-- EXEC-6c: TS-01.R50 permits the 11 existing test-only store writers under the shrink-only
-  `fixtureOnlyWriters` list. The archived architecture receipt records closure at `596821bf`.
 - AUTH-TRUST-1: keep the existing authority boundary. First reproduce the original failure
   with explicit Continue input on v0.24.0 or later and a live provider reviewer. Revisit
   assignment delivery if current evidence calls for it (INV §21).
-- AUTH-TRUST-2: the assignment heading now says “Why this stage visit started.”
 
 ## Design consistency notes
 
@@ -103,52 +79,7 @@ waiting change [`give-agent-execution-one-owner.md`](../ready-changes/give-agent
 They are not queued for `/fix`. The recorded text is in
 [`CR-A10-findings.md`](../archive/reviews/adversarial-2026-11-14/CR-A10-findings.md).
 
-- **Browse project files** (FS-11.R11–R16, FS-03.R119–R120, TS-03.R93–R94, TS-05.R30–R31,
-  TS-08.R172–R174): reviewed `8cba163c^..f2239ad0` at `f2239ad0`. **Finished** on 2026-11-20
-  by the PROJECT-FILES fix commit. PROJECT-FILES-7's inventory and remaining owner, focus and
-  menu-claim gaps are in `docs/ideas.md` as “One owner rule for the file reader, its menus and
-  focus”. The 1–4 repairs are proven in jsdom and API tests, not re-run in real Chromium. Native
-  Finder selection remains owed in ACCEPTANCE-GATES.
-
-- **Message hover actions and current-conversation Edit** (FS-01.R60–R62, FS-22.R13,
-  TS-01.R51, TS-02.R69–R70, TS-03.R90–R91, TS-04.R113, TS-08.R171): reviewed at
-  `b2986ebf` for `99e4672b`, `1bfa4d28`, `b16c722f` and `b2986ebf`. **Finished** on
-  2026-11-20 by the EDIT-REVIEW fix commits (`e31222f9`..closure). EDIT-REVIEW-4, EDIT-EDGE-4
-  and the inventory's remaining gaps (room ownership, dispatch failure, Stop before dispatch)
-  are in `docs/ideas.md` as “One commit point for an Edit's history, session and replacement”.
-  Packaged live provider receipts, including two successive edits per adapter, remain owed in
-  ACCEPTANCE-GATES.
-
-- **Inline task assignments and concise guidance** (FS-16.R60–R61, FS-18.R22–R23, TS-01.R52,
-  TS-10.R63–R65, TS-11.R25–R26): reviewed `c872c240` and `7965a17c` at `7965a17c`.
-  **Finished** on 2026-11-21 by `10d01e1b` and closure. INLINE-TASK-5–7's
-  inventory and remaining guidance/payload-bound gaps are in `docs/ideas.md` as
-  “One rule for task execution across continuations”. The packaged Claude/Codex gate remains owed.
-
 ## Investigations awaiting evidence
-
-### TASK-PROMPT — reporting paragraph after a skill invocation (investigated 2026-11-21)
-
-**Report (verbatim):** “I specifically told you to only trigger the instruction skill and yet
-you still wrote an entire wall of text”. The annotation quotes transcript event 1 of
-`a_06bd8f`: `/fix` followed by “This is your Chuck task” and the reporting/coordination paragraph.
-The request was to launch one Claude Opus Medium agent at a time with only the fix skill.
-No separate diagnostic log or exact installed version was supplied.
-
-**Confirmed — works as specified, not a code defect.** The durable task
-`tk_e67d15ecd4cbe7df` stores `instruction: "/fix"`, `backend: "claude"`, `model: "opus"`,
-`effort: "medium"`. The orchestrator supplied no extra assignment prose. Chuck appends it:
-`Registry.StartLaunchedTask` (`internal/runtime/registry_message.go:22`) calls
-`LaunchedTaskPrompt` (`internal/runtime/activation_kinds.go:32`), which preserves the instruction
-and adds the shared `taskReportContract`. FS-16.R49 explicitly requires this paragraph and A33
-requires it in the first prompt. `TestALaunchSpecTaskStartsItselfAndBecomesRunning`
-(`internal/server/task_dispatch_test.go`) covers the delivered instruction and reporting contract;
-it was inspected, not rerun. The annotation itself is the live reproduction. History traces the
-contract to `4ddedff1` and the expanded coordination guidance to `a674e6bc`.
-
-No investigation fix finding: the shipped behavior matched FS-16.R49 and INV §21. The approved
-replacement (FS-16.R60, FS-18.R22) was implemented on 2026-11-21 and removed the appended
-paragraph; see the “Inline task assignments” review unit.
 
 ### TAB-BLANK — Chrome shows only the theme background on tab return (2026-11-17)
 
@@ -204,6 +135,20 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### CI-FLAKE — server lifecycle tests failed in main CI at `74699ab6` (2026-11-22) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+[Run 44996540911](https://github.com/AsaphNoam/Chuck/actions/runs/44996540911), `make test`.
+Local `-race -count=20` of both passed; `make test` passed locally at `a644d024`. Workflow §2:
+open until a cause is found.
+
+- **Worth fixing** (medium) — CI-FLAKE-1 (no invariant class). Cause undetermined. `TestFailedSwitchRollbackKeepsPreviousNativeSession`:
+  `switch_test.go:1234: after failed rollback: search metadata backend = "codex"` (rollback
+  left the search metadata on the switched-to backend, or the read raced the restore).
+- **Worth fixing** (medium) — CI-FLAKE-2 (no invariant class). Cause undetermined. `TestPipelineBindingFailureSendsNoAssignmentAndRetries`:
+  `task_assignment_binding_test.go:56: provider prompts = 2, want 1` (a second prompt reached
+  the provider; either the retry was counted before the check or a binding refusal sent an
+  assignment — the latter would break FS-16 binding-before-effects).
 
 ### QUOTA-DISMISS — dismiss quota banner when automatic continuation is off — **Fix model:** medium — Codex Terra or Claude Opus.
 
@@ -292,5 +237,5 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-Prepared notes: [v0.24.0](../archive/state/RELEASE-v0.24.0-notes.md).
-Latest published version: [v0.24.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.24.0).
+Prepared notes: [v0.25.0](../archive/state/RELEASE-v0.25.0-notes.md).
+Latest published version: [v0.25.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.25.0).
