@@ -40,6 +40,10 @@ func testServer(t *testing.T, seed bool) *Server {
 		if err := cfgStore.SeedIfAbsent(); err != nil {
 			t.Fatalf("SeedIfAbsent: %v", err)
 		}
+		// A fresh home seeds no project (FS-04.R14). The seeded fixture is a
+		// home someone already uses, so it carries the my-app project the
+		// launch and messaging suites address.
+		writeFixtureProject(t, cfgStore)
 	}
 	stateStore, err := state.Open(cfgStore.Home())
 	if err != nil {
@@ -183,8 +187,27 @@ func TestRolesSeeded(t *testing.T) {
 	}
 }
 
+// writeFixtureProject adds the my-app project an already-used fixture home has.
+func writeFixtureProject(t *testing.T, cfgStore *config.Store) {
+	t.Helper()
+	if err := cfgStore.WriteProject("my-app", config.Project{
+		Title:   "My App",
+		Color:   [3]int{100, 180, 255},
+		Cwd:     "~/Projects/my-app",
+		AddDirs: []string{},
+	}); err != nil {
+		t.Fatalf("write fixture project: %v", err)
+	}
+}
+
+// FS-04.R14/A45: a fresh home seeds no placeholder project and names no
+// default project, so the project list is a truthful empty state.
 func TestProjectsSeeded(t *testing.T) {
-	h := testServer(t, true).routes()
+	srv := testServer(t, false)
+	if err := srv.configStore.SeedIfAbsent(); err != nil {
+		t.Fatalf("SeedIfAbsent: %v", err)
+	}
+	h := srv.routes()
 	rec := doGET(t, h, "/api/projects")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("projects status = %d, want 200", rec.Code)
@@ -193,8 +216,16 @@ func TestProjectsSeeded(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &projects); err != nil {
 		t.Fatalf("projects body: %v", err)
 	}
-	if _, ok := projects["my-app"]; !ok {
-		t.Fatalf("missing seeded project my-app: %v", projects)
+	if projects == nil || len(projects) != 0 {
+		t.Fatalf("fresh home projects = %v, want an empty object", projects)
+	}
+	rec = doGET(t, h, "/api/config")
+	var cfg configResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("config body: %v", err)
+	}
+	if cfg.DefaultProject != "" || cfg.Onboarding.Steps.Project.Done {
+		t.Fatalf("fresh home default_project=%q project step=%+v, want none", cfg.DefaultProject, cfg.Onboarding.Steps.Project)
 	}
 }
 

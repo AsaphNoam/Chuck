@@ -106,7 +106,12 @@ export function OnboardingWizard({ steps, onComplete }: OnboardingWizardProps) {
             </div>
             <div data-slot="content">
               {step === "resume" && <p className="wizard-step-desc">Loading your configured backend…</p>}
-              {step === "backend" && <BackendStep claimMutation={claimMutation} releaseMutation={releaseMutation} onDone={(b) => { setChosenBackend(b); setStep("project"); }} />}
+              {step === "backend" && <BackendStep claimMutation={claimMutation} releaseMutation={releaseMutation} onDone={(b) => {
+                // A reopened wizard whose project step is already done skips it, so
+                // finishing the backend never creates a second project (FS-04.R67).
+                setChosenBackend(b);
+                setStep(!steps.project.done ? "project" : supportsConfigSource(b.type) ? "source" : "launch");
+              }} />}
               {step === "project" && <ProjectStep claimMutation={claimMutation} releaseMutation={releaseMutation} onDone={continueFromProject} />}
               {step === "source" && backend && (
                 <SourceStep

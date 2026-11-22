@@ -44,8 +44,8 @@ async function submitAndCheckRole(page, button, expected, name) {
   return (await response.json()).agent.agent_id;
 }
 try {
-  const projects = await api("/api/projects");
-  await api("/api/projects/my-app", { ...projects["my-app"], cwd: "/tmp" }, "PUT");
+  // Fresh homes seed no project (FS-04.R14), so the journey creates the one it uses.
+  await api("/api/projects", { project: "my-app", title: "My App", color: [100, 180, 255], cwd: "/tmp", add_dirs: [], context_prompt: "" });
   const roles = await api("/api/roles");
   await api(roles.quiet ? "/api/roles/quiet" : "/api/roles", { role: "quiet", title: "Quiet persona", system_prompt: "persona text", chuck_aware: false, skip_permissions: null }, roles.quiet ? "PUT" : "POST");
   for (const skin of ["", "sky-grove", "studio"]) {

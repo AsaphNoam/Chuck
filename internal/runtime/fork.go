@@ -52,7 +52,7 @@ func sessionForkParams(spec LaunchSpec, sourceSessionID string) map[string]any {
 // with a fork point sends it only to a verified adapter, then requires the
 // fork's own replay to end at that turn's message (TS-04.R110).
 func (c *ChatRuntime) openFork(ctx context.Context, as *agentState, spec LaunchSpec) (string, json.RawMessage, error) {
-	if !as.capabilities().Fork {
+	if !as.capabilities().CanFork() {
 		return "", nil, ErrForkUnavailable
 	}
 	point := spec.Fork.ForkPoint

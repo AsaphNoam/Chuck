@@ -139,7 +139,11 @@ func cloneName(source string) string {
 }
 
 func cloneUnavailable(reason string) *runtime.APIError {
-	ae := apiError(runtime.CodeCloneUnavailable, reason)
+	code := runtime.CodeCloneUnavailable
+	if reason == state.CloneReasonForkUnknown {
+		code = runtime.CodeForkSupportUnknown
+	}
+	ae := apiError(code, reason)
 	ae.Details = map[string]any{"reason": reason}
 	return ae
 }

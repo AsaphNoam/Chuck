@@ -1,5 +1,5 @@
 import React from "react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { delay, http, HttpResponse } from "msw";
@@ -26,10 +26,18 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-function renderWizard(projectDone = true) {
+// The backend step's own save/check flow is covered in BackendStep.test.tsx;
+// here it only reports a finished choice so the wizard's routing is visible.
+vi.mock("./steps/BackendStep", () => ({
+  BackendStep: ({ onDone }: { onDone: (b: { id: string; type: string }) => void }) => (
+    <button type="button" onClick={() => onDone({ id: "opencode", type: "opencode-acp" })}>Finish backend</button>
+  ),
+}));
+
+function renderWizard(projectDone = true, backendDone = true) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
   const steps = {
-    backend: { done: true, detail: null },
+    backend: { done: backendDone, detail: null },
     project: { done: projectDone, detail: null },
     role: { done: true, detail: null },
   };
@@ -39,6 +47,21 @@ function renderWizard(projectDone = true) {
 }
 
 describe("OnboardingWizard", () => {
+  // FS-04.R67: a reopened wizard redoing only the backend never reaches the
+  // Project step again, so it cannot create a second project.
+  it("skips a done project step after the backend step finishes", async () => {
+    renderWizard(true, false);
+    fireEvent.click(await screen.findByRole("button", { name: "Finish backend" }));
+    expect(await screen.findByText("Launch your first agent")).toBeInTheDocument();
+    expect(screen.queryByText("Add your project")).not.toBeInTheDocument();
+  });
+
+  it("goes from the backend step to Project when no project exists yet", async () => {
+    renderWizard(false, false);
+    fireEvent.click(await screen.findByRole("button", { name: "Finish backend" }));
+    expect(await screen.findByText("Add your project")).toBeInTheDocument();
+  });
+
   it("resumes with Config for the configured Codex backend", async () => {
     renderWizard();
     expect(await screen.findByRole("button", { name: "Use my Codex configuration" })).toBeInTheDocument();

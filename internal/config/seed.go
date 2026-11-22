@@ -28,7 +28,7 @@ func DefaultConfig() Config {
 	return Config{
 		Version:         1,
 		Port:            4317,
-		DefaultProject:  "my-app",
+		DefaultProject:  "", // no project is seeded (FS-04.R14)
 		DefaultRole:     "default",
 		SkipPermissions: true,
 		AutoContinue:    true,
@@ -226,17 +226,6 @@ func seedRoles() map[string]Role {
 	}
 }
 
-// seedProject is the single example project (tech spec §5.4).
-func seedProject() (string, Project) {
-	return "my-app", Project{
-		Title:         "My App",
-		Color:         [3]int{100, 180, 255},
-		Cwd:           "~/Projects/my-app",
-		AddDirs:       []string{},
-		ContextPrompt: "Project-specific context injected into every agent here.",
-	}
-}
-
 // SeedIfAbsent writes the seed set, skipping any target that already exists. It
 // is safe to call on every `dashboard start`; existing user data is preserved.
 // Call after EnsureLayout.
@@ -264,10 +253,9 @@ func (s *Store) SeedIfAbsent() error {
 			return err
 		}
 	}
-	projID, proj := seedProject()
-	if err := s.seedFileIfAbsent(s.projectPath(projID), proj); err != nil {
-		return err
-	}
+	// No project is seeded (FS-04.R14): a placeholder whose folder does not
+	// exist is not a real project, so the person creates their first one.
+	// Projects an existing home already has are left exactly as they are.
 	return nil
 }
 

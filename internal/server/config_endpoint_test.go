@@ -10,9 +10,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/backend/credcheck"
 	"github.com/AsaphNoam/Chuck/internal/config"
+	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
 // testServerWithOkCreds builds a server that returns "ok" for all cred checks.
@@ -195,6 +197,57 @@ func TestGetConfigOnboardingCompleteOverridesGate(t *testing.T) {
 	}
 	if !resp.OnboardingComplete {
 		t.Error("onboarding_complete field should be true")
+	}
+}
+
+// FS-04.R67/A46: a home used before the onboarding_complete-only gate (an
+// archived agent is enough evidence) is marked complete once, preserving every
+// other saved field; a home with no agents stays incomplete and gated.
+func TestBackfillOnboardingCompletionForUsedHome(t *testing.T) {
+	srv := testServer(t, true)
+	cfg, err := srv.configStore.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.DefaultProject = "my-app"
+	cfg.TaskConcurrency = 3
+	if err := srv.configStore.WriteConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := srv.backfillOnboardingCompletion(); err != nil {
+		t.Fatalf("backfill without agents: %v", err)
+	}
+	if got, _ := srv.configStore.ReadConfig(); got.OnboardingComplete {
+		t.Fatal("a home with no agents must stay incomplete")
+	}
+
+	if err := srv.stateStore.WriteAgent(state.Agent{AgentID: "a_used", Name: "Atlas", Role: "implementer", Project: "my-app", Backend: "claude", Model: "sonnet", Interface: "chat", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.stateStore.SetAgentsArchived([]string{"a_used"}, true); err != nil {
+		t.Fatal(err)
+	}
+	writes := 0
+	write := srv.writeConfig
+	srv.writeConfig = func(c config.Config) error { writes++; return write(c) }
+	for range 2 {
+		if err := srv.backfillOnboardingCompletion(); err != nil {
+			t.Fatalf("backfill: %v", err)
+		}
+	}
+	if writes != 1 {
+		t.Fatalf("config writes = %d, want exactly one", writes)
+	}
+	want := cfg
+	want.OnboardingComplete = true
+	if got, err := srv.configStore.ReadConfig(); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("config after backfill = %+v, %v; want %+v", got, err, want)
+	}
+	rec := doGET(t, srv.routes(), "/api/config")
+	var resp configResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || !resp.OnboardingComplete {
+		t.Fatalf("GET /api/config onboarding_complete = %v, %v; want true", resp.OnboardingComplete, err)
 	}
 }
 

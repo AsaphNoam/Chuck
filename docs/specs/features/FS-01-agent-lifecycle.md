@@ -136,7 +136,11 @@ orphaned processes.
   later source events never enter the clone. The source is untouched and the clone launches
   immediately without a confirmation dialog. Clone is available only for a chat runtime that
   advertises native session fork and has a native session to fork; Chuck never silently falls
-  back to the superseded settings-only meaning. While the source has an active turn or unresolved
+  back to the superseded settings-only meaning. A runtime that never reported fork support (for
+  example, one that stopped before its first handshake completed) is unknown, not refused: Clone,
+  Fork from here and Edit stay unavailable with a reason saying support was never reported and
+  that resuming the agent lets Chuck check, distinct from the reason for a runtime that reported it
+  cannot fork. While the source has an active turn or unresolved
   permission, Clone is unavailable with an explanation that cloning requires a completed
   conversation point. A stopped, non-archived source remains cloneable from its last native
   session. Background commands remain owned by the source and do not continue in the clone; any

@@ -60,7 +60,7 @@ func TestManagerRecomputesEffectiveAgentState(t *testing.T) {
 		StartedAt: formatTime(started), State: "busy", Detail: "Editing src/auth.ts",
 		LastTrace: "PostToolUse: Edit", BusySince: formatTime(busy), ContextPct: 0.42,
 		UpdatedAt:              mustTime(t, "2026-06-22T10:01:00Z").UnixMilli(),
-		Clone:                  CloneAffordance{Reason: CloneReasonNoFork},
+		Clone:                  CloneAffordance{Reason: CloneReasonForkUnknown},
 		Edit:                   CloneAffordance{Reason: EditReasonBusy},
 		AttachmentCapabilities: &AttachmentCapabilities{Files: true, MaxFiles: 10, MaxFileBytes: 10 << 20, MaxTotalBytes: 25 << 20, MaxPixels: 40_000_000},
 	}}

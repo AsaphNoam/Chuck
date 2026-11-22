@@ -962,11 +962,11 @@ func TestSessionMetaFreezesRuntimeCapabilities(t *testing.T) {
 	}
 
 	m := meta()
-	m.RuntimeCapabilities = &runtime.SessionCapabilities{Fork: true, BackgroundTasks: true}
+	m.RuntimeCapabilities = &runtime.SessionCapabilities{Fork: new(true), BackgroundTasks: true}
 	if err := ix.UpsertSessionMeta("a_caps", m); err != nil {
 		t.Fatalf("UpsertSessionMeta: %v", err)
 	}
-	if _, got := readCaps(); got != (state.RuntimeCapabilities{Fork: true, BackgroundTasks: true}) {
+	if _, got := readCaps(); !reflect.DeepEqual(got, state.RuntimeCapabilities{Fork: new(true), BackgroundTasks: true}) {
 		t.Fatalf("projected capabilities = %+v", got)
 	}
 

@@ -31,8 +31,8 @@ try {
   // The loopback static fallback rejects unknown POSTs with 405; neither status admits a route.
   check("legacy group route absent on desktop", [404,405].includes((await desktopContext.request.post(fixture.desktop + "/api/groups/auth/release", { data: {} })).status()));
   check("legacy group route absent on phone", (await phoneContext.request.post(fixture.phone + "/api/groups/auth/release", { headers: { Origin: fixture.phone }, data: {} })).status() === 404);
-  const projects = await api("/api/projects");
-  await api("/api/projects/my-app", {...projects["my-app"],cwd:"/tmp"}, "PUT");
+  // Fresh homes seed no project (FS-04.R14), so the journey creates the one it uses.
+  await api("/api/projects", {project:"my-app",title:"My App",color:[100,180,255],cwd:"/tmp",add_dirs:[],context_prompt:""});
   for (const session of await api("/api/sessions")) await api(`/api/sessions/${session.agent_id}/archive`,{},"POST");
   for (const skin of ["", "sky-grove", "studio"]) {
     const name = skin || "core";

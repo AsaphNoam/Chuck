@@ -178,6 +178,9 @@ const (
 	CodeAgentBusy            = "agent_busy"             // 409
 	CodeTransitionInProgress = "transition_in_progress" // 409
 	CodeCloneUnavailable     = "clone_unavailable"      // 422
+	// CodeForkSupportUnknown: the stored snapshot never reported fork support,
+	// distinct from an explicit refusal (FS-01.R36, INV §20).
+	CodeForkSupportUnknown = "fork_support_unknown" // 422
 
 	// Last-message Edit codes (TS-03.R90).
 	CodeEditConflict    = "edit_conflict"    // 409
@@ -223,7 +226,7 @@ func statusForCode(code string) int {
 	case CodeFileNotEditable, CodeValidation, CodeTerminalUnavailable, CodeSourceInvalid,
 		CodeAttachmentCapability, CodeAttachmentType,
 		CodePathRefused, CodeNotAFile, CodeNotText, CodeFileUnreadable, CodeWorkspaceUnavailable,
-		CodeBackgroundTaskControlUnavailable, CodeCloneUnavailable, CodeEditUnavailable,
+		CodeBackgroundTaskControlUnavailable, CodeCloneUnavailable, CodeForkSupportUnknown, CodeEditUnavailable,
 		CodeProviderExecutableMissing, CodeProviderExecutableInvalid, CodeBundledProviderMissing,
 		CodeProviderIncompatible:
 		return http.StatusUnprocessableEntity // 422

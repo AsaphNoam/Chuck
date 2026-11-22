@@ -110,7 +110,9 @@ const (
 	EditReasonQuota      = "A quota continuation is pending; cancel it or let it run before editing."
 	EditReasonEditing    = "An edit is already in progress."
 	EditReasonNoFork     = "This agent's runtime cannot prepare an edited conversation."
-	EditReasonNoSession  = "This conversation has no provider session to edit."
+	// EditReasonForkUnknown: the snapshot holds no fork report at all (INV §20).
+	EditReasonForkUnknown = "This agent's runtime has not reported whether it can prepare an edited conversation. Resume the agent so Chuck can check."
+	EditReasonNoSession   = "This conversation has no provider session to edit."
 )
 
 // EditAvailability is the agent-level Edit gate the projection and the
@@ -129,7 +131,9 @@ func EditAvailability(a AgentState, nativeSessionID string, open bool) CloneAffo
 		return CloneAffordance{Reason: EditReasonBackground}
 	case a.Quota != nil && (a.Quota.ContinuationState == QuotaScheduled || a.Quota.ContinuationState == "waiting" || a.Quota.ContinuationState == "starting"):
 		return CloneAffordance{Reason: EditReasonQuota}
-	case !a.RuntimeCapabilities.Fork:
+	case a.RuntimeCapabilities.ForkUnknown():
+		return CloneAffordance{Reason: EditReasonForkUnknown}
+	case !a.RuntimeCapabilities.CanFork():
 		return CloneAffordance{Reason: EditReasonNoFork}
 	case nativeSessionID == "":
 		return CloneAffordance{Reason: EditReasonNoSession}

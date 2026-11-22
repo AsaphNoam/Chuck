@@ -77,9 +77,14 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
       {
         onSuccess: (result) => {
           setLaunchSucceeded(true);
-          // The project created in this wizard replaces the seeded placeholder as
-          // the default for later launches, in the same completion write (FS-04.R20).
-          const completion = project === initialProject
+          // The project created in this wizard becomes the default for later
+          // launches in the same completion write (FS-04.R20). A resumed wizard
+          // no longer knows which project it created, so the launched project
+          // also fills a default that is unset or no longer an active project;
+          // a valid saved default is never replaced.
+          const savedDefault = configData?.default_project;
+          const defaultUsable = Boolean(savedDefault && projectsData?.[savedDefault] && !projectsData[savedDefault].archived);
+          const completion = project === initialProject || !defaultUsable
             ? { onboarding_complete: true, default_project: project }
             : { onboarding_complete: true };
           putConfig.mutate(completion, {

@@ -100,6 +100,11 @@ describe("message hover actions (FS-01.R60, R62, TS-08.R171)", () => {
     expect(forkThroughTurn(events, events[3], ok)).toEqual(forkThroughTurn(events, events[5], ok));
   });
 
+  it("carries Clone's unknown-fork reason to Fork from here instead of a turn's own marker (INV §2)", () => {
+    const reason = "This agent's runtime has not reported whether it can fork. Resume the agent so Chuck can check, then clone it.";
+    expect(forkThroughTurn(events, events[5], { available: false, reason })).toEqual({ label: "Fork from here", available: false, throughSeq: 7, reason });
+  });
+
   it("returns focus to the opener after dismissing Fork", async () => {
     const { container } = renderChat();
     const opener = row(container, 6).getByRole("button", { name: "Fork from here" });

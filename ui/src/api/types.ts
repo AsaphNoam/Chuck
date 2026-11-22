@@ -14,7 +14,9 @@ export interface RuntimeActivity {
 }
 
 export interface RuntimeCapabilities {
-  fork: boolean;
+  /** Absent when the runtime never reported fork support (unknown, not false);
+   * the server's `clone`/`edit` affordances carry the resulting reason. */
+  fork?: boolean;
   subagents: boolean;
   background_tasks: boolean;
   background_task_stop: boolean;
@@ -51,7 +53,7 @@ export interface AgentState {
    * render no Steer control rather than a disabled one. */
   steering_available: boolean;
   /** The session snapshot's normalized native capabilities (TS-03.R44); all
-   * false when unknown, except image_input, which stays absent. An affordance
+   * false when unknown, except image_input and fork, which stay absent. An affordance
    * only — the server revalidates. */
   runtime_capabilities?: RuntimeCapabilities;
   attachment_capabilities?: AttachmentCapabilities;

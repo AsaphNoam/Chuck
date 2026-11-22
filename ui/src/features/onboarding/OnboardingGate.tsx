@@ -15,14 +15,13 @@ export function OnboardingGate({ children }: OnboardingGateProps) {
 
   if (isLoading) return <div className="gate-loading">Loading…</div>;
 
-  const serverSatisfied =
-    config?.onboarding.satisfied === true ||
-    config?.onboarding_complete === true;
-  if (config && !serverSatisfied) wizardOpened.current = true;
+  // Only the saved completion flag ends first-run setup (FS-04.R23). A ready
+  // backend and a project are progress, not completion: a reload mid-wizard
+  // reopens it at the first step the server does not report done.
+  if (config && config.onboarding_complete !== true) wizardOpened.current = true;
 
-  // Backend/project writes can make the computed server gate satisfied while
-  // this four-step walkthrough is still in progress. Keep an opened wizard
-  // mounted until Launch completes so polling cannot eject the user mid-flow.
+  // Keep an opened wizard mounted until Launch or Set up later completes so a
+  // config poll cannot eject the user mid-flow.
   if (config && !dismissed && wizardOpened.current) {
     return (
       <OnboardingWizard

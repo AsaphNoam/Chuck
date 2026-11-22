@@ -82,7 +82,11 @@ func editPayloadHash(req editRequest) string {
 }
 
 func editUnavailable(reason string) *runtime.APIError {
-	ae := apiError(runtime.CodeEditUnavailable, reason)
+	code := runtime.CodeEditUnavailable
+	if reason == state.EditReasonForkUnknown {
+		code = runtime.CodeForkSupportUnknown
+	}
+	ae := apiError(code, reason)
 	ae.Details = map[string]any{"reason": reason}
 	return ae
 }

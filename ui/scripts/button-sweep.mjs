@@ -59,8 +59,8 @@ const desktop = await desktopContext.newPage();
 const phone = await phoneContext.newPage();
 for (const page of [desktop, phone]) page.on("pageerror", (e) => errors.push(e.message));
 
-const projects = await api("/api/projects");
-await api("/api/projects/my-app", { ...projects["my-app"], cwd: "/tmp" }, "PUT");
+// Fresh homes seed no project (FS-04.R14), so the sweep creates the one it uses.
+await api("/api/projects", { project: "my-app", title: "My App", color: [100, 180, 255], cwd: "/tmp", add_dirs: [], context_prompt: "" });
 for (const session of await api("/api/sessions")) await api(`/api/sessions/${session.agent_id}/archive`, {}, "POST");
 for (const skin of ["", "sky-grove", "studio"]) {
   const name = skin || "core";

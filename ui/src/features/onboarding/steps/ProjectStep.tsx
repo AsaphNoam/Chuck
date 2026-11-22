@@ -4,8 +4,8 @@ import { AutoGrowTextarea, BrowseDirectoryButton, ProjectColorPicker } from "../
 import { DEFAULT_PROJECT_COLOR, type ProjectColor } from "../../../lib/projectColors";
 
 interface ProjectStepProps {
-  /** Receives the slug of the project just created, so the launch step can
-   * default to it instead of the seeded my-app (whose cwd may not exist). */
+  /** Receives the slug of the project just created, so the launch step
+   * defaults to it. */
   onDone: (projectId: string) => void;
   claimMutation?: () => boolean;
   releaseMutation?: () => void;
@@ -68,7 +68,7 @@ export function ProjectStep({ onDone, claimMutation, releaseMutation }: ProjectS
       <h3>Add your project</h3>
       <p className="wizard-step-desc">
         A project scopes your agents to a codebase directory. Launching your first agent in it
-        makes it your default project in place of the example My App.
+        makes it your default project.
       </p>
 
       <div className="form-field">

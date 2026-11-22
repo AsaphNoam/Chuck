@@ -270,6 +270,16 @@ describe("CardContextMenu error surfacing", () => {
     expect(clone).toHaveAttribute("title", expect.stringContaining("completed conversation point"));
   });
 
+  it("says fork support is unknown, not refused, when the runtime never reported it (FS-01.R36)", () => {
+    const unknown = "This agent's runtime has not reported whether it can fork. Resume the agent so Chuck can check, then clone it.";
+    useAgentStore.setState({ agents: { a_1: { ...agent, clone: { available: false, reason: unknown } } } });
+    renderMenu();
+    const clone = screen.getByRole("button", { name: /^Clone$/i });
+    expect(clone).toBeDisabled();
+    expect(clone).toHaveAttribute("title", unknown);
+    expect(clone.getAttribute("title")).not.toMatch(/cannot fork/);
+  });
+
   it("shows an error toast when clone fails", async () => {
     useAgentStore.setState({ agents: { a_1: { ...agent, clone: { available: true, reason: "" } } } });
     server.use(

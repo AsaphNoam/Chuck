@@ -100,12 +100,13 @@ func contextCountsColumns(c *ContextCounts) (any, any) {
 // of native session capabilities (TS-01.R35, TS-02.R35). It is populated only
 // from a live ACP initialize response, frozen onto the session snapshot for
 // stopped-session affordances, and never inferred from backend type or adapter
-// version. ImageInput is nil for snapshots predating image negotiation; live
-// negotiation always records an explicit boolean, including unsupported input.
-// Other capabilities default to false.
+// version. ImageInput and Fork are nil when the snapshot holds no report (a
+// session that never completed a handshake, an old or malformed row); live
+// negotiation always records an explicit boolean for both, including
+// unsupported. Other capabilities default to false.
 type RuntimeCapabilities struct {
 	ImageInput         *bool `json:"image_input,omitempty"`
-	Fork               bool  `json:"fork"`
+	Fork               *bool `json:"fork,omitempty"`
 	Subagents          bool  `json:"subagents"`
 	BackgroundTasks    bool  `json:"background_tasks"`
 	BackgroundTaskStop bool  `json:"background_task_stop"`
@@ -136,7 +137,7 @@ func AttachmentCapabilitiesFor(iface string, caps RuntimeCapabilities) *Attachme
 
 // DecodeRuntimeCapabilities reads a stored snapshot. Anything outside the
 // boolean vocabulary, or a malformed value, reads as false operation flags and
-// unknown image input (TS-02.R35).
+// unknown image input and fork (TS-02.R35).
 func DecodeRuntimeCapabilities(raw string) RuntimeCapabilities {
 	var caps RuntimeCapabilities
 	if raw == "" || json.Unmarshal([]byte(raw), &caps) != nil {
@@ -144,6 +145,12 @@ func DecodeRuntimeCapabilities(raw string) RuntimeCapabilities {
 	}
 	return caps
 }
+
+// CanFork reports an explicit fork advertisement; unknown is not support.
+func (c RuntimeCapabilities) CanFork() bool { return c.Fork != nil && *c.Fork }
+
+// ForkUnknown reports that no fork report was ever recorded (INV §20).
+func (c RuntimeCapabilities) ForkUnknown() bool { return c.Fork == nil }
 
 // CloneAffordance says whether Clone is offered and, when not, why. It is an
 // affordance only: the clone route revalidates against a fresh peer (TS-03.R43).
@@ -154,11 +161,13 @@ type CloneAffordance struct {
 
 // Clone unavailability reasons: bounded, in-vocabulary text (INV §8).
 const (
-	CloneReasonNotChat   = "Clone is available for chat agents only."
-	CloneReasonArchived  = "Restore this agent before cloning it."
-	CloneReasonNoFork    = "This agent's runtime cannot fork its conversation."
-	CloneReasonNoSession = "This agent has no conversation to fork yet."
-	CloneReasonBusy      = "Cloning needs a completed conversation point. Wait for the current turn or permission to finish."
+	CloneReasonNotChat  = "Clone is available for chat agents only."
+	CloneReasonArchived = "Restore this agent before cloning it."
+	CloneReasonNoFork   = "This agent's runtime cannot fork its conversation."
+	// CloneReasonForkUnknown: the snapshot holds no fork report at all (INV §20).
+	CloneReasonForkUnknown = "This agent's runtime has not reported whether it can fork. Resume the agent so Chuck can check, then clone it."
+	CloneReasonNoSession   = "This agent has no conversation to fork yet."
+	CloneReasonBusy        = "Cloning needs a completed conversation point. Wait for the current turn or permission to finish."
 )
 
 // CloneAvailability is the one rule the projection and the clone route share
@@ -169,7 +178,9 @@ func CloneAvailability(iface string, archived bool, caps RuntimeCapabilities, na
 		return CloneAffordance{Reason: CloneReasonNotChat}
 	case archived:
 		return CloneAffordance{Reason: CloneReasonArchived}
-	case !caps.Fork:
+	case caps.ForkUnknown():
+		return CloneAffordance{Reason: CloneReasonForkUnknown}
+	case !caps.CanFork():
 		return CloneAffordance{Reason: CloneReasonNoFork}
 	case nativeSessionID == "":
 		return CloneAffordance{Reason: CloneReasonNoSession}

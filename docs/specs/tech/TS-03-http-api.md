@@ -673,8 +673,9 @@ new-session envelope plus `history_handoff:"native_fork"`, `forked_from_agent_id
 `forked_from_seq`. The server derives every setting and the native source id from the frozen source
 session. It returns `409 agent_busy` for a busy/waiting source, `409 transition_in_progress` for a
 competing lifecycle claim, `422 clone_unavailable` with a bounded reason for terminal, missing-native
-session or non-advertised fork, and the sanitized upstream error for fork refusal; none creates a
-partial target. Agent projections add non-null
+session or non-advertised fork, `422 fork_support_unknown` when the stored snapshot holds no fork
+report (TS-02.R35; the Edit routes return the same code for the same case), and the sanitized
+upstream error for fork refusal; none creates a partial target. Agent projections add non-null
 `clone:{available:<bool>,reason:<string>}` computed from interface, live state, stored capability and
 native-session presence. The server re-negotiates and revalidates before acting, so the projection
 is an affordance, not authority (INV §8/§11/§14).

@@ -215,14 +215,22 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 ### 2.6 Seeded configuration
 
 - **R14.** On `dashboard start`, `SeedIfAbsent` writes a default `config.json`, `backends.json`,
-  `layout.json`, the seeded roles (R50), and one seeded project — **only for targets absent on disk**.
+  `layout.json`, and the seeded roles (R50) — **only for targets absent on disk**.
   It never overwrites an existing file, so hand edits and older installs are preserved while newly
-  shipped seed files appear.
-- **R15.** (Role set superseded by R50.) The six seeded roles were `agentdecker`, `implementer`, `reviewer`, `researcher`, `pm`,
-  and `teammate`, each with `skip_permissions: null` (inherit). The seeded project is `my-app`
-  (`cwd: ~/Projects/my-app`). Because roles and a project are seeded, the onboarding role and project
-  steps are already satisfied on a fresh install; the backend credential check is the operative gate
-  (§3).
+  shipped seed files appear. *(Amended 2026-11-22 by R66: "and one seeded project" is superseded;
+  no project is seeded.)*
+- **R15.** (Role set superseded by R50; project seed superseded by R66.) The six seeded roles were
+  `agentdecker`, `implementer`, `reviewer`, `researcher`, `pm`, and `teammate`, each with
+  `skip_permissions: null` (inherit). ~~The seeded project is `my-app` (`cwd: ~/Projects/my-app`).
+  Because roles and a project are seeded, the onboarding role and project steps are already
+  satisfied on a fresh install; the backend credential check is the operative gate (§3).~~ A fresh
+  install has seeded roles but no project, so the onboarding Project step is a real step.
+- **R66 (2026-11-22) — No placeholder project is seeded.** A fresh home has no project and an empty
+  `default_project`. Existing homes keep every project they already have, including a formerly
+  seeded `my-app`, and its saved default; seeding never deletes or rewrites one. Every surface
+  that chooses a project tolerates zero projects with a real empty state that says what blocks the
+  action and where to fix it (New Agent: add one in Settings → Projects; onboarding: the Project
+  step). This supersedes R14's project seed and R15's pre-satisfied project step.
 - **R41.** Every `dashboard start` writes the structured application log by appending to
   `$CHUCK_HOME/dashboard.log` (normally `~/.chuck/dashboard.log`), whether it runs in the
   foreground or with `--detach`. Foreground starts also mirror the same records to stderr. The log
@@ -333,16 +341,18 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   missing adapter, run guided sign-in, or add an API key) and blocks advance. The save keeps every
   saved default flag; only after the chosen backend's status is `ok` does a follow-up save make it
   the default, so an unready choice or a repeated **Check again** never replaces the default.
-- **R18.** The Project step creates the user's first real project (preferred over the seeded
-  `my-app`, whose `cwd` may not exist). Its id is server-derived (R31) and read back from the create
-  response, then carried into the Launch step's default selection.
+- **R18.** The Project step creates the user's first project (no project is seeded, R66). Its id
+  is server-derived (R31) and read back from the create response, then carried into the Launch
+  step's default selection.
 - **R19.** The Config step is the optional Claude/Codex federation entry point (FS-08). It is
   client-side and skippable; it is not tracked in the server-side onboarding flags, so a returning
   user resumes past it with Continue.
 - **R20.** The Launch step launches the first agent (`POST /api/sessions`, interface `chat`) and, on
   success, sets `onboarding_complete: true` via `PUT /api/config`, then closes the wizard and opens
   the launched agent's chat. When the launch uses the project created in the Project step, the same
-  completion write also sets it as `default_project`, replacing the seeded `my-app` default.
+  completion write also sets it as `default_project`. A resumed wizard (R67) that no longer knows
+  which project it created sets the launched project as `default_project` only when the saved
+  default is empty or not an active project; a usable saved default is kept.
 
 - **R43** — Settings expose the install-wide task concurrency budget: how many agent
   runtimes Chuck may bring up for dependent work at one time, defaulting to ten (FS-16.R7, R21).
@@ -368,12 +378,26 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 - **R22.** If `onboarding_complete` is already `true`, `satisfied` is forced true regardless of the
   computed steps, so a user who once completed setup is never re-gated by a later transient
   credential failure.
-- **R23.** Before the wizard opens, the gate is satisfied for rendering purposes when either the
-  server reports `satisfied` or `onboarding_complete` is true. Once an unsatisfied gate opens the
-  wizard, that mounted wizard stays latched through Backend, Project, Config, and Launch even if a
-  config poll reports `satisfied`; only successful Launch completion sets its session-local
-  "dismissed" flag and closes it. Once dismissed, the dashboard renders and the wizard does not
-  reappear during that mounted browser session.
+- **R23.** *(First sentence superseded 2026-11-22 by R67.)* ~~Before the wizard opens, the gate is
+  satisfied for rendering purposes when either the server reports `satisfied` or
+  `onboarding_complete` is true.~~ The wizard opens whenever `onboarding_complete` is not true. Once
+  open, that mounted wizard stays latched through Backend, Project, Config, and Launch even if a
+  config poll reports `satisfied`; only successful Launch completion or Set up later (R32) sets its
+  session-local "dismissed" flag and closes it. Once dismissed, the dashboard renders and the wizard
+  does not reappear during that mounted browser session.
+- **R67 (2026-11-22) — Only saved completion ends first-run setup.** The dashboard gate opens the
+  wizard whenever `onboarding_complete` is false, including after a reload mid-wizard. The
+  computed `satisfied` readiness (R21–R22) is progress, not completion. A reopened wizard resumes at
+  the first step the server does not report done — Backend, then Project, then optional Config
+  (R49), then Launch — and never re-saves a passing backend or creates a second project. Launch
+  completion (R20) and Set up later (R32) both write `onboarding_complete: true`, so neither path
+  reopens the wizard. *Compatibility:* a home already used before this rule must not be newly
+  gated. The durable evidence of use is **at least one agent record, live or archived**. On
+  `dashboard start`, if `onboarding_complete` is false and such a record exists, the server sets
+  `onboarding_complete: true` once through the same merge-preserving atomic config write as
+  `PUT /api/config`; an absent or unreadable `config.json` is left untouched. A home with seeded
+  configuration but no agent opens the wizard at its first incomplete step, with Set up later
+  available.
 - **R24.** The backend credential result feeding `backend.done` is cached for 60s and invalidated
   whenever `backends.json` is saved or `onboarding_complete` is written, so edits re-evaluate the
   gate promptly.
@@ -401,8 +425,8 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   fails, the wizard stays visible, keeps the launched agent, and surfaces the write error (it does
   not silently claim completion).
 - **R30.** A `cwd` that does not exist yet is accepted on save with a `cwd_not_found` warning shown
-  next to the field (R7); the seeded `my-app` project's missing `cwd` is only explained after a
-  launch against it fails (see Deviations). In the onboarding Project step the created project's
+  next to the field (R7); an existing home's formerly seeded `my-app` project's missing `cwd` is
+  only explained after a launch against it fails (see Deviations). In the onboarding Project step the created project's
   warning holds the step: the fields lock (the project already exists) and **Continue anyway**
   advances, so the step never advances past an unseen warning nor creates a duplicate project.
 - **R32** — An unsatisfied onboarding wizard has an explicit **Set up later** action.
@@ -482,8 +506,9 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 - **A6.** Deleting a role/project in use returns `409 in_use` with agent ids; `force=true` completes
   the delete without affecting running agents. *Verified:* `TestRolesInUseGuard`,
   `TestProjectsInUseGuard`.
-- **A7.** The seeded roles (R50) and the `my-app` project seed on a fresh home and are never
-  clobbered on a populated one. *Verified:* `TestRolesSeeded`, `TestProjectsSeeded`, `TestBackendsSeeded`,
+- **A7.** The seeded roles (R50) seed on a fresh home and are never clobbered on a populated one;
+  *(amended 2026-11-22 by R66)* no project seeds, and an existing project survives re-seeding.
+  *Verified:* `TestRolesSeeded`, `TestProjectsSeeded`, `TestBackendsSeeded`,
   `TestSeedIfAbsentNoClobber`.
 - **A8.** The onboarding gate is unsatisfied on an empty store, satisfied when all steps pass, held
   open by bad backend credentials, and overridden by `onboarding_complete`. *Verified:*
@@ -693,6 +718,20 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   failed link leaves the created backend saved and offers a retry. Unrelated unsaved edits survive
   both paths. *Verify:* rendered Settings journey and existing create API contract coverage.
 
+- **A45 (implemented 2026-11-22)** (R66, R67, R20) — A fresh home lists no projects, names no
+  default project and reports the Project step not done. With a passing backend and an existing
+  project but `onboarding_complete` false, a reload reopens the wizard at Launch without saving the
+  backend or creating a project; the resumed Launch fills an empty or stale `default_project`
+  with the launched project and keeps a usable one. New Agent with no active project shows an
+  empty state naming Settings → Projects and keeps Launch disabled. Only a saved
+  `onboarding_complete` renders the dashboard. *Verified:* `TestProjectsSeeded`,
+  `TestSeedIfAbsentNoClobber`, `OnboardingGate.test.tsx` "reopens a reloaded wizard at Launch…",
+  `LaunchStep.test.tsx` "resumed completion…", `NewAgentModal.test.tsx` "shows an empty state…".
+- **A46 (implemented 2026-11-22)** (R67) — A home with no agent stays incomplete; once it has an
+  (archived) agent, the startup backfill writes `onboarding_complete: true` exactly once and every
+  other saved config field is unchanged, so the used home is not gated. *Verified:*
+  `TestBackfillOnboardingCompletionForUsedHome`.
+
 ## 6. Deviations & open decisions
 
 - **Persona-free default (implemented 2026-10-10):** The user confirmed that Implementer must stop
@@ -704,14 +743,16 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   TS-08.R120 and TS-11.R22 own the revised implementation contract; prior rules apply
   except where these additions explicitly supersede their presentation/unconditional delivery.
 
-- **Invalid seeded-project `cwd`.** An invalid seeded-project `cwd` is still explained only after a
-  launch fails rather than by preflight; reverse that part by adding a stricter preflight.
+- **Invalid seeded-project `cwd`.** Fresh homes no longer seed a project (R66). An existing home's
+  formerly seeded `my-app` with an invalid `cwd` is still explained only after a launch fails rather
+  than by preflight; reverse that part by adding a stricter preflight.
 - **Federation Config step scope.** The wizard's Config step and Settings' config-source panel are
   the entry points to Claude/Codex federation, which has its own gated/deferred behavior (e.g.
   detached import returns `501`). Those specifics are owned by **FS-08**, not this spec.
-- The onboarding role/project steps are effectively always pre-satisfied on a fresh install because
-  roles and a project seed unconditionally (R15); the operative gate is the backend credential check.
-  This is intended, not a mismatch.
+- ~~The onboarding role/project steps are effectively always pre-satisfied on a fresh install because
+  roles and a project seed unconditionally (R15); the operative gate is the backend credential check.~~
+  Superseded 2026-11-22 by R66/R67: only the role step is pre-satisfied; the gate is the saved
+  `onboarding_complete` flag.
 - **Confirmed archived-project boundary.** R35–R36 preserve project data and a dormant archived
   default while excluding archived projects from launch selectors. Launch, resume, restore, and
   pipeline rejection use TS-03.R20; storage and transition ordering use TS-02.R20.
@@ -719,7 +760,8 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
 ## 7. Traceability
 
 - **Config types & seeding:** `internal/config/types.go`, `internal/config/seed.go`
-  (`SeedIfAbsent`, `seedRoles`, `seedProject`, `DefaultConfig`).
+  (`SeedIfAbsent`, `seedRoles`, `DefaultConfig`); the R67 compatibility backfill is
+  `backfillOnboardingCompletion` in `internal/server/config_handlers.go`, run from `Server.Start`.
 - **Seed-prompt compatibility:** FS-18.R13/A5/A9 and TS-11.R13 define R47/A27's exact-only
   migration without weakening absent-only seeding for any other role or file.
 - **Validation & id derivation:** `internal/config/validate.go` (`ValidSlug`, `ValidateRole`,

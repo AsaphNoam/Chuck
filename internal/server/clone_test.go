@@ -278,6 +278,28 @@ func TestCloneUnavailableWithoutFork(t *testing.T) {
 	}
 }
 
+// A snapshot with no fork report refuses Clone with its own code and reason,
+// distinct from an explicit refusal, and never forks (FS-01.R36, INV §20).
+func TestCloneRefusesUnreportedForkDistinctly(t *testing.T) {
+	srv, ts, src := cloneServer(t, nil)
+	if _, err := srv.stateStore.DB().Exec(`UPDATE sessions SET runtime_capabilities_json = '{}' WHERE agent_id = ?`, src); err != nil {
+		t.Fatal(err)
+	}
+	update, _ := srv.stateMgr.Touch(src)
+	if update.Clone.Available || update.Clone.Reason != state.CloneReasonForkUnknown {
+		t.Fatalf("affordance = %+v", update.Clone)
+	}
+	before, _ := filepath.Glob(filepath.Join(srv.configStore.Home(), "sessions", "*"))
+	resp, body := post(t, ts.URL+"/api/sessions/"+src+"/clone", map[string]string{})
+	if resp.StatusCode != http.StatusUnprocessableEntity || apiErrorCode(t, body) != runtime.CodeForkSupportUnknown {
+		t.Fatalf("clone with unreported fork = %d %s", resp.StatusCode, body)
+	}
+	after, _ := filepath.Glob(filepath.Join(srv.configStore.Home(), "sessions", "*"))
+	if len(after) != len(before) {
+		t.Fatalf("a refused clone left state: %v -> %v", before, after)
+	}
+}
+
 // A busy source cannot be cloned; a rejected fork creates no agent.
 func TestCloneRefusalsLeaveNoPartialAgent(t *testing.T) {
 	srv, ts, src := cloneServer(t, map[string]string{"FAKEACP_CAPS": "1"})

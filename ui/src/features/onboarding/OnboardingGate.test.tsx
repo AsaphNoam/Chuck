@@ -110,8 +110,8 @@ describe("OnboardingGate", () => {
     expect(await screen.findByText("Welcome to Chuck")).toBeInTheDocument();
   });
 
-  it("renders dashboard children when satisfied is true (no wizard)", async () => {
-    server.use(http.get("/api/config", () => HttpResponse.json(satisfiedConfig)));
+  it("renders dashboard children only once onboarding_complete is saved (no wizard)", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json({ ...satisfiedConfig, onboarding_complete: true })));
     renderWithQuery(
       <OnboardingGate>
         <div data-testid="dashboard">Dashboard</div>
@@ -119,6 +119,33 @@ describe("OnboardingGate", () => {
     );
     expect(await screen.findByTestId("dashboard")).toBeInTheDocument();
     expect(screen.queryByText("Welcome to Chuck")).toBeNull();
+  });
+
+  // FS-04.R23/A45: a reload after the backend and project steps passed, but
+  // before Launch, reopens the wizard at the next incomplete step instead of
+  // treating the computed readiness as completion.
+  it("reopens a reloaded wizard at Launch when backend and project are already done", async () => {
+    const posts: string[] = [];
+    server.use(
+      http.get("/api/config", () => HttpResponse.json(satisfiedConfig)),
+      http.get("/api/backends", () => HttpResponse.json({
+        version: 2,
+        backends: { opencode: { name: "OpenCode", type: "opencode-acp", default: true, default_model: "m", models: { m: { name: "M", model: "m" } } } },
+      })),
+      http.get("/api/projects", () => HttpResponse.json({ site: { title: "Site", color: [1, 2, 3], cwd: "/tmp/site", add_dirs: [], context_prompt: "" } })),
+      http.post("/api/projects", () => { posts.push("project"); return HttpResponse.json({}, { status: 500 }); }),
+      http.put("/api/backends", () => { posts.push("backends"); return HttpResponse.json({}, { status: 500 }); }),
+    );
+    renderWithQuery(
+      <OnboardingGate>
+        <div data-testid="dashboard">Dashboard</div>
+      </OnboardingGate>,
+    );
+    expect(await screen.findByText("Launch your first agent")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard")).toBeNull();
+    expect(screen.queryByText("Configure your AI backend")).toBeNull();
+    expect(screen.queryByText("Add your project")).toBeNull();
+    expect(posts).toEqual([]);
   });
 
   it("wizard shows Backend step first when backend is not done", async () => {

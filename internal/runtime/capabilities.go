@@ -79,16 +79,19 @@ func negotiateCapabilities(initRes json.RawMessage, o clientOffer) SessionCapabi
 			} `json:"chuck"`
 		} `json:"_meta"`
 	}
+	// A live handshake is a report: fork is explicit, never unknown (INV §20).
+	fork := false
 	if json.Unmarshal(initRes, &body) != nil {
-		return SessionCapabilities{ImageInput: &imageInput}
+		return SessionCapabilities{ImageInput: &imageInput, Fork: &fork}
 	}
 	session := body.AgentCapabilities.SessionCapabilities
 	air := decodeAir(body.Meta.JetBrains.Air.Version, body.Meta.JetBrains.Air.Capabilities)
 	asyncTasks := o.AsyncTasks && air[airAsyncTasks]
 	imageInput = body.AgentCapabilities.PromptCapabilities.Image
+	fork = isObject(session["fork"])
 	return SessionCapabilities{
 		ImageInput:         &imageInput,
-		Fork:               isObject(session["fork"]),
+		Fork:               &fork,
 		Subagents:          o.Subagents && isObject(session["subagents"]),
 		BackgroundTasks:    asyncTasks,
 		BackgroundTaskStop: asyncTasks,

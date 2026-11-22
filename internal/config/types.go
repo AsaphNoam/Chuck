@@ -136,7 +136,7 @@ type GroupLayout struct {
 type Config struct {
 	Version            int                 `json:"version"`         // == 1
 	Port               int                 `json:"port"`            // 4317
-	DefaultProject     string              `json:"default_project"` // "my-app"
+	DefaultProject     string              `json:"default_project"` // "" until a first project is chosen
 	DefaultRole        string              `json:"default_role"`    // "implementer"
 	AppearanceSkin     string              `json:"appearance_skin,omitempty"`
 	SkipPermissions    bool                `json:"skip_permissions"`    // true on fresh installs

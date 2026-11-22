@@ -145,7 +145,7 @@ chuck backend list --etag-output catalog.etag --json
 
 ```
 roles/{role}.json     personas (seeded: default, chucky, implementer, reviewer, researcher)
-projects/{p}.json     workspaces (seeded: my-app)
+projects/{p}.json     workspaces (none seeded; created in onboarding or Settings)
 backends.json         providers + models (version 2)
 config-sources.json   optional Claude/Codex native-config bindings
 layout.json           card order + density

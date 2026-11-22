@@ -741,6 +741,35 @@ func (s *Server) computeOnboarding(ctx context.Context) onboardingBlock {
 	return ob
 }
 
+// backfillOnboardingCompletion records onboarding_complete once for a home that
+// was used before the wizard gate depended on that flag alone (FS-04.R67).
+// Durable evidence of use is any agent record, live or archived. It is a
+// merge-preserving read-modify-write under configMu like PUT /api/config
+// (INV §3); an absent or unreadable config.json is left untouched (INV §7).
+func (s *Server) backfillOnboardingCompletion() error {
+	s.configMu.Lock()
+	defer s.configMu.Unlock()
+	cfg, err := s.configStore.ReadConfig()
+	if errors.Is(err, config.ErrNotFound) || errors.Is(err, config.ErrCorrupt) {
+		return nil
+	}
+	if err != nil || cfg.OnboardingComplete {
+		return err
+	}
+	agents, err := s.stateStore.ListAgents()
+	if err != nil || len(agents) == 0 {
+		return err
+	}
+	cfg.OnboardingComplete = true
+	if err := s.writeConfig(cfg); err != nil {
+		return err
+	}
+	s.onboardingCacheMu.Lock()
+	s.onboardingCache = nil
+	s.onboardingCacheMu.Unlock()
+	return nil
+}
+
 func (s *Server) computeBackendStep(ctx context.Context) onboardingStep {
 	backends, err := s.configStore.ReadBackends()
 	if err != nil || backends.Version != 2 || len(backends.Backends) == 0 {

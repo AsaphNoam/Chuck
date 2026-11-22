@@ -14,7 +14,7 @@ const codex211Init = `{"protocolVersion":1,"agentCapabilities":{"loadSession":tr
 
 func TestNegotiateCapabilitiesIsBilateral(t *testing.T) {
 	all := clientOffer{Subagents: true, AsyncTasks: true, FileChangeReports: true, SessionFailure: true}
-	full := SessionCapabilities{Fork: true, Subagents: true, BackgroundTasks: true, BackgroundTaskStop: true, FileChangeReports: true, SessionFailure: true}
+	full := SessionCapabilities{Fork: new(true), Subagents: true, BackgroundTasks: true, BackgroundTaskStop: true, FileChangeReports: true, SessionFailure: true}
 	cases := []struct {
 		name  string
 		init  string
@@ -23,7 +23,7 @@ func TestNegotiateCapabilitiesIsBilateral(t *testing.T) {
 	}{
 		{"full advertisement and offer", codex211Init, all, full},
 		// Fork needs no client offer; everything else is off until Chuck offers it.
-		{"no client offer", codex211Init, clientOffer{}, SessionCapabilities{Fork: true}},
+		{"no client offer", codex211Init, clientOffer{}, SessionCapabilities{Fork: new(true)}},
 		{"absent advertisement", `{"protocolVersion":1,"agentCapabilities":{}}`, all, SessionCapabilities{}},
 		{"malformed response", `not json`, all, SessionCapabilities{}},
 		{"wrong-typed fork", `{"agentCapabilities":{"sessionCapabilities":{"fork":true}}}`, all, SessionCapabilities{}},
@@ -36,6 +36,9 @@ func TestNegotiateCapabilitiesIsBilateral(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.want.ImageInput = new(bool) // a fresh peer always gives an explicit refusal or support
+			if tc.want.Fork == nil {
+				tc.want.Fork = new(false) // and an explicit fork report, never unknown
+			}
 			if got := negotiateCapabilities(json.RawMessage(tc.init), tc.offer); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("got %+v, want %+v", got, tc.want)
 			}
@@ -83,7 +86,7 @@ func TestStartNegotiatesCapabilitiesFromInitialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lookup: %v", err)
 	}
-	if got, want := as.capabilities(), negotiateCapabilities(json.RawMessage(codex211Init), offered); !reflect.DeepEqual(got, want) || !got.Fork {
+	if got, want := as.capabilities(), negotiateCapabilities(json.RawMessage(codex211Init), offered); !reflect.DeepEqual(got, want) || !got.CanFork() {
 		t.Fatalf("session capabilities = %+v, want %+v", got, want)
 	}
 }

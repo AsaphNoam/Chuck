@@ -243,12 +243,9 @@ Worth-fixing items closed on 2026-11-21/22 by the two usability fix commits; wha
   server reports no capacity-wait cause (FS-16.R44 shows a cause only when reported), and a ready task
   that borrows a running agent uses no slot, so the UI cannot tell queued from about to start. The
   dispatcher or projection must report it (INV §18).
-- **Worth fixing** (needs decision) — J7. Clone on an agent whose runtime never reported
-  capabilities reads "runtime cannot fork", the same as a runtime that refuses fork (INV §20); needs
-  an `unknown` capability state.
-- **Worth fixing** (needs decision) — J2. Reload mid-wizard closes it once a backend passes, and the
-  seeded "My App" project stays; both wait on the planned FS-04.R64/A43. OpenCode/OpenHands install
-  commands: none is verifiable from the repo.
+- **Worth fixing** (trivial/easy) — J2. OpenCode/OpenHands setup gives no install command; none is
+  verifiable from the repo. The four browser journey scripts that now create `my-app` themselves
+  were only syntax-checked.
 - **Worth fixing** (trivial/easy, unverified) — real-browser checks owed for the per-attempt run
   cards, the restyled paused-run actions and the Start-run reduced-motion rule (INV §13).
   `ui/scripts/quota-render.mjs` "scheduled and unknown reset states visible" failed for Sky & Grove

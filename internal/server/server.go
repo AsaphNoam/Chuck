@@ -645,6 +645,10 @@ func (s *Server) Start(ctx context.Context) error {
 	sweepCtx, stopSweep := context.WithCancel(ctx)
 	defer stopSweep()
 	s.recoverIncompleteLaunches()
+	// A home already in use is not sent back through first-run setup (FS-04.R67).
+	if err := s.backfillOnboardingCompletion(); err != nil {
+		s.log.Warn("backfill onboarding completion", "err", err)
+	}
 	// Open edits settle before ordinary reconciliation admits work (TS-02.R69).
 	if s.registry != nil {
 		s.recoverEdits()

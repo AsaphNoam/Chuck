@@ -105,7 +105,8 @@ export function MessageEditor({ agentId, event }: { agentId: string; event: Tran
     } catch (err) {
       if (!alive.current) return;
       const code = errorCode(err);
-      if (code === "edit_conflict" || code === "edit_unavailable") {
+      // fork_support_unknown is a refusal like edit_unavailable: nothing was applied.
+      if (code === "edit_conflict" || code === "edit_unavailable" || code === "fork_support_unknown") {
         requestId.current = null;
         setPhase("idle");
         if (code === "edit_conflict") setConflict(true);

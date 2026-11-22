@@ -119,6 +119,18 @@ describe("NewAgentModal", () => {
     expect(await screen.findByRole("option", { name: "My App (my-app)" })).toBeInTheDocument();
   });
 
+  // FS-04.R14/A45: with no project seeded, a home with no active project gets
+  // a real empty state naming the fix, and Launch stays blocked.
+  it("shows an empty state instead of a blank picker when no active project exists", async () => {
+    server.use(http.get("/api/projects", () => HttpResponse.json({
+      old: { title: "Old", color: [1, 2, 3], cwd: "/tmp/old", add_dirs: [], context_prompt: "", archived: true },
+    })));
+    renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    expect(await screen.findByText("No active projects yet. Add one in Settings → Projects to launch an agent.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(screen.getByRole("button", { name: "Launch" })).toBeDisabled();
+  });
+
   // FS-09.R72: New Agent reports the saved next-start provider for the chosen
   // backend/model and points a broken one at Settings, without a selector.
   it("reports the selected backend/model provider and its repair", async () => {

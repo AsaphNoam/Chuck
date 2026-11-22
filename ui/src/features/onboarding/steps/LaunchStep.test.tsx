@@ -81,6 +81,33 @@ describe("LaunchStep", () => {
     expect(configPut).toEqual({ onboarding_complete: true, default_project: "user-proj" });
   });
 
+  // FS-04.R20/A45: a resumed wizard has no created-project memory. With no
+  // usable saved default the launched project fills it; a valid saved default
+  // is kept.
+  it.each([
+    ["", { onboarding_complete: true, default_project: "user-proj" }],
+    ["gone", { onboarding_complete: true, default_project: "user-proj" }],
+    ["my-app", { onboarding_complete: true }],
+  ])("resumed completion with saved default %j writes %j", async (savedDefault, want) => {
+    let configPut: unknown = null;
+    server.use(
+      http.get("/api/projects", () => HttpResponse.json({ "my-app": projects["my-app"], "user-proj": projects["user-proj"] })),
+      http.get("/api/config", () => HttpResponse.json({ default_project: savedDefault, default_role: "default", onboarding_complete: false })),
+      http.put("/api/config", async ({ request }) => {
+        configPut = await request.json();
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(<LaunchStep onDone={vi.fn()} />);
+    const select = await screen.findByLabelText("Project");
+    await waitFor(() => expect(screen.getByRole("option", { name: "User Proj" })).toBeInTheDocument());
+    fireEvent.change(select, { target: { value: "user-proj" } });
+    await clickLaunch();
+    await waitFor(() => expect(configPut).not.toBeNull());
+    expect(launchBody?.project).toBe("user-proj");
+    expect(configPut).toEqual(want);
+  });
+
   it("surfaces config write failure instead of silently dismissing (launch success + config write failure)", async () => {
     // Setup: config PUT will fail after launch succeeds.
     server.use(

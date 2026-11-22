@@ -467,11 +467,12 @@ func TestSeedIfAbsentNoClobber(t *testing.T) {
 	if err != nil || chucky.SystemPrompt != chuckyPrompt || strings.Contains(chucky.SystemPrompt, "propose_pipeline") {
 		t.Fatalf("seeded Chucky prompt is not the thin role: role=%+v err=%v", chucky, err)
 	}
-	if _, err := s.ReadProject("my-app"); err != nil {
-		t.Fatalf("seeded project: %v", err)
+	// FS-04.R14: a fresh home seeds no placeholder project or default.
+	if projects, err := s.ListProjects(); err != nil || len(projects) != 0 {
+		t.Fatalf("fresh home projects = %v, %v; want none", projects, err)
 	}
-	if _, err := s.ReadConfig(); err != nil {
-		t.Fatalf("seeded config: %v", err)
+	if cfg, err := s.ReadConfig(); err != nil || cfg.DefaultProject != "" {
+		t.Fatalf("seeded default_project = %q, %v; want empty", cfg.DefaultProject, err)
 	}
 	if _, err := s.ReadBackends(); err != nil {
 		t.Fatalf("seeded backends: %v", err)
@@ -492,8 +493,17 @@ func TestSeedIfAbsentNoClobber(t *testing.T) {
 	if err := s.WriteConfig(cfg); err != nil {
 		t.Fatal(err)
 	}
+	// An existing home's project, including the formerly seeded my-app, is
+	// user data that seeding never removes or rewrites (FS-04.R14).
+	legacy := Project{Title: "My App", Cwd: "~/Projects/my-app", AddDirs: []string{}}
+	if err := s.WriteProject("my-app", legacy); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.SeedIfAbsent(); err != nil {
 		t.Fatalf("re-seed: %v", err)
+	}
+	if got, err := s.ReadProject("my-app"); err != nil || !reflect.DeepEqual(got, legacy) {
+		t.Fatalf("existing project after re-seed = %+v, %v; want %+v", got, err, legacy)
 	}
 	if cfg, err := s.ReadConfig(); err != nil || cfg.SkipPermissions {
 		t.Fatalf("saved skip_permissions = %v, %v; want false", cfg.SkipPermissions, err)
