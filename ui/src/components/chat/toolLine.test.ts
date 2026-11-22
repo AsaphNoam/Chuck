@@ -19,7 +19,7 @@ describe("toolLine label", () => {
     ["an empty command", { name: "execute", args: { command: "" } }, "Ran a command"],
     ["an unparseable program", { name: "execute", args: { command: "$(make-cmd) --flag" } }, "Ran a command"],
     ["a shell call with no command or title", { name: "Bash", args: null }, "Ran a command"],
-    ["a quoted file path title", { name: "read", title: "Read file '/Users/me/Projects/AgentDeck/docs/SKILL.md'", args: null }, "Read file SKILL.md"],
+    ["a quoted file path title", { name: "read", title: "Read file '/Users/me/Projects/Chuck/docs/SKILL.md'", args: null }, "Read file SKILL.md"],
     ["a Codex exec_command file read", { name: "exec_command", title: "Read file '/Users/me/.chuck/codex/skills/figma/SKILL.md'", args: null }, "Read file SKILL.md"],
     ["a relative path with a range", { name: "read", title: "Read internal/server/annotations_test.go (1 - 290)", args: { file_path: "/repo/internal/server/annotations_test.go" } }, "Read annotations_test.go (1 - 290)"],
     ["a pending Claude terminal", { name: "execute", title: "Terminal", args: {} }, "Terminal"],

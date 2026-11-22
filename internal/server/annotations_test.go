@@ -564,10 +564,6 @@ func TestAnnotationBlockStartsWithTheSentinelTheClientMatches(t *testing.T) {
 	if sentinel := annotationBlockSentinelFromUI(t); !strings.HasPrefix(block, sentinel) {
 		t.Fatalf("annotation block %q does not start with the client's sentinel %q", block, sentinel)
 	}
-	// FS-13.A15: the pre-rename first line is recognized but never written.
-	if strings.Contains(block, "[AgentDeck annotations]") {
-		t.Fatalf("annotation block still writes the legacy first line: %q", block)
-	}
 }
 
 // FS-13.A14 — quieting the duplicate prompt is display-only. The prompt event a

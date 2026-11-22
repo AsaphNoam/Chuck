@@ -1076,7 +1076,7 @@ describe("AgentScreen annotation capture", () => {
     expect(useAnnotationStore.getState().bySource.a1?.[1]).toEqual({ seq: 1, excerpt: "Clean the build", instruction: "" });
   });
 
-  it("renders recorded annotation cards live and hides their machine prompts, including legacy ones", async () => {
+  it("renders recorded annotation cards live and hides their machine prompts", async () => {
     const recorded = (seq: number, overall: string) => ({
       agent_id: "a1", seq, type: "annotation", ts: "",
       data: {
@@ -1096,23 +1096,19 @@ describe("AgentScreen annotation capture", () => {
         events[0], events[1],
         recorded(5, "be brief"),
         { agent_id: "a1", seq: 6, type: "user_text", ts: "", data: { text: "[Chuck annotations]\nTranscript event 2\nmachine body" } },
-        recorded(7, "legacy pass"),
-        { agent_id: "a1", seq: 8, type: "user_text", ts: "", data: { text: "[AgentDeck annotations]\nTranscript event 2\nlegacy body" } },
       ],
     };
     useConnection.setState({ agents: { a1: idle } });
     renderScreen();
     const conversation = await screen.findByRole("list", { name: "Conversation" });
-    await waitFor(() => expect(conversation.querySelectorAll(".annotation-card")).toHaveLength(2));
+    await waitFor(() => expect(conversation.querySelectorAll(".annotation-card")).toHaveLength(1));
     const card = conversation.querySelector<HTMLElement>(".annotation-card")!;
     expect(card).toHaveTextContent("Event 2");
     expect(card).toHaveTextContent("main.go:1");
     expect(card).toHaveTextContent("File docs/a.md:3–4");
     expect(card).toHaveTextContent("File docs/r.md");
     expect(card).toHaveTextContent("Overall: be brief");
-    expect(conversation).toHaveTextContent("Overall: legacy pass");
     expect(conversation).not.toHaveTextContent("machine body");
-    expect(conversation).not.toHaveTextContent("legacy body");
     expect(card.closest(".phone-message")!.querySelector(".phone-annotate-event")).toBeNull();
   });
 

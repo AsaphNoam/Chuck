@@ -1,4 +1,4 @@
-# AgentDeck ideas and improvements
+# Chuck ideas and improvements
 
 This is a place to keep future thoughts without accidentally treating them as promises or approved
 work. The specifications describe the product today; this file does not.
@@ -102,7 +102,7 @@ Example:
   Kept separate from `docs/ready-changes/mermaid-diagrams-in-chat.md` on 2026-08-27 because it is a
   server-wide change that could affect the dev proxy, xterm, and inline styles. Noted while
   researching safe diagram rendering.
-- **Choose an external base for AgentDeck-owned worktrees.** Support a deterministic per-project or
+- **Choose an external base for Chuck-owned worktrees.** Support a deterministic per-project or
   per-repository checkout layout outside `$CHUCK_HOME` for operators whose repositories live under a
   separate workspace base. Ownership records, base-directory changes, recovery, migration and safe
   deletion need definition before changing the canonical worktree path.
@@ -460,7 +460,7 @@ the relevant feature and technical specifications; it does not change product co
 
 ## ACP Wait-list
 
-These are capabilities AgentDeck implements above ACP, or has deliberately deferred, because the
+These are capabilities Chuck implements above ACP, or has deliberately deferred, because the
 pinned adapter contract is missing or unverified. An adapter release is a reason to recheck the
 capability; it is not by itself authority to remove the fallback or ship the deferred feature.
 
@@ -471,15 +471,15 @@ capability; it is not by itself authority to remove the fallback or ship the def
   R110's `_meta.jetbrains.air.fork` use can be dropped. Other vendor extensions still need the
   operator's explicit approval.
 - **Steering.** The pinned Claude 0.85.1 and Codex 2.1.1 adapters advertise
-  `_session/steering`, and AgentDeck uses it. Codex 2.1.1 still starts a detached turn when a steer
-  arrives idle and ignores AgentDeck's `promptRequired` metadata, so the packaged steering patch
+  `_session/steering`, and Chuck uses it. Codex 2.1.1 still starts a detached turn when a steer
+  arrives idle and ignores Chuck's `promptRequired` metadata, so the packaged steering patch
   remains necessary until upstream advertises the same no-consumption contract (still absent in
   Codex ACP 2.2.2, rechecked 2026-10-14).
-- **Host-held queued Send.** AgentDeck holds a busy agent's next prompt because the pinned Claude
+- **Host-held queued Send.** Chuck holds a busy agent's next prompt because the pinned Claude
   adapter queues while the pinned Codex adapter supersedes and interrupts the active turn. Keep the
   host-side hold even after steering exists: Send must remain portable, withdrawable, and distinct
   from Steer.
-- **Internal actions without MCP.** AgentDeck's fifteen coordination actions remain on its scoped,
+- **Internal actions without MCP.** Chuck's fifteen coordination actions remain on its scoped,
   authenticated HTTP MCP server. `migrate-internal-actions-from-mcp.md` is paused until packaged
   Codex/ACP exposes a narrowly scoped direct transport reachable under the default sandbox. The
   gate stays closed. Rechecked 2026-10-05 against Codex ACP 2.1.1 (`acp:false`) and Claude ACP
@@ -498,10 +498,10 @@ capability; it is not by itself authority to remove the fallback or ship the def
 - **Declared MCP tool output schemas.** Structured tool results ship without declared
   `outputSchema`. Add schemas only after the pinned Claude and Codex adapters' handling of them is
   verified against real providers.
-- **Codex session model and effort delivery.** AgentDeck applies model and effort through ordered
+- **Codex session model and effort delivery.** Chuck applies model and effort through ordered
   post-session configuration because Codex ACP session creation has no model field. Keep this path
   until a replacement is both advertised and provider-verified.
-- **Codex system-prompt delivery.** AgentDeck injects its prompt overlay through
+- **Codex system-prompt delivery.** Chuck injects its prompt overlay through
   `CODEX_CONFIG.developer_instructions` because Codex ACP does not consume generic ACP
   `systemPrompt`. Keep and reverify the overlay on every adapter bump until the adapter exposes a
   proven portable replacement.

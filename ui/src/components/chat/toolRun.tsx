@@ -63,7 +63,7 @@ function attachMail(run: TranscriptEvent[]): TranscriptEvent[] {
   return out.filter((_, at) => !gone.has(at));
 }
 
-const MESSAGING_SERVERS = new Set(["chuck", "chuck-messaging", "agentdeck-messaging"]);
+const MESSAGING_SERVERS = new Set(["chuck", "chuck-messaging"]);
 
 // The tool name of a call from the Chuck messaging server: the suffix of an
 // `mcp__<server>__<tool>` or `mcp.<server>.<tool>` title or name, or Codex's

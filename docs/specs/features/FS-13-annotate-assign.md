@@ -164,12 +164,9 @@ identity and authority; no common receipt grants broader target/source access.
 - **R22.** In the docked form each pending draft presents its anchor as its own heading
   element, distinct from the draft's controls; presents its excerpt with room to wrap rather than
   clipped to the overlay's width; and presents an instruction field taller than the overlay's.
-- **R24.** With the rename (FS-00.R19) the annotation block's first line is written as
-  `[Chuck annotations]`. Recognition accepts both that line and the `[AgentDeck annotations]`
-  line every block written before the rename carries, so annotations already recorded in a
-  transcript keep rendering as annotation cards and keep being suppressed under R23 instead of
-  reappearing as bare prompts. The old spelling is never written again. This dual recognition is
-  permanent: those transcripts are append-only (TS-02.R8) and are not rewritten.
+- **R24.** With the rename (FS-00.R19) the annotation block's first line is
+  `[Chuck annotations]`, and recognition accepts only that line. Recognition of the pre-rename
+  first line was retired 2026-11-22; blocks recorded before the rename render as ordinary prompts.
 - **R23.** In live chat and in archived replay, the transcript does not render the machine
   annotation block a self-targeted send produces (R6): a user prompt event carrying that block and
   immediately following its own `annotation` event is not drawn, because that event's card already
@@ -345,12 +342,8 @@ Each acceptance item names its delivered verification.
 - **A13** (R22) — A docked draft row renders its anchor as a heading element separate from
   its controls, alongside the excerpt and the instruction field:
   `ui/src/components/chat/AnnotationTray.test.tsx`.
-- **A15** (R24) — A transcript containing an annotation block written with the old
-  `[AgentDeck annotations]` first line renders as an annotation card and stays suppressed under R23,
-  while a newly sent annotation writes `[Chuck annotations]` and behaves identically: a fixture
-  transcript holding both spellings renders both, and no code path emits the old line.
-  *Verified:* `ui/src/components/chat/TranscriptView.test.tsx` extended with a legacy-prefix fixture
-  and an emitter assertion in `internal/runtime`.
+- **A15** (R24) — A newly sent annotation writes `[Chuck annotations]` and the client recognizes
+  that line: `internal/server/annotations_test.go` pins the emitted block to the client sentinel.
 - **A14** (R23) — A self-targeted send renders the annotation card and no user message
   carrying the annotation block, identically live and after a replay, while the transcript endpoint
   still returns that prompt event: `ui/src/components/chat/TranscriptView.test.tsx` and

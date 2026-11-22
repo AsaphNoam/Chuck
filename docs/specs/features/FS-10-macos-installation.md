@@ -70,25 +70,13 @@ person's provider credentials or Chuck configuration.
 - **R18 — retired 2026-10-03:** Automatic migration refusal machinery is no longer required.
 - **R19 — retired 2026-10-03:** Legacy home-variable exception removed by R26.
 
-- **R25** `(planned)` — The sole operator moves to Chuck through one supervised cutover.
-  Install Chuck normally; no legacy-install detector, migration command, startup migrator or
-  `agentdeck update` bridge is shipped. Before transfer, stop dashboards and all their agent/tmux
-  sessions, pause automatic work, save browser drafts, and preserve a recoverable source snapshot.
-  Inventory and preserve configuration (including edited roles), agents/session history,
-  transcripts, tasks/pipelines/context links, project resources and owned worktrees; starting empty
-  or discarding any of these requires a separate explicit choice. Prepare the Chuck home offline,
-  adapt the concrete installation's role references and relocated paths, then verify it before
-  starting new sessions. Live-process continuity and automatic adoption of old tmux sessions are
-  excluded; retaining history does not promise native-provider resume across the cutover.
-  Release instructions identify source/destination, completion checks, recovery from the preserved
-  source, phone re-pairing and optional old-install removal after success. Never run both versions
-  against shared state/worktrees. This design authorizes no live transfer or deletion itself.
+- **R25 — retired 2026-11-22:** The sole operator's supervised cutover completed 2026-10-07; its
+  guide was removed. No legacy-install detector, migration command or bridge is shipped.
 - **R26** — Chuck resolves only `$CHUCK_HOME`, default `~/.chuck`, and otherwise uses
   ordinary fresh-home startup. It does not inspect, move, merge or repair an AgentDeck home.
   Every product-defined/injected variable becomes `CHUCK_*`, including home, app root, hooks,
   agent identity, interface, skill/resources, logging, provider/login overrides and installer
-  variables; no `AGENTDECK_*` input is honored. Existing data can be used only after the supervised
-  preparation in R25; ordinary fresh installs require none of that preparation.
+  variables; no `AGENTDECK_*` input is honored.
 
 - **R20 — retired 2026-10-03:** Installed-only setup replaced by explicit-bundle alternative R23.
 - **R21** — `chuck auth claude|codex` delegates to the same selected
@@ -187,14 +175,7 @@ person's provider credentials or Chuck configuration.
 - **A13** (R26) — With a populated old home and `AGENTDECK_HOME` set, startup uses
   only the chosen Chuck home and leaves the old home untouched; an absent Chuck home seeds normally.
   *Verify by* focused home-resolution/startup tests, not a migration failure matrix.
-- **A14** `(planned)` (R25) — Rehearse the documented cutover on a disposable copy representative
-  of the operator's installation. Confirm retained records/transcripts and customized roles are
-  readable, resources and owned Git worktrees resolve, a resumed stopped worktree session and its
-  file reads use the destination checkout (also with the source unavailable), new Chucky sessions
-  launch, and the preserved source can still be used for recovery after Chuck is stopped. Review
-  stop/pause, draft preservation, phone re-pairing and cleanup instructions. Record what was
-  checked and any native-resume limitation; do not claim a real installation was migrated from this rehearsal.
-  *Verify by* one supervised rehearsal receipt and release-documentation review.
+- **A14 — retired 2026-11-22:** R25 retired after the operator's cutover completed.
 
 - **A10** `(planned)` (R21, R23–R24) — A fresh install with no installed provider produces a working dashboard,
   truthful provider-install/explicit-Bundle guidance and no automatic native-provider spawn; with a user CLI it uses that
@@ -217,9 +198,8 @@ person's provider credentials or Chuck configuration.
 ## 6. Deviations & open decisions
 
 - R15 and R26 shipped 2026-10-04 with the rename; A7 and A13 are covered by the installer and
-  home-resolution tests plus the release workflow's old-name check. R25's instructions are
-  [`docs/chuck-cutover.md`](../../chuck-cutover.md); R25 and A14 stay planned until one supervised
-  rehearsal on a disposable copy of the real installation is recorded.
+  home-resolution tests plus the release workflow's old-name check. R25 and A14 were retired
+  2026-11-22: the operator's cutover completed 2026-10-07 and the cutover guide was removed.
 
 - R21 and R23–R24 shipped 2026-10-04: backend selection defaults to Installed, Bundle is an explicit
   choice, `chuck auth claude|codex` delegates to the selected target, and Settings/onboarding

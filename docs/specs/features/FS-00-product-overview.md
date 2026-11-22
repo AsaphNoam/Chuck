@@ -35,14 +35,13 @@ past work — without juggling a dozen terminal tabs.
 - **R16 — retired 2026-10-03:** Automatic migration promise replaced by R19's supervised cutover.
 - **R19** — The product is named Chuck across the application, documentation,
   `chuck` command, `$CHUCK_HOME`, release/install identity, MCP identity/header, agent knowledge
-  and desktop/phone UI. The resident operator is **Chucky**. FS-10.R15/R25–R26 define a normal
-  Chuck install and one supervised data-preserving cutover for the sole operator, with stopped old
-  sessions and no general legacy migration or runtime aliases. FS-04.R52 owns the new role identity;
-  FS-18.R18 owns current agent-facing wording. Existing transcripts, customized user content and
-  historical records under `docs/archive/` and `LearningArtifacts/` are not rewritten merely to
-  erase old branding. Historical annotation recognition remains under FS-13.R24, and browser draft
-  copy-forward remains under TS-08.R58. Otherwise the rename changes no API shape, schema,
-  permissions or product capability beyond the named identity and cutover boundaries.
+  and desktop/phone UI. The resident operator is **Chucky**. FS-10.R15/R26 define a normal
+  Chuck install with no legacy migration or runtime aliases; the sole operator's one supervised
+  cutover completed 2026-10-07 and its compatibility shims (FS-13.R24, TS-08.R58) were retired
+  2026-11-22. FS-04.R52 owns the new role identity; FS-18.R18 owns current agent-facing wording.
+  Existing transcripts, customized user content and historical records under `docs/archive/` and
+  `LearningArtifacts/` are not rewritten merely to erase old branding. Otherwise the rename changes
+  no API shape, schema, permissions or product capability beyond the named identity.
 
 **Non-goals (v1):** no cloud sync, no remote/multi-user access, no auth layer; no built-in code
 editor (Chuck observes and orchestrates, it does not replace the IDE); no support for agent

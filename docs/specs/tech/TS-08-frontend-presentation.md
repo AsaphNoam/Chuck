@@ -647,18 +647,12 @@ primitive seam; the rejected alternatives are recorded in §5.
   token, public hook, inline-style exception, skin branch, motion, or component framework. Focused
   component tests plus matched Core, Sky & Grove, and Studio matrix/browser views cover zero,
   unknown, long, and live-updating values (FS-02.R63/A44–A45; INV §8/§10/§13/§17).
-- **R58 — Browser-local identifiers rename with a one-time copy-forward.** With
-  FS-00.R19 the document title, the header wordmark component, the built-in skin name, and every
-  on-screen product string say Chuck. The identifiers the browser itself keys on rename too:
-  `chuck-chat-drafts`, `chuck-annotation-tray`, `chuck.pipeline-builder-agent`, and the
-  `chuck-events` SharedWorker. Because that storage is per-origin and holds text a person has not
-  sent yet, one module owns a startup copy-forward that reads each old key, writes the new key only
-  when it is absent, and then removes the old one — never merging, never overwriting newer state,
-  and tolerating unreadable or absent storage without blocking the app (INV §1, §7). The renamed
-  SharedWorker name deliberately gets no copy-forward: a worker is live state, and a browser holding
-  a page from before the rename simply starts a second worker until it reloads. The copy-forward is
-  written so that running it twice is a no-op, since it runs on every mount rather than behind a
-  persisted flag.
+- **R58 — Browser-local identifiers carry the Chuck name.** With FS-00.R19 the document title,
+  the header wordmark component, the built-in skin name, and every on-screen product string say
+  Chuck. The identifiers the browser itself keys on are `chuck-chat-drafts`,
+  `chuck-annotation-tray`, `chuck.pipeline-builder-agent`, and the `chuck-events` SharedWorker.
+  The one-time copy-forward from pre-rename keys was retired 2026-11-22 after the operator's
+  cutover completed; no pre-rename key is read.
 
 **R59 — Runtime-native activity stays subordinate to the conversation.** The experienced
 operator's primary job remains reading the root exchange and intervening only when work needs
