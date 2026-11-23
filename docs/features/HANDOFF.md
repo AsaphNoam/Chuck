@@ -64,6 +64,8 @@ None.
 
 ## Review queue
 
+- Sent annotation source navigation — `2480ca75`, FS-13.R38/A28 and TS-08.R175.
+
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
 ownership and record the reviewed HEAD. Intended for a frontier reviewer; the charters' leads are
