@@ -146,6 +146,7 @@ func (s *Server) dispatchReadyTasks(ctx context.Context) {
 			continue
 		}
 		advanced = true
+		s.publishTaskUpdate(admitted)
 		go func(task state.Task) {
 			defer func() { <-s.taskStartSlots }()
 			s.startAdmittedTask(ctx, task)

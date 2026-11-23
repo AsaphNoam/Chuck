@@ -25,6 +25,7 @@ const eventTypes = [
   "pipeline_update",
   "pipeline_proposal_update",
   "task_update",
+  "task_capacity_update",
   "schedule_update",
   "think_tank_update",
   "think_tank_activity",

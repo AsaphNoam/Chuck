@@ -1038,6 +1038,9 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, apiError("internal", "internal error"))
 		return
 	}
+	if body.TaskConcurrency != nil {
+		s.eventBus.Publish("task_capacity_update", nil, nil)
+	}
 	if autoContinue != nil && !cfg.AutoContinue {
 		ids, err := s.stateStore.CancelPendingQuotas()
 		if err != nil {

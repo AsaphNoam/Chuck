@@ -349,7 +349,8 @@ func (s *Server) handleFireSignal(w http.ResponseWriter, r *http.Request) {
 
 type taskDetailResponse struct {
 	state.Task
-	Attachments []state.TaskAttachment `json:"attachments"`
+	Attachments           []state.TaskAttachment `json:"attachments"`
+	WaitingForRuntimeSlot bool                   `json:"waiting_for_runtime_slot,omitempty"`
 	// Room is present for a room-backed Think Tank stage task (FS-16.R48).
 	Room *taskRoomWire `json:"room,omitempty"`
 }
@@ -372,6 +373,11 @@ func (s *Server) taskDetail(task state.Task) (taskDetailResponse, error) {
 	out := taskDetailResponse{Task: task, Attachments: attachments}
 	if task.TargetKind == state.TargetThinkTank {
 		s.projectRoomTask(&out)
+	} else if task.State == state.TaskReady {
+		out.WaitingForRuntimeSlot, err = s.stateStore.TaskWaitingForRuntimeSlot(task, s.taskConcurrencyBudget())
+		if err != nil {
+			return taskDetailResponse{}, err
+		}
 	}
 	return out, nil
 }

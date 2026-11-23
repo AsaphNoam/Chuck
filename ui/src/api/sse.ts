@@ -103,6 +103,7 @@ class SseClient {
       queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all });
       queryClient.invalidateQueries({ queryKey: PIPELINE_QUERY_KEYS.runDetails });
     });
+    this.es.addEventListener("task_capacity_update", () => queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all }));
     // schedule_update is the same refetch signal for schedules (TS-10.R60).
     this.es.addEventListener("schedule_update", () => queryClient.invalidateQueries({ queryKey: SCHEDULE_QUERY_KEYS.all }));
     // Room events are notifications only: committed room state comes back over
@@ -198,6 +199,13 @@ class SseClient {
       useAgentStore.getState().hydrateComplete(this.hydrationIds ?? []);
       this.hydrationIds = null;
       return;
+    }
+    if (envelope.agent_id && this.hydrationIds === null) {
+      const previous = useAgentStore.getState().agents[envelope.agent_id];
+      const running = !envelope.data.removed && envelope.data.running === true;
+      if (running !== (previous?.running === true)) {
+        queryClient.invalidateQueries({ queryKey: TASK_QUERY_KEYS.all });
+      }
     }
     if (envelope.data.removed && envelope.agent_id) {
       useAgentStore.getState().removeAgent(envelope.agent_id);

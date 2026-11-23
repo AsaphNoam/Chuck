@@ -84,6 +84,7 @@ export const taskSchema = z.object({
   // Runtime continuation and cleanup flags (FS-16.R33–R38) the view needs to
   // tell durable waiting and finishing apart from an unexpected interruption.
   pending_release: z.boolean().optional().default(false),
+  waiting_for_runtime_slot: z.boolean().optional(),
   continuation_pending: z.boolean().optional().default(false),
   pending_yield: z.boolean().optional().default(false),
   resume_needed: z.boolean().optional().default(false),

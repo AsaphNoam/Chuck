@@ -119,6 +119,20 @@ const taskRunOpenClause = `
 const taskCapacityFreeClause = `(SELECT COUNT(*) FROM tasks AS live
     WHERE live.runtime_claim IN (?, ?)) < ?`
 
+// TaskWaitingForRuntimeSlot reports a current blocker for a ready task. It
+// shares admission's capacity accounting and excludes already-running targets.
+func (s *Store) TaskWaitingForRuntimeSlot(task Task, budget int) (bool, error) {
+	var waiting bool
+	err := s.db.QueryRow(`SELECT EXISTS (
+		SELECT 1 FROM tasks
+		WHERE task_id = ? AND revision = ? AND state = ?
+		  AND NOT EXISTS (SELECT 1 FROM running
+		    WHERE agent_id = COALESCE(NULLIF(tasks.assigned_agent_id, ''), tasks.target_agent_id))
+		  AND NOT (`+taskCapacityFreeClause+`)
+	)`, task.TaskID, task.Revision, TaskReady, ClaimCreated, ClaimWoke, budget).Scan(&waiting)
+	return waiting, err
+}
+
 // ErrTaskRunClosed refuses new descendant work after its inherited pipeline
 // stage/run closure fence has committed.
 var ErrTaskRunClosed = errors.New("state: governing pipeline run or stage is closed")

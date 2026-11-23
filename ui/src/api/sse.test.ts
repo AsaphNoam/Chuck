@@ -592,6 +592,29 @@ describe("SseClient watchdog reconnect", () => {
     expect(spy).not.toHaveBeenCalledWith({ queryKey: ["pipelines", "run-list"] });
   });
 
+  it("refreshes task capacity on runtime liveness and budget changes", async () => {
+    const { sseClient } = await import("./sse");
+    const { queryClient } = await import("./config");
+    const { TASK_QUERY_KEYS } = await import("./tasks");
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    const taskQuery = { queryKey: TASK_QUERY_KEYS.all };
+    sseClient.connect();
+    const stream = FakeEventSource.instances[0];
+    stream.onopen?.();
+    stream.emit("state_update", JSON.stringify({ data: { hydrated: true } }));
+    const state = (running: boolean) => JSON.stringify({ agent_id: "a_slot", data: { agent_id: "a_slot", running } });
+    stream.emit("state_update", state(true));
+    expect(spy).toHaveBeenCalledWith(taskQuery);
+    spy.mockClear();
+    stream.emit("state_update", state(true));
+    expect(spy).not.toHaveBeenCalledWith(taskQuery);
+    stream.emit("state_update", state(false));
+    expect(spy).toHaveBeenCalledWith(taskQuery);
+    spy.mockClear();
+    stream.emit("task_capacity_update");
+    expect(spy).toHaveBeenCalledWith(taskQuery);
+  });
+
   it("drops muted notification types", async () => {
     const { sseClient } = await import("./sse");
     const { queryClient } = await import("./config");

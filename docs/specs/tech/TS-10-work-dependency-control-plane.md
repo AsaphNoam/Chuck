@@ -116,6 +116,9 @@ parallel copy of them.
   and refetch detail over REST. A committed deletion publishes `{task_id, deleted: true}` for the
   removed task, so every open view (including the dashboard's attention count) refetches. Reconnect hydrates the Tasks view through REST rather than replaying
   an event log, following TS-03.R17.
+  The Tasks read projection reports a capacity wait only for ready work that would create or wake
+  a runtime, using R17's committed claim count. Runtime liveness changes and the
+  `task_capacity_update` signal after a saved budget change invalidate that projection.
 - **R12** — **Attachment authorization delegates to the context service.** A task
   attachment stores only the task id, the canonical reference id, and its bounded label and
   description. Task ids, assignees, arm state, and task state never enter reference identity, never

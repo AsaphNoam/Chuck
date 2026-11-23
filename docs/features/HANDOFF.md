@@ -136,19 +136,6 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
-### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-Repros: [run record](../archive/reviews/usability-review-run-2026-11-21.md). Must-fix and
-Worth-fixing items closed on 2026-11-21/22 by the two usability fix commits and the trivial/easy
-follow-up; what remains:
-
-- **Worth fixing** (medium) — J16. Budget-queued task rows cannot say they wait for a slot: the
-  server reports no capacity-wait cause (FS-16.R44 shows a cause only when reported), and a ready task
-  that borrows a running agent uses no slot, so the UI cannot tell queued from about to start. The
-  dispatcher or projection must report it (INV §18).
-- **Worth fixing** (undetermined) — J3. The clean-close shutdown wait covers chat runtimes only; the
-  terminal registry's StopAll was not audited for the same false history-gap notice.
-
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution

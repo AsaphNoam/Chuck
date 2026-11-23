@@ -197,6 +197,7 @@ describe("taskStatus and taskReason", () => {
     expect(taskStatus(row("tk_h2").task).label).toBe("Cancelled");
     expect(taskStatus({ ...row("tk_e").task, continuation_pending: true }).label).toBe("Ready to resume");
     expect(taskStatus(row("tk_e").task).label).toBe("Ready to start");
+    expect(taskStatus({ ...row("tk_e").task, waiting_for_runtime_slot: true }).label).toBe("Waiting for a runtime slot");
   });
 
   it("explains what armed work waits for, by name", () => {

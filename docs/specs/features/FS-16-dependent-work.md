@@ -308,8 +308,10 @@ Requirements are user- and agent/API-observable. R-item numbering is continuous 
   armed prerequisites, ready admission, starting, running, durable waiting, ready-to-resume,
   interrupted, dependency failure, and finishing/yielding cleanup using the authoritative task
   state and available transition information. Readiness alone is not proof of capacity exhaustion;
-  show a specific cause only when reported. Detail exposes the instruction, current prerequisites,
-  recorded result and outputs when present, creator, assignee and related agent/run links. An
+  show a specific cause only when reported. A ready task that needs to create or wake a runtime
+  shows “Waiting for a runtime slot” when the server reports a full launch budget. Detail exposes
+  the instruction, current prerequisites, recorded result and outputs when present, creator,
+  assignee and related agent/run links. An
   unavailable agent retains its identity without a misleading live-chat link. Existing eligible
   Retry, Re-arm, Cancel, Record result and Delete controls remain available in task detail; owned
   pipeline work directs the person to the run for operations forbidden by R36. Refused mutations

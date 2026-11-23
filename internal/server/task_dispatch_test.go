@@ -322,7 +322,7 @@ func TestALaunchSpecTaskStartsItselfAndBecomesRunning(t *testing.T) {
 // Three ready tasks with a budget of one leave three ready tasks and one running
 // runtime, and the next admission goes to the task that became ready first.
 func TestTheBudgetLimitsRuntimesWithoutNarrowingReadiness(t *testing.T) {
-	srv, _ := wakeTestServer(t)
+	srv, ts := wakeTestServer(t)
 	cfg, err := srv.configStore.ReadConfig()
 	if err != nil {
 		t.Fatalf("ReadConfig: %v", err)
@@ -338,7 +338,27 @@ func TestTheBudgetLimitsRuntimesWithoutNarrowingReadiness(t *testing.T) {
 	stampReadyOrder(t, srv, first, second, third)
 
 	srv.dispatchReadyTasks(context.Background())
-	waitTaskState(t, srv, first.TaskID, state.TaskRunning)
+	running := waitTaskState(t, srv, first.TaskID, state.TaskRunning)
+	borrowing := newAgentTask(t, srv, running.AssignedAgentID, "borrow running runtime")
+	assertSlotWait := func(taskID string, want bool) {
+		t.Helper()
+		res, err := http.Get(ts.URL + "/api/tasks/" + taskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var detail struct {
+			WaitingForRuntimeSlot bool `json:"waiting_for_runtime_slot"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&detail); err != nil || res.StatusCode != http.StatusOK {
+			t.Fatalf("read task %s: status %d, decode %v", taskID, res.StatusCode, err)
+		}
+		if detail.WaitingForRuntimeSlot != want {
+			t.Fatalf("task %s waiting for runtime slot = %t, want %t", taskID, detail.WaitingForRuntimeSlot, want)
+		}
+	}
+	assertSlotWait(second.TaskID, true)
+	assertSlotWait(borrowing.TaskID, false)
 	for _, waiting := range []state.Task{second, third} {
 		task, err := srv.stateStore.ReadTask(waiting.TaskID)
 		if err != nil {
@@ -361,8 +381,10 @@ func TestTheBudgetLimitsRuntimesWithoutNarrowingReadiness(t *testing.T) {
 		t.Fatalf("finish first: %v", err)
 	}
 	srv.finishTaskCleanup(context.Background(), done)
+	assertSlotWait(second.TaskID, false)
 	srv.dispatchReadyTasks(context.Background())
 	waitTaskState(t, srv, second.TaskID, state.TaskRunning)
+	assertSlotWait(borrowing.TaskID, true)
 	last, err := srv.stateStore.ReadTask(third.TaskID)
 	if err != nil {
 		t.Fatalf("ReadTask: %v", err)

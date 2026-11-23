@@ -366,6 +366,7 @@ export function taskStatus(task: Task): { label: string; tone: StatusTone } {
     case "armed":
       return { label: "Waiting on prerequisites", tone: "neutral" };
     case "ready":
+      if (task.waiting_for_runtime_slot) return { label: "Waiting for a runtime slot", tone: "info" };
       return task.continuation_pending ? { label: "Ready to resume", tone: "info" } : { label: "Ready to start", tone: "info" };
     case "starting":
       return { label: "Starting", tone: "info" };
