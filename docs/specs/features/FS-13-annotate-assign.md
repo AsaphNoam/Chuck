@@ -298,6 +298,13 @@ identity and authority; no common receipt grants broader target/source access.
   annotation event not yet paired. An archived source keeps R15; a stopped source the wake gates
   exclude, or a failed wake, returns a typed error and preserves the tray.
 
+- **R38 — Jump to the annotation source.** On desktop chat and archived replay,
+  and in the phone conversation, activate a sent card's quoted excerpt to reveal and
+  scroll to its source in that conversation. Open collapsed turn and tool activity, and
+  reveal an annotated diff inline at the saved line when needed. Use the retained quote
+  to locate the passage when it matches uniquely in the source row, otherwise focus and show the row.
+  File snapshots and sources outside the loaded conversation keep a plain excerpt.
+
 ## 5. Acceptance criteria
 
 Each acceptance item names its delivered verification.
@@ -444,6 +451,12 @@ authorization; use real handler/receipt paths rather than a mock that deduplicat
   source event, hold then send, steer); `AnnotationTray.test.tsx` "queues or steers…" and "shows a
   queued self batch…"; `TranscriptView.test.tsx` "quiets a held batch's later prompt once per card".
   The phone form shares the delivery hook; no rendered browser journey was run.
+
+- **A28** (R38) — Activate a quote from a sent card whose source is in a
+  collapsed turn. The turn opens, the source receives focus, and the conversation
+  scrolls to the passage. `TranscriptView.test.tsx` and `AgentScreen.test.tsx` cover
+  source resolution from retained events. A rendered Chrome fixture verified passage
+  geometry, diff lines, and tool disclosure on desktop and at a phone viewport.
 
 ## 6. Deviations & open decisions
 

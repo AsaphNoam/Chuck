@@ -1619,6 +1619,21 @@ a.agent-mini-card:focus-visible {
   padding-top: var(--ad-space-3);
 }
 
+.annotation-source-link {
+  background: transparent;
+  border: 0;
+  color: var(--ad-action-secondary);
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  min-height: var(--ad-button-height, 24px);
+  padding: 0;
+  text-align: start;
+  text-decoration: underline;
+  white-space: inherit;
+  width: 100%;
+}
+
 /* The overlay is positioned against the whole transcript region; only the
    docked form below takes the trailing track, which is zero wide while the
    tray floats. */

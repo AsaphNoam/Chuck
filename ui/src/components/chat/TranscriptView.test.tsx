@@ -73,6 +73,27 @@ function renderTranscript(annotationsEnabled = true, transcriptEvents = events, 
   );
 }
 
+it("jumps from a retained annotation to its source in collapsed turn activity", async () => {
+  const loaded = foldTranscript([
+    { kind: "assistant_text", seq: 1, delta: "Earlier " },
+    { kind: "assistant_text", seq: 2, delta: "quoted passage" },
+    { kind: "tool_call", seq: 3, name: "Read", args: {} },
+    { kind: "assistant_text", seq: 4, delta: "Final response" },
+    { kind: "turn_end", seq: 5, outcome: "completed" },
+    { kind: "annotation", seq: 6, target: { kind: "self" }, annotations: [
+      { seq: 2, excerpt: "quoted passage", instruction: "Revise it" },
+      { seq: 99, excerpt: "Unavailable source", instruction: "Keep this context" },
+    ] },
+  ]);
+  renderTranscript(false, loaded);
+  expect(screen.queryByText("Earlier quoted passage")).toBeNull();
+  expect(screen.queryByRole("button", { name: /Unavailable source/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Jump to source: quoted passage" }));
+  await waitFor(() => expect(document.activeElement).toHaveTextContent("Earlier quoted passage"));
+  expect(screen.getByRole("button", { name: /Hide activity/ })).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button", { name: "Jump to latest" })).toBeInTheDocument();
+});
+
 function selectWithin(node: Node) {
   const range = document.createRange();
   range.selectNodeContents(node);

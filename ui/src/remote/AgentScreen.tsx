@@ -28,6 +28,7 @@ import { WorkingIndicator } from "../components/chat/WorkingIndicator";
 import { AssistantText } from "../components/chat/renderers/AssistantText";
 import { DiffBlock } from "../components/chat/renderers/DiffBlock";
 import { AnnotationCard, annotationTargetId } from "../components/chat/renderers/AnnotationCard";
+import { AnnotationJumpContext, AnnotationLinkContext, useAnnotationNavigation, useAnnotationSource } from "../components/chat/annotationNavigation";
 import { FileViewerView } from "../components/chat/FileViewer";
 import type { FileLink } from "../components/chat/renderers/filePath";
 import { FileTabsNotice, FileTabsReader } from "../features/fileTabs/FileTabs";
@@ -39,10 +40,10 @@ import { ToolCall } from "../components/chat/renderers/ToolCall";
 import { currentToolLabel, resultsByCall } from "../components/chat/toolLine";
 import { groupTranscriptRows, ToolRun } from "../components/chat/toolRun";
 import { hideFileChanges, markBackgrounded, nestActivities, withReasoning, type ChildNode } from "../components/chat/runtimeActivity";
-import { carryLeadKey } from "../components/chat/turnActivity";
+import { carryLeadKey, projectTurns } from "../components/chat/turnActivity";
 import { ChildActivity } from "../components/chat/renderers/ChildActivity";
 import { ThinkingDisclosure } from "../components/chat/renderers/ThinkingDisclosure";
-import { TurnList, useFocusReturn, useTurnChoices } from "../components/chat/TurnList";
+import { RevealTaskContext, TurnList, useFocusReturn, useTurnChoices } from "../components/chat/TurnList";
 import { PhoneAnnotationButton, PhoneAnnotations, usePhoneAnnotationDelivery } from "./AnnotationForm";
 import { useConnection, watchReasoning, type OpenTranscript } from "./connection";
 import { getRuntimeOptions } from "./api";
@@ -213,15 +214,19 @@ function EventRow({ agentId, event, result, onAnnotate }: { agentId: string; eve
 // and status-only rows are not capture sources (FS-13.R28, R31).
 const annotatableKinds = new Set(["user_text", "assistant_text", "tool_call", "diff", "error", "notice", "reasoning"]);
 
+function phoneAnnotationSource(event: TranscriptEvent) {
+  return canAnnotate(event) && annotatableKinds.has(String(event.kind));
+}
+
 // AnnotatableEvent adds the quiet Annotate action: it takes the selection inside
 // this event, read on press because a tap can collapse it before click, and
 // otherwise the whole event (TS-08.R133). Native long-press selection, link taps
 // and scrolling are left alone.
 function AnnotatableEvent({ agentId, event, result, onAnnotate }: { agentId: string; event: TranscriptEvent; result?: TranscriptEvent; onAnnotate: (draft: AnnotationDraft) => void }) {
-  const host = useRef<HTMLDivElement>(null);
+  const host = useAnnotationSource(event.seq);
   const pressed = useRef<string | null | undefined>(undefined);
   const row = <EventRow agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} />;
-  if (!canAnnotate(event) || !annotatableKinds.has(String(event.kind))) return row;
+  if (!phoneAnnotationSource(event)) return row;
   const selected = () => (host.current ? selectionWithin(host.current) : null);
   return (
     <div ref={host} className="phone-annotatable">
@@ -455,12 +460,17 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const viewRef = useRef<OpenTranscript | null>(null);
   viewRef.current = transcript.data && !transcript.isPlaceholderData ? { events, lead, rev } : null;
   useEffect(() => watchReasoning(agentId, () => viewRef.current), [agentId]);
+  const choices = useTurnChoices(agentId);
+  const annotation = useAnnotationNavigation(events, agentId, (seq) => {
+    const turn = projectTurns(nestActivities(events), "", lead).find((item) => item.seqs.has(seq));
+    if (turn?.completed) choices.setOpen(turn.key, true);
+  }, undefined, phoneAnnotationSource);
+  const annotationSeq = annotation.jump?.seq;
   const rows = useMemo(() => {
     const spans = reasoning?.map((span) => ({ ...span, anchor: slotAfter(events, span.anchor) }));
-    return nestActivities(hideFileChanges(withReasoning(markBackgrounded(events), spans, lead)));
-  }, [events, reasoning, lead]);
+    return nestActivities(hideFileChanges(withReasoning(markBackgrounded(events), spans, lead), annotationSeq));
+  }, [events, reasoning, lead, annotationSeq]);
   const toolResults = useMemo(() => resultsByCall(rows), [rows]);
-  const choices = useTurnChoices(agentId);
   const listRef = useRef<HTMLDivElement>(null);
   const trackFocus = useFocusReturn(listRef);
   // The server derives both from the whole session, so they hold when the
@@ -834,7 +844,13 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             <p className="phone-meta">Earlier messages are outside the phone's retained history.</p>
           )}
           <div className="phone-transcript phone-transcript-bubbles" role="list" aria-label="Conversation" ref={listRef} onFocus={trackFocus}>
-            <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(agentId, list, toolResults, annotate, [], 1)} />
+            <AnnotationLinkContext.Provider value={annotation.link}>
+              <AnnotationJumpContext.Provider value={annotation.jump}>
+                <RevealTaskContext.Provider value={annotation.jump}>
+                  <TurnList agentId={agentId} events={rows} lead={lead} choices={choices} renderEvents={(list) => renderRows(agentId, list, toolResults, annotate, [], 1)} />
+                </RevealTaskContext.Provider>
+              </AnnotationJumpContext.Provider>
+            </AnnotationLinkContext.Provider>
             {!offline && agent.running && agent.state === "busy" && <WorkingIndicator tool={currentToolLabel(events)} />}
           </div>
           {pending && <PermissionCard agent={agent} event={pending} latest={latest} disabled={offline} onSettled={refresh} />}

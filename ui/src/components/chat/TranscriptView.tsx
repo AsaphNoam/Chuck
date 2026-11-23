@@ -21,6 +21,7 @@ import { groupTranscriptRows, kindOf, ToolRun } from "./toolRun";
 import { currentToolLabel, resultsByCall } from "./toolLine";
 import { TurnError } from "./renderers/TurnError";
 import { AnnotationCard, annotationTargetId } from "./renderers/AnnotationCard";
+import { AnnotationJumpContext, AnnotationLinkContext, useAnnotationNavigation, useAnnotationSource } from "./annotationNavigation";
 import { NoticeRow } from "./renderers/NoticeRow";
 import { ThinkingDisclosure } from "./renderers/ThinkingDisclosure";
 import { ChildActivity } from "./renderers/ChildActivity";
@@ -185,8 +186,17 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
   const results = useThinkTankResults(agentId);
   const settled = useTranscriptStore((state) => Boolean(state.settled[agentId]));
   const merged = withReasoning(markBackgrounded(mergeThinkTankResults(events, results.data, settled)), reasoning);
+  const choices = useTurnChoices(agentId);
+  const [taskReveal, setTaskReveal] = useState<{ seq: number }>();
+  const annotation = useAnnotationNavigation(events, agentId, (seq) => {
+    atBottomRef.current = false;
+    setAtBottom(false);
+    const turn = projectTurns(nestActivities(merged)).find((item) => item.seqs.has(seq));
+    if (turn?.completed) choices.setOpen(turn.key, true);
+    setTaskReveal({ seq });
+  }, scrollRef);
   // A view without a Files tab keeps diffs inline (FS-03.R87).
-  const nested = nestActivities(inlineDiffs ? merged : hideFileChanges(merged, reveal?.seq));
+  const nested = nestActivities(inlineDiffs ? merged : hideFileChanges(merged, reveal?.seq, annotation.jump?.seq));
   const renderEvents = eventRenderer({
     agentId,
     results: resultsByCall(nested),
@@ -196,8 +206,6 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     onOpenInBrowser: (path) => openFileInBrowser(agentId, path),
     renderActions,
   });
-  const choices = useTurnChoices(agentId);
-  const [taskReveal, setTaskReveal] = useState<{ seq: number }>();
   useEffect(() => {
     const revealTask = (event: Event) => {
       const detail = (event as CustomEvent<{ agentId: string; seq: number }>).detail;
@@ -267,7 +275,13 @@ export function TranscriptView({ agentId, events, sourceActive = false, annotati
     <SearchPassageContext.Provider value={searchReveal}><MessageEditContext.Provider value={{ seq: editingSeq, close: closeEdit }}><div className="transcript-wrap" data-ui="transcript">
       <div className="transcript-view" data-slot="list" ref={scrollRef} onScroll={onScroll} onFocus={trackFocus}>
         <div ref={contentRef}>
-          <RevealTaskContext.Provider value={taskReveal}><TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} /></RevealTaskContext.Provider>
+          <AnnotationLinkContext.Provider value={annotation.link}>
+            <AnnotationJumpContext.Provider value={annotation.jump}>
+              <RevealTaskContext.Provider value={taskReveal}>
+                <TurnList agentId={agentId} events={nested} choices={choices} renderEvents={(list) => renderEvents(list, [], 1)} />
+              </RevealTaskContext.Provider>
+            </AnnotationJumpContext.Provider>
+          </AnnotationLinkContext.Provider>
           {results.isError && (
             <p className="form-error" role="status" data-ui="think-tank" data-slot="results-error">
               Think Tank synthesis could not be loaded.{" "}
@@ -412,6 +426,7 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
   onOpenInBrowser?: (path: string) => Promise<unknown>;
   className?: string;
 }) {
+  const annotationSource = useAnnotationSource(event.seq);
   const search = useContext(SearchPassageContext);
   const matched = eventSourceSeqs(event).some((seq) => search?.ranges.some((range) => range.seq === seq));
   const suppressedText = String(event.prompt_text ?? "");
@@ -423,6 +438,7 @@ function TranscriptEventFrame({ agentId, event, result, onAnnotate, onContextMen
     // data-seq lets the Files tab's "Diff" action scroll to this event
     // (present only when the event carries a runtime seq).
     <div
+      ref={annotationSource}
       className={className}
       data-slot="event"
       data-variant={variantOf(event)}

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import ReactDiffViewer from "react-diff-viewer-continued";
 import type { AnnotationDraft, TranscriptEvent } from "../../../api/types";
 import { clipAnnotationExcerpt } from "../../../lib/annotations";
 import { diffTheme } from "../../../presentation/integrations";
 import type { FileLink } from "./filePath";
+import { AnnotationJumpContext } from "../annotationNavigation";
 
 // selectHint lets a touch surface word the line-number selection affordance
 // for taps; the desktop keeps its click copy (FS-13.R17, FS-20.R32).
@@ -14,6 +15,8 @@ export function DiffBlock({ event, onAnnotate, onOpenFile, selectHint = "Click l
   selectHint?: string;
 }) {
   const [selection, setSelection] = useState<{ side: "old" | "new"; start: number; end: number } | null>(null);
+  const jump = useContext(AnnotationJumpContext);
+  const sourceLine = jump?.seq === event.seq ? jump?.line : undefined;
   const chooseLine = (lineId: string) => {
     // In unified mode the viewer gives an added (or changed new-side) row's
     // gutter no prefix, so its id arrives as `undefined-N`; that column is
@@ -42,7 +45,12 @@ export function DiffBlock({ event, onAnnotate, onOpenFile, selectHint = "Click l
         ) : (
           <strong>{String(event.path ?? "diff")}</strong>
         )}<small>{selectHint}</small>{selection && <button type="button" className="annotation-event-trigger ad-button-secondary" onClick={addSelection}>Annotate lines {Math.min(selection.start, selection.end)}–{Math.max(selection.start, selection.end)}</button>}</div>
-      <ReactDiffViewer oldValue={String(event.old_text ?? event.old ?? "")} newValue={String(event.new_text ?? event.new ?? "")} splitView={false} styles={diffTheme} onLineNumberClick={chooseLine} />
+      <ReactDiffViewer oldValue={String(event.old_text ?? event.old ?? "")} newValue={String(event.new_text ?? event.new ?? "")} splitView={false} styles={diffTheme} onLineNumberClick={chooseLine}
+        renderGutter={sourceLine ? ({ lineNumber, additionalLineNumber }) => {
+          const number = sourceLine.side === "old" ? lineNumber : additionalLineNumber;
+          return number === sourceLine.number ? <td hidden data-annotation-line /> : <></>;
+        } : undefined}
+      />
     </article>
   );
 }

@@ -60,8 +60,8 @@ export function nestActivities(events: TranscriptEvent[]): TranscriptEvent[] {
 // hideFileChanges drops diff rows from a chat's event stream; file changes stay
 // in the Files tab, whose Diff action reveals exactly one diff (FS-03.R2). Apply
 // it after withReasoning, whose span slots index the unfiltered list.
-export function hideFileChanges(events: TranscriptEvent[], revealSeq?: number): TranscriptEvent[] {
-  return events.filter((event) => kindOf(event) !== "diff" || (revealSeq !== undefined && event.seq === revealSeq));
+export function hideFileChanges(events: TranscriptEvent[], ...revealed: Array<number | undefined>): TranscriptEvent[] {
+  return events.filter((event) => kindOf(event) !== "diff" || (event.seq !== undefined && revealed.includes(event.seq)));
 }
 
 // withReasoning places each live reasoning span at its chronological slot as a

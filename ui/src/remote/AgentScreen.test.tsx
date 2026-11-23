@@ -1110,6 +1110,9 @@ describe("AgentScreen annotation capture", () => {
     expect(card).toHaveTextContent("Overall: be brief");
     expect(conversation).not.toHaveTextContent("machine body");
     expect(card.closest(".phone-message")!.querySelector(".phone-annotate-event")).toBeNull();
+    expect(within(card).queryByRole("button", { name: /Jump to source: (replacement|lines|rendered words)/ })).toBeNull();
+    fireEvent.click(within(card).getByRole("button", { name: "Jump to source: remove the dist" }));
+    await waitFor(() => expect(document.activeElement).toHaveTextContent("I will remove the dist folder."));
   });
 
   it("captures rendered and source tracked-file selections and sends them with an event in one batch", async () => {

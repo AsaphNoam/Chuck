@@ -2354,6 +2354,12 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   either direction. Preserve the snapshot and Source order. Reapply the active sort on refresh
   while the column exists and start a different file in file order.
 
+- **R175 — Resolve sent annotation anchors in the current conversation.**
+  The desktop and phone card use the retained event sequence, including folded source
+  sequences, against the loaded transcript. Reuse turn and activity disclosure state
+  and scope navigation to the mounted transcript. Resolve quotes from rendered text
+  inside the source row. Navigation needs no transcript writes or new wire fields.
+
 ## 3. Interfaces & data shapes
 
 ### 3.1 Cascade and file contract
