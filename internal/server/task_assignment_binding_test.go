@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,11 @@ import (
 // execution and authority before sending the assignment.
 func TestPipelineBindingFailureSendsNoAssignmentAndRetries(t *testing.T) {
 	srv, _, promptLog := activationTestServer(t)
+	// Keep the successful retry's admitted turn open while checking its one
+	// assignment. A completed, unreported pipeline turn legitimately triggers
+	// an owner-stall continuation (TS-09.R70), which is outside this assertion.
+	t.Setenv("FAKEACP_SCENARIO", "hold_turn")
+	t.Setenv("FAKEACP_HOLD_FILE", filepath.Join(t.TempDir(), "hold"))
 	task := createDispatchingStallVisit(t, srv, "pr_atomic", "tk_atomic")
 	if _, err := srv.stateStore.DB().Exec(`CREATE TRIGGER fail_assignment_bind BEFORE UPDATE OF standing_agent_id ON pipeline_stage_tasks BEGIN SELECT RAISE(ABORT, 'injected bind failure'); END`); err != nil {
 		t.Fatal(err)
@@ -54,6 +60,14 @@ func TestPipelineBindingFailureSendsNoAssignmentAndRetries(t *testing.T) {
 	}
 	running := dispatchUntilTaskState(t, srv, task.TaskID, state.TaskRunning)
 	waitPrompts(t, promptLog, 1)
+	raw, err := os.ReadFile(promptLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := assignmentFacts(t, firstPromptText(t, raw), "Chuck task assignment from a Chuck pipeline. Instruction:\n\ndo work\n\n")
+	if facts["task_id"] != task.TaskID || facts["execution_handle"] != running.ExecutionHandle {
+		t.Fatalf("retry assignment does not match confirmed execution: %+v", facts)
+	}
 	visit, err = srv.stateStore.LatestPipelineStageTask("pr_atomic")
 	run, runErr := srv.stateStore.ReadPipelineRun("pr_atomic")
 	if err != nil || runErr != nil || visit.StandingAgentID != running.AssignedAgentID || run.State != "running" {

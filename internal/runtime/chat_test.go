@@ -1875,6 +1875,56 @@ func TestStopAllWaitsForCleanTranscriptClose(t *testing.T) {
 	}
 }
 
+type blockedCloseWriter struct {
+	recordingWriter
+	closing chan struct{}
+	release chan struct{}
+}
+
+func (w *blockedCloseWriter) Close() error {
+	close(w.closing)
+	<-w.release
+	return nil
+}
+
+func TestStopCannotReportSuccessWhileJournalIsClosing(t *testing.T) {
+	c, spec := newChatTest(t, "stream_text")
+	writer := &blockedCloseWriter{closing: make(chan struct{}), release: make(chan struct{})}
+	c.SetPersistence(t.TempDir(), func(string, string, *SessionMetaData) (TranscriptWriter, error) {
+		return writer, nil
+	}, &removalIndexer{})
+	h, err := c.Start(context.Background(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	as, err := c.lookup(h.AgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		close(writer.release)
+		select {
+		case <-as.persistenceDone:
+		case <-time.After(StopGrace):
+			t.Error("transcript did not close after release")
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), StopGrace)
+	defer cancel()
+	stopped := make(chan error, 1)
+	go func() { stopped <- c.Stop(ctx, h.AgentID) }()
+	select {
+	case <-writer.closing:
+	case <-ctx.Done():
+		t.Fatal("stop did not begin closing the transcript")
+	}
+	cancel()
+	if err := <-stopped; !errors.Is(err, ErrStopNotSettled) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("stop with journal still closing = %v, want unsettled cancellation", err)
+	}
+}
+
 // A cleanup stop claims the runtime without changing its idle/error status, so
 // StartActivation must honor the same stopping gate as every other turn path:
 // waking mail cannot run a turn on a runtime being removed (TS-10.R19).

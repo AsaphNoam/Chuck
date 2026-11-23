@@ -18,9 +18,8 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 - **Architecture:** the v0.25.0 review is complete in
   [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json); the gate passed. The
   next release needs its own review (receipt `v0.25.0-next.json`).
-- **Verification:** [Main CI](https://github.com/AsaphNoam/Chuck/actions/runs/44996540911) at
-  `74699ab6` failed two server lifecycle tests (CI-FLAKE below). Native, provider and device
-  gates in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md) remain owed.
+- **Verification:** Native, provider and device gates in
+  [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md) remain owed.
 - **Installed runtime:** managed current was v0.20.0 at audit; v0.25.0 is not installed locally.
   Global PATH adapters remain unpatched.
 - **Checks:** unset CHUCK_RUNTIME_ROOT; use GOFLAGS=-p=1 and a writable isolated GOCACHE.
@@ -136,20 +135,6 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
-
-### CI-FLAKE — server lifecycle tests failed in main CI at `74699ab6` (2026-11-22) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-[Run 44996540911](https://github.com/AsaphNoam/Chuck/actions/runs/44996540911), `make test`.
-Local `-race -count=20` of both passed; `make test` passed locally at `a644d024`. Workflow §2:
-open until a cause is found.
-
-- **Worth fixing** (medium) — CI-FLAKE-1 (no invariant class). Cause undetermined. `TestFailedSwitchRollbackKeepsPreviousNativeSession`:
-  `switch_test.go:1234: after failed rollback: search metadata backend = "codex"` (rollback
-  left the search metadata on the switched-to backend, or the read raced the restore).
-- **Worth fixing** (medium) — CI-FLAKE-2 (no invariant class). Cause undetermined. `TestPipelineBindingFailureSendsNoAssignmentAndRetries`:
-  `task_assignment_binding_test.go:56: provider prompts = 2, want 1` (a second prompt reached
-  the provider; either the retry was counted before the check or a binding refusal sent an
-  assignment — the latter would break FS-16 binding-before-effects).
 
 ### Usability review J1–J17 + X1–X7 (2026-11-21 at `10d01e1b`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

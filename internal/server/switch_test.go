@@ -1210,6 +1210,10 @@ func TestFailedSwitchRollbackKeepsPreviousNativeSession(t *testing.T) {
 	}
 	assertFailedStartStopped(t, srv)
 	assertNoStartRegistration(t, srv, id)
+	ftsMode, err := state.DetectSessionsFTS(srv.stateStore.DB())
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertSelection := func(when string) {
 		t.Helper()
 		agent, err := srv.stateStore.ReadAgent(id)
@@ -1225,10 +1229,12 @@ func TestFailedSwitchRollbackKeepsPreviousNativeSession(t *testing.T) {
 			t.Fatalf("%s: target metadata survived: primer %q, launch config %s", when, snap.HistoryPrimer, snap.LaunchConfig)
 		}
 		// Archive search reads the metadata document, where this build has one.
-		var indexed string
-		err = srv.stateStore.DB().QueryRow(`SELECT backend FROM sessions_fts WHERE agent_id = ? AND document_id = 'metadata'`, id).Scan(&indexed)
-		if err == nil && indexed != "claude" {
-			t.Fatalf("%s: search metadata backend = %q", when, indexed)
+		if ftsMode != state.SessionsFTSUnavailable {
+			var indexed string
+			err := srv.stateStore.DB().QueryRow(`SELECT backend FROM sessions_fts WHERE agent_id = ? AND document_id = 'metadata'`, id).Scan(&indexed)
+			if err != nil || indexed != "claude" {
+				t.Fatalf("%s: search metadata backend = %q, %v; want claude", when, indexed, err)
+			}
 		}
 	}
 	assertSelection("after failed rollback")

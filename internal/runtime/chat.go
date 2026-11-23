@@ -1689,7 +1689,7 @@ func (as *agentState) restoreRefusedHeld(message Message) bool {
 	return true
 }
 
-func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
+func (c *ChatRuntime) Stop(ctx context.Context, agentID string) (stopErr error) {
 	c.mu.Lock()
 	as, ok := c.agents[agentID]
 	if ok {
@@ -1713,7 +1713,21 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) error {
 
 	// Terminate the peer before touching receipts or answering a permission.
 	// The transport teardown waits for Stop to record each cancellation.
-	defer close(as.stopComplete)
+	defer func() {
+		close(as.stopComplete)
+		if stopErr != nil || as.persistenceDone == nil {
+			return
+		}
+		// A caller can append to the stopped conversation immediately after
+		// Stop. Wait until the old generation releases its journal writer.
+		waitCtx, cancel := context.WithTimeout(ctx, StopGrace)
+		defer cancel()
+		select {
+		case <-as.persistenceDone:
+		case <-waitCtx.Done():
+			stopErr = fmt.Errorf("%w: wait for conversation journal: %w", ErrStopNotSettled, waitCtx.Err())
+		}
+	}()
 	processSignaled := make(chan struct{})
 	processStopped := make(chan struct{})
 	go func() {

@@ -659,12 +659,14 @@ rollback owns cleanup. Manual launch and Clone hold the new id's lifecycle claim
   `teardownAgentRegistration` rather than a partial hand-written subset, and stops a target
   process that already started before rolling back. If stopping it fails, Switch reports
   `switch_failed` and does not attempt to start a replacement. Before the rollback start, Switch
-  restores the previous runtime selection and the session-snapshot fields a target start
-  replaces (selection, native session, bridge, launch object, contract, capabilities and
-  context reading) in one store transaction, so identity and native session never disagree
-  when the rollback start fails, and commits that selection as the transcript's newest session
-  record so an index rebuild and archive search agree with it. A fresh launch whose applied write fails removes its session
-  row, index rows, transcript and identity once its process is confirmed stopped. The launch and resume composers route their
+  waits for a stopped chat runtime to relinquish its journal writer so the restoration can
+  append through the inactive journal. It restores the previous runtime selection and the
+  session-snapshot fields a target start replaces (selection, native session, bridge, launch
+  object, contract, capabilities and context reading) in one store transaction, so identity and
+  native session never disagree when the rollback start fails. It commits that selection as the
+  transcript's newest session record so an index rebuild and archive search agree with it.
+  A fresh launch whose applied write fails removes its session row, index rows, transcript and
+  identity once its process is confirmed stopped. The launch and resume composers route their
   own partial-registration failures through the same function. API results, `history_handoff` and
   rollback outcomes are unchanged. *Why:* Switch and the composers are the remaining hand-written
   copies of a sequence INV §2 and §4 already require to be shared. *Verify:* the existing launch,
