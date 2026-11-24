@@ -569,6 +569,18 @@ are clear.
   local port (an agent's dev server) can open a PTY socket and send launch or prompt requests.
   Pinning the Origin to the server's own origin plus the configured dev origin is a
   compatibility decision.
+- **One rule for diff annotation coordinates (ANNOTATION-SOURCE-4, inventory 2026-11-24).**
+  Writers of saved `side`/`start_line`/`end_line`: only `DiffBlock` (`chooseLine` decodes the
+  viewer's `L-`/`R-`/`undefined-` gutter ids; `addSelection` slices old/new text), reached from
+  desktop chat and archive replay (`TranscriptView.tsx`) and phone chat plus the phone's focused
+  diff (`AgentScreen.tsx` `EventRow`); `validateAnnotations` (`internal/server/sessions.go`) only
+  checks shape. Readers: `AnnotationCard` turns `side`+`start_line` into a jump; `DiffBlock` maps it
+  back with `alwaysShowLines` (`L-n`/`R-n`, revealing folded context) and a `renderGutter` marker
+  that `scrollToSource` finds. Divergence: the id spelling is decoded in one place and re-encoded
+  in another with no shared helper, and `end_line` is never used on reveal. The viewer keys
+  manually expanded folds by position, so a jump that reveals a line inside a fold can renumber
+  folds the reader already expanded in that diff (fresh views are unaffected). Extract one
+  encode/decode helper with a round-trip test against the real viewer before further changes.
 - **Chat and tracking refresh fidelity.** Make replayed streaming deltas match live deltas; show
   chat initial-load errors instead of a silent panel (FS-03 §6); refresh visible files/commands
   without stale-request overwrite; and let hook-only activity update recency.

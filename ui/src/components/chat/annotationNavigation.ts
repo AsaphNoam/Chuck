@@ -76,24 +76,30 @@ function scrollToSource(row: HTMLElement, excerpt: string, viewport?: HTMLElemen
   row.focus({ preventScroll: true });
 }
 
-function findPassage(row: HTMLElement, excerpt: string): Range | undefined {
+export function findPassage(row: HTMLElement, excerpt: string): Range | undefined {
   const quote = excerpt.endsWith(annotationClippedMarker) ? excerpt.slice(0, -annotationClippedMarker.length).trim() : excerpt.trim();
-  if (!quote) return undefined;
-  const text = row.textContent ?? "";
-  const start = text.indexOf(quote);
-  if (start < 0 || text.indexOf(quote, start + 1) >= 0) return undefined;
-  const end = start + quote.length;
-  const range = document.createRange();
+  // The browser's selection text adds line breaks between block elements that
+  // the DOM's text nodes do not hold, so both sides are compared without
+  // whitespace and each compared character keeps its source node and offset.
+  const target = quote.replace(/\s+/g, "");
+  if (!target) return undefined;
+  let text = "";
+  const points: [Text, number][] = [];
   const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-  let offset = 0;
   while (walker.nextNode()) {
-    const node = walker.currentNode;
-    const next = offset + (node.nodeValue?.length ?? 0);
-    if (start >= offset && start < next) range.setStart(node, start - offset);
-    if (end <= next) {
-      range.setEnd(node, end - offset);
-      return range;
+    const node = walker.currentNode as Text;
+    const value = node.nodeValue ?? "";
+    for (let index = 0; index < value.length; index++) {
+      if (/\s/.test(value[index])) continue;
+      text += value[index];
+      points.push([node, index]);
     }
-    offset = next;
   }
+  const start = text.indexOf(target);
+  if (start < 0 || text.indexOf(target, start + 1) >= 0) return undefined;
+  const [last, lastOffset] = points[start + target.length - 1];
+  const range = document.createRange();
+  range.setStart(...points[start]);
+  range.setEnd(last, lastOffset + 1);
+  return range;
 }

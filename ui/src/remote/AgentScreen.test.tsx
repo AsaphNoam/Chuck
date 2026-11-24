@@ -605,6 +605,31 @@ describe("AgentScreen", () => {
     expect(screen.queryByText(/approved-result/)).toBeNull();
   });
 
+  // FS-13.R38, TS-08.R175: a desktop capture of a resolved permission status
+  // jumps to the status the phone draws, which the phone itself does not offer
+  // for capture.
+  it("jumps from a desktop-created excerpt to a resolved permission status", async () => {
+    live = {
+      agent_id: "a1",
+      events: [
+        { agent_id: "a1", seq: 39, type: "tool_call", ts: "", data: { tool_call_id: "c1", name: "Edit HANDOFF.md", args: {} } },
+        { agent_id: "a1", seq: 41, type: "permission_request", ts: "", data: { tool_call_id: "c1", name: "Edit HANDOFF.md" } },
+        { agent_id: "a1", seq: 42, type: "permission_resolved", ts: "", data: { tool_call_id: "c1", decision: "approve" } },
+        { agent_id: "a1", seq: 43, type: "tool_result", ts: "", data: { tool_call_id: "c1", content: "approved-result" } },
+        { agent_id: "a1", seq: 44, type: "annotation", ts: "", data: { target: { kind: "self" }, annotations: [{ seq: 41, excerpt: "approve", instruction: "why?" }] } },
+      ],
+      has_more: false,
+      pending_permission: null,
+      latest_assistant: "",
+    };
+    renderScreen();
+    const conversation = await screen.findByRole("list", { name: "Conversation" });
+    await waitFor(() => expect(conversation.querySelector(".annotation-card")).not.toBeNull());
+    const card = conversation.querySelector<HTMLElement>(".annotation-card")!;
+    fireEvent.click(within(card).getByRole("button", { name: "Jump to source: approve" }));
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("Edit HANDOFF.md · approve"));
+  });
+
   it("replays notices as compact rows in their original order (FS-03.A49)", async () => {
     live = {
       agent_id: "a1",
@@ -1112,7 +1137,8 @@ describe("AgentScreen annotation capture", () => {
     expect(card.closest(".phone-message")!.querySelector(".phone-annotate-event")).toBeNull();
     expect(within(card).queryByRole("button", { name: /Jump to source: (replacement|lines|rendered words)/ })).toBeNull();
     fireEvent.click(within(card).getByRole("button", { name: "Jump to source: remove the dist" }));
-    await waitFor(() => expect(document.activeElement).toHaveTextContent("I will remove the dist folder."));
+    await waitFor(() => expect(document.activeElement?.closest("[role='list']")).toBe(conversation));
+    expect(document.activeElement).toHaveTextContent("I will remove the dist folder.");
   });
 
   it("captures rendered and source tracked-file selections and sends them with an event in one batch", async () => {

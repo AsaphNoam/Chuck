@@ -218,6 +218,13 @@ function phoneAnnotationSource(event: TranscriptEvent) {
   return canAnnotate(event) && annotatableKinds.has(String(event.kind));
 }
 
+// A sent excerpt can point at a row captured on the desktop that the phone draws
+// but does not offer for capture; the jump resolves against what is drawn here.
+function phoneDrawnSource(event: TranscriptEvent) {
+  if (event.kind === "permission_request") return canAnnotate(event) && Boolean(event.resolved);
+  return phoneAnnotationSource(event) || (canAnnotate(event) && event.kind === "assistant_image");
+}
+
 // AnnotatableEvent adds the quiet Annotate action: it takes the selection inside
 // this event, read on press because a tap can collapse it before click, and
 // otherwise the whole event (TS-08.R133). Native long-press selection, link taps
@@ -226,7 +233,7 @@ function AnnotatableEvent({ agentId, event, result, onAnnotate }: { agentId: str
   const host = useAnnotationSource(event.seq);
   const pressed = useRef<string | null | undefined>(undefined);
   const row = <EventRow agentId={agentId} event={event} result={result} onAnnotate={onAnnotate} />;
-  if (!phoneAnnotationSource(event)) return row;
+  if (!phoneAnnotationSource(event)) return phoneDrawnSource(event) ? <div ref={host}>{row}</div> : row;
   const selected = () => (host.current ? selectionWithin(host.current) : null);
   return (
     <div ref={host} className="phone-annotatable">
@@ -464,7 +471,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const annotation = useAnnotationNavigation(events, agentId, (seq) => {
     const turn = projectTurns(nestActivities(events), "", lead).find((item) => item.seqs.has(seq));
     if (turn?.completed) choices.setOpen(turn.key, true);
-  }, undefined, phoneAnnotationSource);
+  }, undefined, phoneDrawnSource);
   const annotationSeq = annotation.jump?.seq;
   const rows = useMemo(() => {
     const spans = reasoning?.map((span) => ({ ...span, anchor: slotAfter(events, span.anchor) }));

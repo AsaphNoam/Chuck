@@ -89,7 +89,8 @@ it("jumps from a retained annotation to its source in collapsed turn activity", 
   expect(screen.queryByText("Earlier quoted passage")).toBeNull();
   expect(screen.queryByRole("button", { name: /Unavailable source/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Jump to source: quoted passage" }));
-  await waitFor(() => expect(document.activeElement).toHaveTextContent("Earlier quoted passage"));
+  await waitFor(() => expect(document.activeElement?.matches("[data-ui='transcript'] *")).toBe(true));
+  expect(document.activeElement).toHaveTextContent("Earlier quoted passage");
   expect(screen.getByRole("button", { name: /Hide activity/ })).toHaveAttribute("aria-expanded", "true");
   expect(screen.getByRole("button", { name: "Jump to latest" })).toBeInTheDocument();
 });
