@@ -71,6 +71,8 @@ None.
 
 ## Review queue
 
+- Shared interface typography — `7a947b56`, TS-08.R11 and FS-12.R52. Check dense labels
+  and annotation captions in native desktop and phone layouts.
 - Sent annotation source navigation — `2480ca75`, FS-13.R38/A28 and TS-08.R175.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
