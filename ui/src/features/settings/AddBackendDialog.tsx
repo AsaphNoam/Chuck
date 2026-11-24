@@ -52,6 +52,7 @@ export function AddBackendDialog({
   const [name, setName] = useState(suggestedName("claude-acp"));
   const [nameEdited, setNameEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectNative, setConnectNative] = useState(false);
 
   const federated = FEDERATED.includes(type);
   const providerLabel = BACKEND_TYPE_LABELS[type];
@@ -61,6 +62,7 @@ export function AddBackendDialog({
     setName(suggestedName("claude-acp"));
     setNameEdited(false);
     setError(null);
+    setConnectNative(false);
     create.reset();
   };
 
@@ -70,7 +72,7 @@ export function AddBackendDialog({
     if (!nameEdited) setName(suggestedName(next));
   };
 
-  const submit = (connect: boolean) => {
+  const submit = () => {
     setError(null);
     const trimmed = name.trim();
     if (!trimmed) {
@@ -82,7 +84,7 @@ export function AddBackendDialog({
         backend_id: backendIdFor(trimmed, type, existingIds),
         name: trimmed,
         type,
-        connect_native_configuration: connect,
+        connect_native_configuration: federated && connectNative,
       },
       {
         onSuccess: (res) => {
@@ -140,10 +142,13 @@ export function AddBackendDialog({
               edit its models afterwards.
             </p>
             {federated && (
+              <div className="form-field">
+              <label><input type="checkbox" checked={connectNative} onChange={(event) => setConnectNative(event.target.checked)} /> Use my native configuration</label>
               <p className="form-hint">
                 Using your configuration reads {providerLabel}'s existing setup — models, instructions
                 and tooling — without copying or modifying it.
               </p>
+              </div>
             )}
             {error && <p className="form-error">{error}</p>}
           </div>
@@ -151,14 +156,9 @@ export function AddBackendDialog({
             <button type="button" onClick={onCancel} disabled={create.isPending}>
               Cancel
             </button>
-            <button type="button" className="ad-button-primary" onClick={() => submit(false)} disabled={create.isPending}>
-              {create.isPending ? "Working…" : "Create backend"}
+            <button type="button" className="ad-button-primary" onClick={submit} disabled={create.isPending}>
+              {create.isPending ? "Working…" : "Add backend"}
             </button>
-            {federated && (
-              <button type="button" onClick={() => submit(true)} disabled={create.isPending}>
-                Create and use my configuration
-              </button>
-            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>

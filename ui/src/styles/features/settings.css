@@ -326,6 +326,8 @@
 
 .backend-models-section,
 .backend-env-section,
+.backend-advanced-section,
+.backend-provider-advanced,
 .backend-source-section,
 .model-env-editor,
 .source-panel,
@@ -340,6 +342,17 @@
 .backend-source-section {
   border-top: var(--ad-border-thin) solid var(--ad-border-default);
   padding-top: var(--ad-space-4);
+}
+
+.backend-advanced-section,
+.backend-provider-advanced {
+  display: grid;
+  gap: var(--ad-space-3);
+}
+
+.backend-advanced-section {
+  border-top: var(--ad-border-thin) solid var(--ad-border-default);
+  padding-top: var(--ad-space-3);
 }
 
 .backend-models-header {
@@ -359,6 +372,8 @@
 
 .backend-provider-section legend,
 .backend-env-section summary,
+.backend-advanced-section summary,
+.backend-provider-advanced summary,
 .backend-source-section summary {
   color: var(--ad-text-muted);
   font-family: var(--ad-font-text);
@@ -376,6 +391,8 @@
 }
 
 .backend-env-section summary,
+.backend-advanced-section summary,
+.backend-provider-advanced summary,
 .backend-source-section summary {
   cursor: pointer;
 }

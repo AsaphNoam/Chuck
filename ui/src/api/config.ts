@@ -10,6 +10,7 @@ import type {
   BackendsResponse,
   BackendsConfig,
   BackendType,
+  Backend,
   CreateBackendResponse,
 } from "../schemas/backends";
 import { editableBackendsConfig, refreshProviderResponseSchema, withBackendSupport } from "../schemas/backends";
@@ -261,11 +262,11 @@ export function usePutBackends() {
 export function useRefreshProvider() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ backendId, modelId, catalogEtag }: { backendId: string; modelId?: string; catalogEtag?: string }) => {
+    mutationFn: async ({ backendId, modelId, catalogEtag, checkOnly, backend }: { backendId: string; modelId?: string; catalogEtag?: string; checkOnly?: boolean; backend?: Backend }) => {
       const res = await jsonWithCatalogETag<unknown>(`/api/backends/${encodeURIComponent(backendId)}/refresh-provider`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "If-Match": catalogEtag ?? "" },
-        body: JSON.stringify(modelId ? { model_id: modelId } : {}),
+        body: JSON.stringify({ ...(modelId ? { model_id: modelId } : {}), ...(checkOnly ? { check_only: true } : {}), ...(backend ? { backend } : {}) }),
       });
       return { ...refreshProviderResponseSchema.parse(res), catalogEtag: res.catalogEtag };
     },
@@ -295,7 +296,7 @@ export function useConfig() {
 export function usePutConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<Pick<Config, "onboarding_complete" | "default_project" | "default_role" | "appearance_skin" | "notifications" | "task_concurrency" | "auto_continue" | "skip_permissions">>) =>
+    mutationFn: (data: Partial<Pick<Config, "onboarding_complete" | "default_project" | "default_role" | "appearance_skin" | "notifications" | "task_concurrency" | "auto_continue" | "skip_permissions">> & { onboarding_backend?: string; onboarding_catalog_etag?: string }) =>
       json<Config>("/api/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

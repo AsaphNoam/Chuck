@@ -33,9 +33,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 **Start a first chat with Claude or Codex** —
 [`instant-first-chat-and-backend-setup.md`](../ready-changes/instant-first-chat-and-backend-setup.md).
-Installer startup, fresh-home eligibility and target-scoped provider/config APIs are implemented;
-focused bootstrap/config/server checks pass. First-chat and Settings integration are in progress;
-finish with the full closure matrix, focused race check and rendered recovery/API verification.
+Installer, provider/config APIs, first-chat form and Settings repair are implemented. Focused
+bootstrap/config/server/race and UI checks pass; the first full UI suite and fake-provider rendered
+flows pass. The rendered pass exposed a stale repaired-provider error, now fixed with a selected-model
+check and focused regression. Finish the final UI build/suite and re-render that correction;
+the full Go closure is running after correcting its legacy-home fixture.
 Use `GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-firstchat-gocache` with CHUCK_RUNTIME_ROOT unset.
 Provider operations and frontend composition can proceed independently against TS-03.R87–R89.
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { getCapabilities } from "../../api/client";
-import { useRoles } from "../../api/config";
+import { useRoles, useRefreshProvider, configErrorMessage } from "../../api/config";
 import { useProjects } from "../../api/config";
 import { useBackends } from "../../api/config";
 import { useConfig } from "../../api/config";
@@ -13,6 +13,7 @@ import { displayLabel } from "../../lib/labels";
 import { describeProviderRuntime, hasProviderSource } from "../../lib/providerRuntime";
 import { useSuggestedName } from "./useSuggestedName";
 import { useAgentStore } from "../../store/agentStore";
+import { BackendSettingsLink, isProviderSetupErrorCode } from "../settings/backendSettingsLink";
 import { GroupPicker, groupNameError, projectGroupLabels } from "../../components/ui/GroupPicker";
 import { isCanonicalNoPersona, personaLabel } from "../../lib/personas";
 
@@ -76,7 +77,15 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
     if (roleInvalid) setOptionsOpen(true);
   }, [roleInvalid]);
   const [terminalAvailable, setTerminalAvailable] = useState(true);
-  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [launchError, setLaunchError] = useState<{ message: string; backendId?: string; modelId?: string } | null>(null);
+  const [repairBackendId, setRepairBackendId] = useState<string | null>(null);
+  const [repairMessage, setRepairMessage] = useState<string | null>(null);
+  const returnedCheckStarted = useRef(false);
+  const activeBackendId = useRef(backendId);
+  activeBackendId.current = backendId;
+  const activeModelId = useRef(modelId);
+  activeModelId.current = modelId;
+  const refreshProvider = useRefreshProvider();
   const [group, setGroup] = useState("");
   const groups = useMemo(() => projectGroupLabels(agents, project), [agents, project]);
   const groupInvalid = groupPicker && !!groupNameError(group);
@@ -140,12 +149,51 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
     setModelId(runtime.model);
     setEffort(runtime.effort);
     setFast(false);
-  }, [backendId, backendEntry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backendId, backendEntry?.default_model]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) return;
     void getCapabilities().then((caps) => setTerminalAvailable(caps.terminal.available)).catch(() => setTerminalAvailable(false));
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !repairBackendId) return;
+    const refreshAfterReturn = async () => {
+      if (returnedCheckStarted.current || document.visibilityState === "hidden") return;
+      returnedCheckStarted.current = true;
+      if (activeBackendId.current !== repairBackendId) return;
+      const checkedModelId = activeModelId.current;
+      try {
+        const fresh = await refetchBackends();
+        if (activeBackendId.current !== repairBackendId || activeModelId.current !== checkedModelId) return;
+        const target = fresh.data?.backends[repairBackendId];
+        if (!target || !target.models[checkedModelId] || !hasProviderSource(target.type)) {
+          setRepairMessage("This backend is unavailable. Choose a configured backend.");
+          return;
+        }
+        const result = await refreshProvider.mutateAsync({
+          backendId: repairBackendId,
+          modelId: checkedModelId,
+          catalogEtag: fresh.data?.catalogEtag,
+          checkOnly: true,
+        });
+        if (activeBackendId.current !== repairBackendId || activeModelId.current !== checkedModelId) return;
+        const ready = !result.check_error && result.runtime?.state === "available" && result.credentials?.status === "ok";
+        if (ready) setLaunchError((previous) => previous?.backendId === repairBackendId && previous.modelId === checkedModelId ? null : previous);
+        setRepairMessage(result.check_error?.message ?? (ready
+          ? "Provider checked. Review your choices and launch when ready."
+          : "Provider checked. Review its readiness before launching."));
+      } catch (error) {
+        if (activeBackendId.current === repairBackendId && activeModelId.current === checkedModelId) setRepairMessage(`Provider check failed: ${configErrorMessage(error)}`);
+      }
+    };
+    window.addEventListener("focus", refreshAfterReturn);
+    document.addEventListener("visibilitychange", refreshAfterReturn);
+    return () => {
+      window.removeEventListener("focus", refreshAfterReturn);
+      document.removeEventListener("visibilitychange", refreshAfterReturn);
+    };
+  }, [open, repairBackendId, refetchBackends, refreshProvider]);
 
   const selectedBackend = backendsData?.backends[backendId];
   const backendEntries = Object.entries(backendsData?.backends ?? {});
@@ -243,9 +291,13 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
         onError: (err) => {
           // Surface the server's actual reason (e.g. a nonexistent project cwd
           // → runtime launch failure) instead of an opaque "HTTP 502".
-          const e = err as { body?: { error?: { message?: string } } };
+          const e = err as { body?: { error?: { code?: string; message?: string } } };
           setOptionsOpen(true);
-          setLaunchError(e?.body?.error?.message ?? String(err));
+          if (isProviderSetupErrorCode(e?.body?.error?.code)) {
+            returnedCheckStarted.current = false;
+            setRepairBackendId(backendId);
+          }
+          setLaunchError({ message: e?.body?.error?.message ?? String(err), ...(isProviderSetupErrorCode(e?.body?.error?.code) ? { backendId, modelId } : {}) });
         },
       },
     );
@@ -293,7 +345,7 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
             {providerDescription && (
               <p className={providerDescription.problem ? "form-warning" : "new-agent-provider"}>
                 {providerDescription.problem ?? providerDescription.summary}
-                {providerDescription.problem && " Change it in Settings → Backends."}
+                {providerDescription.problem && <> <BackendSettingsLink backendId={backendId} onClick={() => { returnedCheckStarted.current = false; setRepairBackendId(backendId); }} /></>}
               </p>
             )}
 
@@ -394,7 +446,8 @@ export function NewAgentModal({ open, onClose, initialRole, initialProject, init
                 {unverifiedSelection && <button type="button" onClick={clearUnverified}>Clear options</button>}
               </div>
             )}
-            {launchError && <p className="form-error">{launchError}</p>}
+            {launchError && <p className="form-error">{launchError.message}{launchError.backendId === backendId && <> <BackendSettingsLink backendId={backendId} onClick={() => { returnedCheckStarted.current = false; setRepairBackendId(backendId); }} /></>}</p>}
+            {repairMessage && repairBackendId === backendId && <p role="status">{repairMessage}</p>}
 
             <div className="form-actions">
               <button type="button" onClick={onClose} disabled={launch.isPending}>Cancel</button>

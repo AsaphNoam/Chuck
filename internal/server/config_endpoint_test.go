@@ -211,6 +211,7 @@ func TestBackfillOnboardingCompletionForUsedHome(t *testing.T) {
 	}
 	cfg.DefaultProject = "my-app"
 	cfg.TaskConcurrency = 3
+	cfg.FirstChatEligible = false
 	if err := srv.configStore.WriteConfig(cfg); err != nil {
 		t.Fatal(err)
 	}

@@ -18,12 +18,16 @@ export interface ProviderSectionProps {
   // an unsaved backend.
   runtime: ProviderRuntime | undefined;
   // True when the Settings draft differs from the saved catalog.
-  dirty: boolean;
+  targetDirty: boolean;
+  canSaveAndCheck: boolean;
+  catalogStale: boolean;
+  advancedOpen: boolean;
   refreshing: boolean;
   // True while another backend's refresh runs; refreshes are serialized.
   otherRefreshing: boolean;
-  refreshMessage: string | null;
-  onRefresh: () => void;
+  actionMessage: string | null;
+  actionLabel: "Refresh provider" | "Save & check";
+  onAction: () => void;
 }
 
 // ProviderSection is a Claude/Codex backend's provider choice (FS-09.R72,
@@ -36,11 +40,15 @@ export function ProviderSection({
   onModeChange,
   onExecutableChange,
   runtime,
-  dirty,
+  targetDirty,
+  canSaveAndCheck,
+  catalogStale,
+  advancedOpen,
   refreshing,
   otherRefreshing,
-  refreshMessage,
-  onRefresh,
+  actionMessage,
+  actionLabel,
+  onAction,
 }: ProviderSectionProps) {
   const name = providerName(backend.type);
   const bundled = backend.provider_mode === "bundled";
@@ -50,6 +58,36 @@ export function ProviderSection({
   return (
     <fieldset className="backend-provider-section">
       <legend>Provider</legend>
+      <div className="backend-provider-status" aria-live="polite">
+        {!targetDirty && runtime ? (
+          described && (
+            <>
+              <span className="backend-provider-runtime">Next start: {described.summary}</span>
+              {described.problem && (
+                <span className="form-warning">
+                  {described.problem}{" "}
+                  {!bundled && runtime.state === "missing" && runtime.source === "detected" && (
+                    <a href={providerInstallURL(backend.type)} target="_blank" rel="noreferrer">Install {name}</a>
+                  )}
+                </span>
+              )}
+            </>
+          )
+        ) : <span>{targetDirty ? "This backend has unsaved changes." : "Provider status is not available yet."}</span>}
+        <button
+          type="button"
+          className="ad-button-primary"
+          onClick={onAction}
+          disabled={catalogStale || refreshing || otherRefreshing || (targetDirty && !canSaveAndCheck)}
+          title={catalogStale ? "Reload the saved catalog before making changes" : targetDirty && !canSaveAndCheck ? "Use the catalog editor to coordinate default or backend changes" : undefined}
+        >
+          {refreshing ? (actionLabel === "Save & check" ? "Saving & checking…" : "Checking…") : actionLabel}
+        </button>
+        {targetDirty && !canSaveAndCheck && <span className="backend-provider-hint">Save coordinated catalog changes below before checking.</span>}
+        {actionMessage && <span role="status">{actionMessage}</span>}
+      </div>
+      <details className="backend-provider-advanced" open={advancedOpen}>
+        <summary>Advanced provider settings</summary>
       <div className="backend-provider-modes" role="radiogroup" aria-label={`${name} provider`}>
         <label className="backend-autosync-label">
           <input type="radio" name={`provider-mode-${backendId}`} checked={!bundled} onChange={() => onModeChange("installed")} />
@@ -73,7 +111,7 @@ export function ProviderSection({
         )
       ) : (
         <label className="backend-provider-path">
-          <span>Executable path (advanced)</span>
+          <span>Executable path</span>
           <input
             value={executable}
             placeholder={`Found on PATH (${key})`}
@@ -81,35 +119,7 @@ export function ProviderSection({
           />
         </label>
       )}
-      <div className="backend-provider-status" aria-live="polite">
-        {dirty || !runtime ? (
-          <span>Save to check provider.</span>
-        ) : (
-          described && (
-            <>
-              <span className="backend-provider-runtime">Next start: {described.summary}</span>
-              {described.problem && (
-                <span className="form-warning">
-                  {described.problem}{" "}
-                  {!bundled && runtime.state === "missing" && runtime.source === "detected" && (
-                    <a href={providerInstallURL(backend.type)} target="_blank" rel="noreferrer">Install {name}</a>
-                  )}
-                </span>
-              )}
-            </>
-          )
-        )}
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={dirty || !runtime || refreshing || otherRefreshing}
-          title={dirty ? "Save your Settings changes first" : undefined}
-        >
-          {refreshing ? "Checking…" : "Refresh provider"}
-        </button>
-        {dirty && <span className="backend-provider-hint">Save your Settings changes to refresh.</span>}
-        {refreshMessage && !dirty && <span role="status">{refreshMessage}</span>}
-      </div>
+      </details>
     </fieldset>
   );
 }

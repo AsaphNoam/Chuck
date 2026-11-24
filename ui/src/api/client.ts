@@ -23,6 +23,10 @@ async function json<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export function getCurrentSessions() {
+  return json<Array<{ agent: { agent_id: string; name: string } }>>("/api/sessions");
+}
+
 // WorktreeStartNotice is present on a launch/resume/switch response only when
 // the start had to recreate the project's owned checkout (FS-19.R7).
 export interface WorktreeStartNotice {

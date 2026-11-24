@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { BackendsEditor } from "./BackendsEditor";
 import { BACKEND_SUPPORT_WIRE } from "../../test/backendSupport";
+import { BackendSettingsLink, isProviderSetupErrorCode } from "./backendSettingsLink";
 
 // Type selects show the plain provider name (FS-02.R69), the same text as a default backend name,
 // so display-value queries name the field kind they mean (a select matches on its option).
@@ -50,6 +51,70 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe("BackendsEditor", () => {
+  it("keeps the old validator and draft when another writer advances the catalog after refresh", async () => {
+    let refreshed = false;
+    let putValidator: string | null = null;
+    server.use(
+      http.get("/api/backends", () => HttpResponse.json({ ...defaultBackendsDoc, backend_support: BACKEND_SUPPORT_WIRE }, { headers: { ETag: refreshed ? '"other-writer"' : '"initial"' } })),
+      http.post("/api/backends/claude/refresh-provider", () => {
+        refreshed = true;
+        return HttpResponse.json({ credentials: { status: "ok" }, catalog: { status: "unchanged", added_count: 0 }, runtime: { state: "available", source: "detected", version: "2.1.300" } }, { headers: { ETag: '"refresh"' } });
+      }),
+      http.put("/api/backends", ({ request }) => {
+        putValidator = request.headers.get("If-Match");
+        return HttpResponse.json({ error: { code: "backend_catalog_changed", message: "Catalog changed" } }, { status: 409 });
+      }),
+    );
+    renderWithQuery(<BackendsEditor />);
+    const refresh = await screen.findByRole("button", { name: "Refresh provider" });
+    await waitFor(() => expect(refresh).toBeEnabled());
+    fireEvent.click(refresh);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Checking…" })).not.toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue(shown("Claude", "INPUT")), { target: { value: "My draft" } });
+    expect(await screen.findByRole("button", { name: "Reload saved catalog" })).toBeInTheDocument();
+    expect(screen.getByText("Save")).toBeDisabled();
+    fireEvent.click(screen.getByText("Save"));
+    expect(putValidator).toBeNull();
+    expect(screen.getByDisplayValue("My draft")).toBeInTheDocument();
+  });
+
+  it("links a typed provider failure to an encoded backend in a separate tab", () => {
+    render(<BackendSettingsLink backendId="custom & provider" />);
+    const link = screen.getByRole("link", { name: "Open backend settings (opens in a new tab)" });
+    expect(link).toHaveAttribute("href", "/settings?tab=backends&backend=custom+%26+provider");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener");
+    expect(isProviderSetupErrorCode("provider_executable_missing")).toBe(true);
+    expect(isProviderSetupErrorCode("prose mentions provider_executable_missing")).toBe(false);
+  });
+
+  it("merges imported models after Save & check while retaining newer and unrelated drafts", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let committed: typeof defaultBackendsDoc.backends.claude | undefined;
+    const other = { ...defaultBackendsDoc.backends.claude, name: "Other", default: false };
+    server.use(
+      http.get("/api/backends", () => HttpResponse.json({ ...defaultBackendsDoc, backends: { claude: committed ? { ...committed, models: { ...committed.models, imported: { name: "Imported model", model: "imported-model" } } } : defaultBackendsDoc.backends.claude, other }, backend_support: BACKEND_SUPPORT_WIRE }, { headers: { ETag: committed ? '"saved"' : '"initial"' } })),
+      http.post("/api/backends/claude/refresh-provider", async ({ request }) => {
+        const body = await request.json() as { backend: typeof defaultBackendsDoc.backends.claude };
+        await held;
+        committed = body.backend;
+        return HttpResponse.json({ backend: committed, credentials: { status: "ok" }, catalog: { status: "added", added_count: 1 }, runtime: { state: "available", source: "detected" } }, { headers: { ETag: '"saved"' } });
+      }),
+    );
+    renderWithQuery(<BackendsEditor />);
+    fireEvent.change(await screen.findByDisplayValue(shown("Claude", "INPUT")), { target: { value: "Submitted name" } });
+    fireEvent.change(screen.getByDisplayValue(shown("Other", "INPUT")), { target: { value: "Unrelated draft" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Save & check" })[0]);
+    await screen.findByRole("button", { name: "Saving & checking…" });
+    fireEvent.change(screen.getByDisplayValue("Submitted name"), { target: { value: "Newer edit" } });
+    release();
+    expect(await screen.findByDisplayValue("Imported model")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Newer edit")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Unrelated draft")).toBeInTheDocument();
+    expect(committed?.name).toBe("Submitted name");
+  });
+
   it("renders backend name from GET /api/backends", async () => {
     renderWithQuery(<BackendsEditor />);
     expect(await screen.findByDisplayValue(shown("Claude", "INPUT"))).toBeInTheDocument();
@@ -210,7 +275,7 @@ describe("BackendsEditor", () => {
     fireEvent.change(providerSelect, { target: { value: "codex-acp" } });
     await waitFor(() => expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Codex / OpenAI"));
 
-    fireEvent.click(screen.getByText("Create backend"));
+    fireEvent.click(screen.getByRole("button", { name: "Add backend" }));
     await waitFor(() => expect(created).not.toBeNull());
     expect(created!).toMatchObject({ name: "Codex / OpenAI", type: "codex-acp", connect_native_configuration: false });
 
@@ -235,7 +300,7 @@ describe("BackendsEditor", () => {
 
     fireEvent.click(screen.getByText("Add backend"));
     await screen.findByLabelText("Provider");
-    fireEvent.click(screen.getByText("Create backend"));
+    fireEvent.click(screen.getByRole("button", { name: "Add backend" }));
 
     expect(await screen.findByDisplayValue(shown("Codex / OpenAI", "INPUT"))).toBeInTheDocument();
     expect(screen.getByDisplayValue("Renamed but unsaved")).toBeInTheDocument();
@@ -248,7 +313,7 @@ describe("BackendsEditor", () => {
       ),
     );
     await openAddDialog();
-    fireEvent.click(screen.getByText("Create backend"));
+    fireEvent.click(screen.getByRole("button", { name: "Add backend" }));
 
     expect(await screen.findByText(/backend id must be a slug/)).toBeInTheDocument();
     expect(screen.getByLabelText("Provider")).toBeInTheDocument();
@@ -272,7 +337,8 @@ describe("BackendsEditor", () => {
     );
     const providerSelect = (await openAddDialog()) as HTMLSelectElement;
     fireEvent.change(providerSelect, { target: { value: "codex-acp" } });
-    fireEvent.click(screen.getByText("Create and use my configuration"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use my native configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add backend" }));
 
     expect(await screen.findByText(/imported 4 configured models/)).toBeInTheDocument();
     expect(screen.getByText(/not a check of availability or entitlement/)).toBeInTheDocument();
@@ -292,7 +358,8 @@ describe("BackendsEditor", () => {
     );
     const retrySelect = (await openAddDialog()) as HTMLSelectElement;
     fireEvent.change(retrySelect, { target: { value: "codex-acp" } });
-    fireEvent.click(screen.getByText("Create and use my configuration"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use my native configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add backend" }));
 
     expect(await screen.findByText(/is not connected: no native configuration found/)).toBeInTheDocument();
     // The valid backend is still created and rendered so the person can retry.
@@ -335,7 +402,8 @@ describe("BackendsEditor", () => {
 
     fireEvent.click(screen.getByText("Add backend"));
     fireEvent.change(await screen.findByLabelText("Provider"), { target: { value: "codex-acp" } });
-    fireEvent.click(screen.getByText("Create and use my configuration"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use my native configuration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add backend" }));
 
     await waitFor(() => expect(sourceGets).toBeGreaterThan(before));
     expect(await screen.findByText("/native/codex")).toBeInTheDocument();
@@ -344,11 +412,11 @@ describe("BackendsEditor", () => {
 
   it("only offers native configuration for federated providers", async () => {
     const providerSelect = (await openAddDialog()) as HTMLSelectElement;
-    expect(screen.getByText("Create and use my configuration")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Use my native configuration" })).toBeInTheDocument();
 
     fireEvent.change(providerSelect, { target: { value: "opencode-acp" } });
     await waitFor(() =>
-      expect(screen.queryByText("Create and use my configuration")).not.toBeInTheDocument(),
+      expect(screen.queryByRole("checkbox", { name: "Use my native configuration" })).not.toBeInTheDocument(),
     );
   });
 
@@ -588,12 +656,12 @@ describe("BackendsEditor", () => {
       renderWithQuery(<BackendsEditor />);
       expect(await screen.findByText(/Next start: Installed \(backend path\) Claude Code · \/Users\/me\/bin\/claude · version not checked/)).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: "Installed provider (default)" })).toBeChecked();
-      expect(screen.getByLabelText("Executable path (advanced)")).toHaveValue("/Users/me/bin/claude");
+      expect(screen.getByLabelText("Executable path")).toHaveValue("/Users/me/bin/claude");
 
       fireEvent.click(screen.getByRole("radio", { name: "Chuck bundle" }));
       expect(screen.getByText(/are inactive while the Chuck bundle is selected/)).toBeInTheDocument();
-      expect(screen.getByText("Save to check provider.")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Refresh provider" })).toBeDisabled();
+      expect(screen.getByText("This backend has unsaved changes.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save & check" })).toBeEnabled();
 
       fireEvent.click(screen.getByText("Save"));
       await waitFor(() => expect(putBody).not.toBeNull());
@@ -613,7 +681,7 @@ describe("BackendsEditor", () => {
       );
       renderWithQuery(<BackendsEditor />);
       fireEvent.click(await screen.findByRole("radio", { name: "Installed provider (default)" }));
-      fireEvent.change(screen.getByLabelText("Executable path (advanced)"), { target: { value: "claude-beta" } });
+      fireEvent.change(screen.getByLabelText("Executable path"), { target: { value: "claude-beta" } });
       fireEvent.click(screen.getByText("Save"));
       await waitFor(() => expect(putBody).not.toBeNull());
       expect(putBody!.backends.claude.provider_mode).toBe("installed");
@@ -752,7 +820,7 @@ describe("BackendsEditor", () => {
       );
       renderWithQuery(<BackendsEditor />);
       expect(await screen.findByDisplayValue(shown("Claude", "INPUT"))).toBeInTheDocument();
-      expect(screen.getByText("Save to check provider.")).toBeInTheDocument();
+      expect(screen.getByText("Provider status is not available yet.")).toBeInTheDocument();
     });
 
     it("explains a missing installed provider with an install link", async () => {

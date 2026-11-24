@@ -101,6 +101,15 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 describe("OnboardingGate", () => {
+  it("allows backend repair and confirmed chat links before setup completion", async () => {
+    for (const path of ["/settings?tab=backends&backend=claude", "/agent/confirmed"]) {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 0 } } });
+      const view = render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={[path]}><OnboardingGate><div>Repair or chat</div></OnboardingGate></MemoryRouter></QueryClientProvider>);
+      expect(await screen.findByText("Repair or chat")).toBeInTheDocument();
+      expect(screen.queryByText("Welcome to Chuck")).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
   it("renders wizard when satisfied is false, blocking dashboard", async () => {
     renderWithQuery(
       <OnboardingGate>

@@ -7,6 +7,8 @@ export const onboardingStepSchema = z.object({
 
 export const onboardingSchema = z.object({
   satisfied: z.boolean(),
+  first_chat: z.boolean().optional(),
+  launchable_projects: z.array(z.string()).optional(),
   steps: z.object({
     backend: onboardingStepSchema,
     project: onboardingStepSchema,

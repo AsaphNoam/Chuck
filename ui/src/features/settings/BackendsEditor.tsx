@@ -9,7 +9,7 @@ import type {
   CreateBackendResponse,
   RefreshProviderResponse,
 } from "../../schemas/backends";
-import { editableBackendsConfig, launchSupportFor } from "../../schemas/backends";
+import { launchSupportFor } from "../../schemas/backends";
 import { hasProviderSource, providerExecutableKey } from "../../lib/providerRuntime";
 import { ProviderSection } from "./ProviderSection";
 import { BACKEND_TYPE_LABELS, BACKEND_TYPE_OPTIONS } from "../../lib/backendTypes";
@@ -17,6 +17,7 @@ import { ModelRow, type ModelCapability } from "./ModelRow";
 import { ConfigSourcePanel } from "./ConfigSourcePanel";
 import { AddBackendDialog } from "./AddBackendDialog";
 import { SettingsHeader } from "./SettingsHeader";
+import { isProviderSetupErrorCode } from "./backendSettingsLink";
 
 type Pair = { key: string; value: string };
 
@@ -158,14 +159,26 @@ function setEnvPair(pairs: Pair[], key: string, value: string): Pair[] {
 }
 
 function refreshSummary(res: RefreshProviderResponse): string {
+  if (res.check_error) return `Provider check failed: ${res.check_error.message}`;
+  if (!res.runtime || !res.credentials) return "Provider check did not return readiness details. Retry the check.";
   const version = res.runtime.version ? `Version ${res.runtime.version}` : res.runtime.state === "available" ? "Version unknown" : "Provider unavailable";
-  const signIn = res.credentials.status === "ok" ? "signed in" : res.credentials.status === "failed" ? "sign-in needed" : "sign-in not checked";
+  const signIn = res.credentials.status === "ok"
+    ? "signed in"
+    : res.credentials.detail === "not_logged_in"
+      ? "sign-in needed"
+      : res.credentials.detail === "no_api_key"
+        ? "sign-in status unavailable"
+        : res.credentials.detail === "invalid_api_key"
+          ? "API key rejected"
+          : res.credentials.status === "failed"
+            ? "sign-in status unavailable"
+            : "sign-in not checked";
   const models = {
-    added: `${res.catalog.added_count} new model${res.catalog.added_count === 1 ? "" : "s"} added`,
+    added: `${res.catalog?.added_count ?? 0} new model${res.catalog?.added_count === 1 ? "" : "s"} added`,
     unchanged: "no new models",
     disabled: "model import is off",
     unavailable: "no local model list found",
-  }[res.catalog.status];
+  }[res.catalog?.status ?? "unavailable"];
   return `${version}; ${signIn}; ${models}.`;
 }
 
@@ -178,7 +191,7 @@ function credChip(result: CredResult) {
   );
 }
 
-export function BackendsEditor() {
+export function BackendsEditor({ requestedBackendId }: { requestedBackendId?: string }) {
   const { data, isLoading, refetch } = useBackends();
   const putBackends = usePutBackends();
   const refreshProvider = useRefreshProvider();
@@ -186,6 +199,7 @@ export function BackendsEditor() {
   const [refreshMessages, setRefreshMessages] = useState<Record<string, string>>({});
 
   const [entries, setEntries] = useState<BackendEntry[]>([]);
+  const [savedBackends, setSavedBackends] = useState<Record<string, Backend>>({});
   const [defaultId, setDefaultId] = useState<string>("");
   const [catalogEtag, setCatalogEtag] = useState<string | undefined>();
   const [savedBackendIds, setSavedBackendIds] = useState<Set<string>>(new Set());
@@ -194,11 +208,16 @@ export function BackendsEditor() {
   const [showBlankModels, setShowBlankModels] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [staleCatalog, setStaleCatalog] = useState(false);
+  const [advancedBackendId, setAdvancedBackendId] = useState<string | null>(null);
+  const [focusedBackendId, setFocusedBackendId] = useState<string | null>(null);
+  const backendCards = useRef(new Map<string, HTMLDivElement>());
 
   const seedDraft = (cfg: CatalogETagged<BackendsConfig>) => {
     const es = backendEntries(cfg);
     setEntries(es);
     setSavedBackendIds(new Set(Object.keys(cfg.backends ?? {})));
+    setSavedBackends(cfg.backends ?? {});
     setDefaultId(es.find((e) => e.backend.default)?.id ?? es[0]?.id ?? "");
     setCatalogEtag(cfg.catalogEtag);
   };
@@ -213,6 +232,23 @@ export function BackendsEditor() {
     seeded.current = true;
     seedDraft(data);
   }, [data]);
+
+  useEffect(() => {
+    if (!requestedBackendId || !data) return;
+    if (!data.backends[requestedBackendId]) {
+      setFocusedBackendId(null);
+      setAdvancedBackendId(null);
+      return;
+    }
+    setFocusedBackendId(requestedBackendId);
+    setAdvancedBackendId(requestedBackendId);
+    const frame = requestAnimationFrame(() => {
+      const card = backendCards.current.get(requestedBackendId);
+      card?.scrollIntoView({ block: "center" });
+      card?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestedBackendId, data]);
 
   const updateEntry = (id: string, patch: Partial<BackendEntry>) => {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -236,6 +272,7 @@ export function BackendsEditor() {
       return next;
     });
     setSavedBackendIds((prev) => new Set(prev).add(id));
+    setSavedBackends((prev) => ({ ...prev, [id]: backend }));
     if (backend.default) setDefaultId(id);
   };
 
@@ -266,7 +303,10 @@ export function BackendsEditor() {
   const syncBackendFromServer = async (id: string) => {
     const fresh = await refetch();
     const backend = fresh.data?.backends?.[id];
-    if (backend) mergeBackend(id, backend);
+    if (backend) {
+      mergeBackend(id, backend);
+      setSavedBackends((prev) => ({ ...prev, [id]: backend }));
+    }
     setCatalogEtag(fresh.data?.catalogEtag);
   };
 
@@ -299,41 +339,113 @@ export function BackendsEditor() {
     const config = { ...entriesToConfig(entries, defaultId), catalogEtag };
     putBackends.mutate(config, {
       onSuccess: (resp) => {
+        setStaleCatalog(false);
         setCredentials(resp.credentials ?? {});
         seedDraft(resp); // re-sync the draft from the normalized response
       },
-      onError: (e) => setError(configErrorMessage(e)),
+      onError: async (e) => {
+        setError(configErrorMessage(e));
+        if ((e as { body?: { error?: { code?: string } } })?.body?.error?.code === "backend_catalog_changed") {
+          setStaleCatalog(true);
+          await refetch();
+        }
+      },
     });
   };
 
-  // Refresh provider needs the saved catalog, so any unsaved edit disables it
-  // (FS-09.R72): the check never runs or reports on a draft.
-  const dirty = !data || canonicalCatalog(entriesToConfig(entries, defaultId)) !== canonicalCatalog(editableBackendsConfig(data));
-
   // One refresh runs at a time across the editor: each one advances the
   // catalog ETag, so a second concurrent request would only conflict.
-  const handleRefresh = (id: string, backend: Backend) => {
-    const before = data?.backends?.[id]?.models ?? {};
+  const updateAfterProviderAction = (id: string, submitted: Backend | undefined, res: CatalogETagged<RefreshProviderResponse>) => {
+    setCredentials((prev) => {
+      const next = { ...prev };
+      if (res.credentials) next[id] = res.credentials;
+      else delete next[id];
+      return next;
+    });
+    const result = refreshSummary(res);
+    setRefreshMessages((prev) => ({ ...prev, [id]: submitted ? `${res.backend?.name ?? "Backend"} settings saved. ${result}` : result }));
+    if (res.backend && submitted) {
+      setSavedBackends((prev) => ({ ...prev, [id]: res.backend! }));
+      setSavedBackendIds((prev) => new Set(prev).add(id));
+      setEntries((prev) => prev.map((entry) => {
+        if (entry.id !== id) return entry;
+        const current = { ...entry.backend, env: fromPairs(entry.envPairs) };
+        if (submitted && canonicalCatalog(current) !== canonicalCatalog(submitted)) {
+          const imported = Object.fromEntries(
+            Object.entries(res.backend!.models ?? {}).filter(([modelId]) => !(modelId in submitted.models)),
+          );
+          return {
+            ...entry,
+            backend: { ...entry.backend, models: { ...imported, ...entry.backend.models } },
+          };
+        }
+        return { ...entry, backend: res.backend!, envPairs: toPairs(res.backend!.env) };
+      }));
+    }
+    if (res.catalogEtag) setCatalogEtag(res.catalogEtag);
+    if (res.check_error && isProviderSetupErrorCode(res.check_error.code)) {
+      setAdvancedBackendId(id);
+    }
+    if (res.check_error?.code === "backend_catalog_changed") {
+      setStaleCatalog(true);
+      void refetch();
+    }
+  };
+
+  const reconcileProviderCatalog = async (id: string, before: Backend, res: CatalogETagged<RefreshProviderResponse>) => {
+    const fresh = await refetch();
+    if (!fresh.data || !res.catalogEtag || fresh.data.catalogEtag !== res.catalogEtag) {
+      setStaleCatalog(true);
+      return;
+    }
+    const committed = fresh.data.backends[id];
+    if (!committed) {
+      setStaleCatalog(true);
+      return;
+    }
+    setCatalogEtag(res.catalogEtag);
+    setSavedBackends((prev) => ({ ...prev, [id]: committed }));
+    const added = Object.fromEntries(Object.entries(committed.models).filter(([modelId]) => !(modelId in before.models)));
+    setEntries((prev) => prev.map((entry) => entry.id === id
+      ? { ...entry, backend: { ...entry.backend, models: { ...added, ...entry.backend.models } } }
+      : entry));
+  };
+
+  const refreshSavedBackend = async (id: string, backend: Backend) => {
     setRefreshing(id);
     setRefreshMessages((prev) => ({ ...prev, [id]: "" }));
-    refreshProvider.mutate({ backendId: id, modelId: backend.default_model, catalogEtag }, {
-      onSuccess: async (res) => {
-        setCredentials((prev) => ({ ...prev, [id]: res.credentials }));
-        setRefreshMessages((prev) => ({ ...prev, [id]: refreshSummary(res) }));
-        // The draft may have changed while the check ran, so fold in only the
-        // models the refresh added (it is add-only) and keep every edit.
-        const fresh = await refetch();
-        const added = Object.fromEntries(
-          Object.entries(fresh.data?.backends?.[id]?.models ?? {}).filter(([modelId]) => !(modelId in before)),
-        );
-        setEntries((prev) => prev.map((e) => (e.id === id
-          ? { ...e, backend: { ...e.backend, models: { ...added, ...e.backend.models } } }
-          : e)));
-        setCatalogEtag(res.catalogEtag);
-      },
-      onError: (e) => setRefreshMessages((prev) => ({ ...prev, [id]: `Refresh failed: ${configErrorMessage(e)}` })),
-      onSettled: () => setRefreshing(null),
-    });
+    try {
+      const res = await refreshProvider.mutateAsync({ backendId: id, modelId: backend.default_model, catalogEtag });
+      updateAfterProviderAction(id, undefined, res);
+      await reconcileProviderCatalog(id, backend, res);
+    } catch (e) {
+      setRefreshMessages((prev) => ({ ...prev, [id]: `Refresh failed: ${configErrorMessage(e)}` }));
+      if ((e as { body?: { error?: { code?: string } } })?.body?.error?.code === "backend_catalog_changed") {
+        setStaleCatalog(true);
+        await refetch();
+      }
+    } finally {
+      setRefreshing(null);
+    }
+  };
+
+  const saveAndCheckBackend = async (id: string, backend: Backend) => {
+    const submitted: Backend = { ...backend, default: id === defaultId, env: fromPairs(entries.find((entry) => entry.id === id)?.envPairs ?? []) };
+    setRefreshing(id);
+    setRefreshMessages((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const res = await refreshProvider.mutateAsync({ backendId: id, backend: submitted, catalogEtag });
+      updateAfterProviderAction(id, submitted, res);
+      await reconcileProviderCatalog(id, submitted, res);
+    } catch (e) {
+      setRefreshMessages((prev) => ({ ...prev, [id]: `Save & check failed: ${configErrorMessage(e)}` }));
+      if ((e as { body?: { error?: { code?: string } } })?.body?.error?.code === "backend_catalog_changed") {
+        setStaleCatalog(true);
+        await refetch();
+      }
+    } finally {
+      setRefreshing(null);
+    }
   };
 
   if (isLoading) return <p data-ui="config-editor" data-state="loading" data-variant="backends">Loading backends…</p>;
@@ -357,10 +469,31 @@ export function BackendsEditor() {
         <p className="config-empty">No backends configured. Add one to get started.</p>
       )}
 
+      {requestedBackendId && data && (!data.backends[requestedBackendId] || !entries.some((entry) => entry.id === requestedBackendId)) && (
+        <p className="config-notice" role="status">
+          Backend “{requestedBackendId}” is unavailable. Choose a configured backend below or add it again.
+        </p>
+      )}
+
       {entries.map(({ id, backend, envPairs }) => {
         const capability = modelCapability(data?.backend_support, backend.type);
+        const saved = savedBackends[id];
+        const targetDirty = !!saved && canonicalCatalog({ ...backend, default: id === defaultId, env: fromPairs(envPairs) }) !== canonicalCatalog(saved);
+        const canSaveAndCheck = !!saved && saved.type === backend.type && Boolean(saved.default) === (id === defaultId);
+        const advancedOpen = advancedBackendId === id;
         return (
-        <div key={id} className="backend-card" data-slot="item">
+        <div
+          key={id}
+          ref={(element) => {
+            if (element) backendCards.current.set(id, element);
+            else backendCards.current.delete(id);
+          }}
+          className="backend-card"
+          data-slot="item"
+          tabIndex={focusedBackendId === id ? -1 : undefined}
+          role="group"
+          aria-label={`Backend ${backend.name}`}
+        >
           <div className="backend-card-header">
             <label className="backend-default-label">
               <input
@@ -406,14 +539,30 @@ export function BackendsEditor() {
               onModeChange={(mode) => updateBackend(id, { provider_mode: mode })}
               onExecutableChange={(value) => updateEntry(id, { envPairs: setEnvPair(envPairs, providerExecutableKey(backend.type), value) })}
               runtime={savedBackendIds.has(id) ? data?.provider_runtimes?.[id]?.[backend.default_model] : undefined}
-              dirty={dirty}
+              targetDirty={targetDirty}
+              canSaveAndCheck={canSaveAndCheck}
+              catalogStale={staleCatalog}
+              advancedOpen={advancedOpen}
               refreshing={refreshing === id}
               otherRefreshing={refreshing !== null && refreshing !== id}
-              refreshMessage={refreshMessages[id] || null}
-              onRefresh={() => handleRefresh(id, backend)}
+              actionMessage={refreshMessages[id] || null}
+              actionLabel={targetDirty ? "Save & check" : "Refresh provider"}
+              onAction={() => {
+                if (!targetDirty) {
+                  const savedBackend = savedBackends[id];
+                  if (savedBackend) void refreshSavedBackend(id, savedBackend);
+                } else if (canSaveAndCheck) {
+                  void saveAndCheckBackend(id, backend);
+                }
+              }}
             />
           )}
 
+          <details className="backend-advanced-section" open={advancedOpen} onToggle={(event) => {
+            if (event.currentTarget.open) setAdvancedBackendId(id);
+            else if (advancedBackendId === id) setAdvancedBackendId(null);
+          }}>
+            <summary>Advanced</summary>
           <details className="backend-env-section">
             <summary>Backend env ({envPairs.length})</summary>
             <EnvEditor
@@ -503,14 +652,29 @@ export function BackendsEditor() {
               + Add model
             </button>
           </div>
+          </details>
         </div>
         );
       })}
 
       {error && <p className="form-error">{error}</p>}
+      {staleCatalog && (
+        <p className="config-notice" role="alert">
+          The saved backend catalog changed elsewhere. Your draft is preserved; reload the saved catalog before writing again.
+          <button type="button" className="btn-link" onClick={async () => {
+            const fresh = await refetch();
+            if (fresh.data) {
+              seedDraft(fresh.data);
+              setStaleCatalog(false);
+              setError(null);
+              setRefreshMessages({});
+            }
+          }}>Reload saved catalog</button>
+        </p>
+      )}
 
       <div className="backends-footer" data-slot="actions">
-        <button type="button" className="ad-button-primary" onClick={handleSave} disabled={putBackends.isPending}>
+        <button type="button" className="ad-button-primary" onClick={handleSave} disabled={staleCatalog || putBackends.isPending}>
           {putBackends.isPending ? "Saving…" : "Save"}
         </button>
       </div>

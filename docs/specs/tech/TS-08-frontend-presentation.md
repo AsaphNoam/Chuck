@@ -2231,7 +2231,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   covers accepted, held, queued, uncertain and refused outcomes for both projections; the phone
   render harness checks the composer and recovery offer at phone width (INV §13).
 
-- **R165** `(planned)` — The existing desktop onboarding gate uses TS-03.R87's first-chat
+- **R165** `(implemented 2026-11-24)` — The existing desktop onboarding gate uses TS-03.R87's first-chat
   flag for fresh homes and retains the existing path for other homes. Keep one mounted setup
   form with independent provider checks and a stable, operator-changeable ready selection.
   Reuse the existing project picker, folder control and launch services. Keep the selected
@@ -2240,7 +2240,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   On completion, navigate to the confirmed chat. If only the completion write fails, keep
   the setup form mounted with the chat link and a completion retry that never relaunches.
 
-- **R166** `(planned)` — Settings displays FS-09.R84's provider action with target-scoped
+- **R166** `(implemented 2026-11-24)` — Settings displays FS-09.R84's provider action with target-scoped
   dirty tracking. Refresh reads a saved target even when other drafts are dirty. Save & check
   submits that target only with its catalog validator and captures its submitted draft revision.
   Merge the committed target and added model entries into the saved baseline. Preserve later
@@ -2250,7 +2250,7 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   create/delete, retype and coordinated default changes. FS-04.R65 reuses the existing Add
   backend dialog and create API with one submit and an explicit native-link option.
 
-- **R167** `(planned)` — Use one desktop link builder for FS-09.R85. Derive the backend id
+- **R167** `(implemented 2026-11-24)` — Use one desktop link builder for FS-09.R85. Derive the backend id
   from the checked or submitted target and the existing typed provider status/error, never
   from error prose. Link to `/settings?tab=backends&backend=<id>` in a new tab with an accessible
   name that indicates this. Use `rel="noopener"`. Select Backends from the validated query and

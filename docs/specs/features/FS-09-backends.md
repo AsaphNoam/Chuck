@@ -396,7 +396,7 @@ Configuration-source federation for Claude/Codex is FS-08.
 
 ### One provider action in Settings
 
-- **R84** `(planned)` — A Claude or Codex backend in Settings has one primary provider action.
+- **R84** `(implemented 2026-11-24)` — A Claude or Codex backend in Settings has one primary provider action.
   With unchanged provider settings, **Refresh provider** checks the current saved provider and
   imports newly configured models if autosync is enabled. An unrelated dirty backend cannot
   disable it. With edits to that backend, **Save & check** applies only that backend's valid
@@ -412,7 +412,7 @@ Configuration-source federation for Claude/Codex is FS-08.
   restriction in Settings. The New Agent refresh behavior and existing API operations remain
   available. Saved changes apply on subsequent starts under R75.
 
-- **R85** `(planned)` — On desktop, first-run provider setup and New Agent show an **Open backend
+- **R85** `(implemented 2026-11-24)` — On desktop, first-run provider setup and New Agent show an **Open backend
   settings** link on an identified provider setup error. It opens Settings → Backends in a new
   tab and brings the affected backend and relevant controls into view. The original form stays
   open with its input. If the backend was removed, show the Backends list and explain that the

@@ -105,6 +105,7 @@ export const providerRuntimeSchema = z.object({
   path: z.string().optional(),
   version: z.string().optional(),
   checked_at: z.string().optional(),
+  bundle_available: z.boolean().optional(),
 });
 
 export type ProviderRuntime = z.infer<typeof providerRuntimeSchema>;
@@ -142,12 +143,14 @@ export function withBackendSupport<T extends object>(res: T): T & { backend_supp
 
 // Refresh provider result (TS-03.R53).
 export const refreshProviderResponseSchema = z.object({
-  runtime: providerRuntimeSchema,
-  credentials: credResultSchema,
+  runtime: providerRuntimeSchema.optional(),
+  credentials: credResultSchema.optional(),
   catalog: z.object({
     status: z.enum(["added", "unchanged", "disabled", "unavailable"]),
     added_count: z.number(),
-  }),
+  }).optional(),
+  backend: backendSchema.optional(),
+  check_error: z.object({ code: z.string(), message: z.string() }).optional(),
 });
 
 export type RefreshProviderResponse = z.infer<typeof refreshProviderResponseSchema>;

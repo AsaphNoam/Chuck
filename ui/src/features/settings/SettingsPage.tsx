@@ -1,4 +1,5 @@
 import * as Tabs from "@radix-ui/react-tabs";
+import { useSearchParams } from "react-router-dom";
 import { RolesEditor } from "./RolesEditor";
 import { ProjectsEditor } from "./ProjectsEditor";
 import { BackendsEditor } from "./BackendsEditor";
@@ -10,10 +11,18 @@ import { QuotaContinuationEditor } from "./QuotaContinuationEditor";
 import { PermissionPolicyEditor } from "./PermissionPolicyEditor";
 
 export function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabValues = ["roles", "projects", "backends", "notifications", "appearance", "tasks", "remote"] as const;
+  const requestedTab = searchParams.get("tab");
+  const tab = tabValues.find((value) => value === requestedTab) ?? "roles";
   return (
     <div className="settings-page" data-ui="settings">
       <h1 data-slot="header">Settings</h1>
-      <Tabs.Root defaultValue="roles" className="settings-tabs">
+      <Tabs.Root value={tab} onValueChange={(value) => {
+        const next = new URLSearchParams(searchParams);
+        next.set("tab", value);
+        setSearchParams(next, { replace: true });
+      }} className="settings-tabs">
         <Tabs.List className="settings-tabs-list" data-slot="navigation">
           <Tabs.Trigger value="roles">Roles</Tabs.Trigger>
           <Tabs.Trigger value="projects">Projects</Tabs.Trigger>
@@ -31,7 +40,7 @@ export function SettingsPage() {
           <ProjectsEditor />
         </Tabs.Content>
         <Tabs.Content value="backends" className="settings-tab-content" data-slot="content">
-          <BackendsEditor />
+          <BackendsEditor requestedBackendId={searchParams.get("backend") ?? undefined} />
         </Tabs.Content>
         <Tabs.Content value="notifications" className="settings-tab-content" data-slot="content">
           <NotificationsEditor />

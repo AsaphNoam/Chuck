@@ -138,10 +138,43 @@ describe("NewAgentModal", () => {
     expect(await screen.findByText(/Installed Claude Code · \/Users\/me\/\.local\/bin\/claude · version 2\.1\.300/)).toBeInTheDocument();
     await openOptions();
     fireEvent.change(screen.getByLabelText("Model"), { target: { value: "haiku" } });
-    expect(await screen.findByText(/The Claude Code executable path was not found.*Settings → Backends/)).toBeInTheDocument();
+    expect(await screen.findByText(/The Claude Code executable path was not found/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open backend settings (opens in a new tab)" })).toHaveAttribute("href", "/settings?tab=backends&backend=claude");
     fireEvent.change(screen.getByLabelText("Backend"), { target: { value: "codex" } });
     expect(await screen.findByText(/Chuck bundle Codex · \/app\/runtime\/codex · version not checked/)).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Chuck bundle" })).toBeNull();
+  });
+
+  it("refetches the selected model on return from typed repair without replaying launch or clearing input", async () => {
+    let returned = false;
+    let checkedValidator: string | null = null;
+    let launches = 0;
+    server.use(
+      http.get("/api/backends", () => HttpResponse.json(backendsFixture(), { headers: { ETag: returned ? '"repaired"' : '"old"' } })),
+      http.post("/api/backends/claude/refresh-provider", async ({ request }) => {
+        checkedValidator = request.headers.get("If-Match");
+        expect(await request.json()).toEqual({ model_id: "haiku", check_only: true });
+        return HttpResponse.json({ credentials: { status: "ok" }, catalog: { status: "unchanged", added_count: 0 }, runtime: { state: "available", source: "detected", version: "2.1.300" } }, { headers: { ETag: '"repaired"' } });
+      }),
+      http.post("/api/sessions", () => { launches++; return HttpResponse.json({ error: { code: "provider_executable_missing", message: "Provider needs repair" } }, { status: 422 }); }),
+    );
+    renderWithQuery(<NewAgentModal open={true} onClose={() => {}} />);
+    await openOptions();
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "haiku" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Keep this name" } });
+    const launch = screen.getByRole("button", { name: "Launch" });
+    await waitFor(() => expect(launch).toBeEnabled());
+    fireEvent.click(launch);
+    await screen.findByText("Provider needs repair");
+    fireEvent.click(screen.getAllByRole("link", { name: "Open backend settings (opens in a new tab)" }).at(-1)!);
+    returned = true;
+    fireEvent.focus(window);
+    expect(await screen.findByText("Provider checked. Review your choices and launch when ready.")).toBeInTheDocument();
+    expect(checkedValidator).toBe('"repaired"');
+    expect(screen.getByLabelText("Model")).toHaveValue("haiku");
+    expect(screen.getByLabelText("Name")).toHaveValue("Keep this name");
+    expect(screen.queryByText("Provider needs repair")).toBeNull();
+    expect(launches).toBe(1);
   });
 
   // FS-09.A40: a cache version difference is not an incompatibility warning.

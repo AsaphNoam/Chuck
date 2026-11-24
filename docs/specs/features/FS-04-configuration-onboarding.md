@@ -397,7 +397,8 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   `onboarding_complete: true` once through the same merge-preserving atomic config write as
   `PUT /api/config`; an absent or unreadable `config.json` is left untouched. A home with seeded
   configuration but no agent opens the wizard at its first incomplete step, with Set up later
-  available.
+  available. This upgrade backfill excludes R62's fresh first-chat homes: a launched chat awaiting
+  completion remains recoverable until completion or Set up later is saved.
 - **R24.** The backend credential result feeding `backend.done` is cached for 60s and invalidated
   whenever `backends.json` is saved or `onboarding_complete` is written, so edits re-evaluate the
   gate promptly.
@@ -446,7 +447,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   repair credentials that are fine. Codex retains OpenAI API-key configuration as an alternative to
   native sign-in; it is not required for a successfully signed-in Codex CLI.
 
-- **R62** `(planned)` — On first dashboard use with fresh Chuck configuration, Chuck discovers
+- **R62** `(implemented 2026-11-24)` — On first dashboard use with fresh Chuck configuration, Chuck discovers
   and checks the seeded Claude and Codex backends independently using the executable, native
   sign-in or applicable configured API-key route that each will use for a new chat. Setup reports
   each provider's outcome as it arrives. As soon as a provider is ready, the person can proceed
@@ -462,7 +463,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   default-only gate for fresh Claude/Codex setup. Other backend types retain their explicit
   setup path.
 
-- **R63** `(planned)` — First-run recovery distinguishes a missing executable, an incompatible
+- **R63** `(implemented 2026-11-24)` — First-run recovery distinguishes a missing executable, an incompatible
   installation, sign-in needed, and a check that could not complete. Each offers the relevant
   next action. For a missing installed CLI, offer **Use Chuck bundle** when available and retain
   official install guidance. Choosing the bundle saves the provider choice in Chuck's backend
@@ -473,7 +474,7 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   Returning from Settings checks the affected provider again and retains the folder, provider
   choice and any completed setup steps. **Set up later** remains available under R32.
 
-- **R64** `(planned)` — With a ready backend, show one **Start chat** form with the selected
+- **R64** `(implemented 2026-11-24)` — With a ready backend, show one **Start chat** form with the selected
   provider and project. Use a configured, launchable project when available, otherwise ask the
   person to pick a folder before starting. An unusable seeded path does not qualify as a ready
   project. Opening the form creates no project or chat. The person's explicit **Start chat**
@@ -481,11 +482,13 @@ semantics live in **FS-09**; Claude/Codex configuration federation lives in **FS
   defaults. Preserve the folder and provider on failure, and resume from the last successful
   step without duplicating the project or chat. If a launch response is lost, explain how to
   check for the chat before starting another. Completion uses the existing Chuck configuration
-  flag and prevents a future setup gate. The form adds no required federation step. Explicit
+  flag and prevents a future setup gate. Completion retains R20's project-default behavior:
+  fill an unset or unusable default with the confirmed launched project and preserve a usable
+  saved default. The form adds no required federation step. Explicit
   native configuration linking remains available under FS-08.R34 without being a prerequisite
   to the first chat. This replaces the fresh Claude/Codex wizard sequence in R18–R20 and R32.
 
-- **R65** `(planned)` — The **Add backend** dialog has one primary **Add backend** action. Pick a
+- **R65** `(implemented 2026-11-24)` — The **Add backend** dialog has one primary **Add backend** action. Pick a
   provider and accept or edit its suggested name. For Claude and Codex, an optional unchecked
   **Use my native configuration** choice invokes the existing R40/FS-08.R34 connection in that
   action. The dialog identifies the native-setup read before submission. Creation and linking
