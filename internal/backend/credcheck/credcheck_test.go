@@ -431,7 +431,7 @@ func TestClassifyNativeOutputPrefersTheNegative(t *testing.T) {
 		{"Logged in using ChatGPT", nativeReady},
 		{"totally unrecognized wording", nativeUnavailable},
 	} {
-		if got := classifyNativeOutput([]byte(tc.out), nativeUnavailable); got != tc.want {
+		if got := classifyNativeOutput([]byte(tc.out)); got != tc.want {
 			t.Errorf("classify(%q) = %v, want %v", tc.out, got, tc.want)
 		}
 	}

@@ -94,6 +94,10 @@ the probe argv itself, the bounded result is `skipped`/`cli_incompatible`, not a
 private Codex CLI for `login status`; a successful native result is sufficient, otherwise a
 configured `OPENAI_API_KEY` is checked through the existing models endpoint. Raw status output,
 account identity, and credential values never cross the process/log/API boundary.
+Successful process exit alone is not native sign-in evidence. Claude accepts the pinned adapter's
+validated `loggedIn` JSON status, including its API-key and external-provider distinction, or
+recognized legacy status text. Unknown or empty successful output is unavailable; Claude reports
+`skipped`/`status_check_unavailable`, while Codex retains its configured API-key fallback.
 
 **R17 — Pipeline tools extend the one scoped MCP authority.** The existing `/mcp`
 server adds `report_pipeline_stage_result`, `propose_pipeline_template`, and

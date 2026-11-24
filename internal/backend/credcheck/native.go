@@ -2,6 +2,7 @@ package credcheck
 
 import (
 	"context"
+	"encoding/json"
 	"os/exec"
 	"strings"
 
@@ -66,18 +67,31 @@ func probeNativeLogin(ctx context.Context, path string, p providerauth.Provider,
 	if ctx.Err() != nil {
 		return nativeUnavailable, out, ctx.Err()
 	}
-	if runErr != nil {
-		return classifyNativeOutput(out, nativeUnavailable), out, runErr
+	outcome := nativeUnavailable
+	trimmed := strings.TrimSpace(string(out))
+	if p.ID == "claude" && (json.Valid(out) || strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")) {
+		var status struct {
+			LoggedIn     *bool  `json:"loggedIn"`
+			APIProvider  string `json:"apiProvider"`
+			APIKeySource string `json:"apiKeySource"`
+		}
+		if json.Unmarshal(out, &status) == nil && status.LoggedIn != nil {
+			if *status.LoggedIn || status.APIKeySource != "" || (status.APIProvider != "" && status.APIProvider != "firstParty") {
+				outcome = nativeReady
+			} else {
+				outcome = nativeNotLoggedIn
+			}
+		}
+	} else {
+		outcome = classifyNativeOutput(out)
 	}
-	// A zero exit is not proof on its own: these CLIs can exit 0 while saying
-	// they are not signed in.
-	return classifyNativeOutput(out, nativeReady), out, nil
+	return outcome, out, runErr
 }
 
 // classifyNativeOutput reads a provider's status text with a substring
 // vocabulary rather than an exact format, so a wording or layout change
-// degrades to the caller's fallback instead of a false verdict (INV §12).
-func classifyNativeOutput(out []byte, zeroExit nativeOutcome) nativeOutcome {
+// degrades to unavailable instead of a false verdict (INV §12).
+func classifyNativeOutput(out []byte) nativeOutcome {
 	text := strings.ToLower(string(out))
 	switch {
 	case strings.Contains(text, "not logged in"),
@@ -90,5 +104,5 @@ func classifyNativeOutput(out []byte, zeroExit nativeOutcome) nativeOutcome {
 		strings.Contains(text, "signed in"):
 		return nativeReady
 	}
-	return zeroExit
+	return nativeUnavailable
 }

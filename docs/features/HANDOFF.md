@@ -36,8 +36,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 Installer, provider/config APIs, first-chat form and Settings repair are implemented. Focused
 bootstrap/config/server/race and UI checks pass; the first full UI suite and fake-provider rendered
 flows pass. The rendered pass exposed a stale repaired-provider error, now fixed with a selected-model
-check and focused regression. Finish the final UI build/suite and re-render that correction;
-the full Go closure is running after correcting its legacy-home fixture.
+check and focused regression; final UI suite/build and corrected rendering pass. The full Go closure
+is running after correcting its legacy-home fixture. The shared native-check false-ready gap is
+repaired against the pinned Claude adapter's auth-status contract; pre-fix regressions fail and
+the full probe suite plus focused server checks pass. Rerun the full Go closure and build on this
+final parser source before final closure. Packaged provider gates remain in ACCEPTANCE-GATES.md.
 Use `GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-firstchat-gocache` with CHUCK_RUNTIME_ROOT unset.
 Provider operations and frontend composition can proceed independently against TS-03.R87–R89.
 

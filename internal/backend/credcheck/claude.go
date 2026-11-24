@@ -52,7 +52,7 @@ func (claudeProber) Check(ctx context.Context, backend config.Backend, model con
 		// identity never cross the API boundary (TS-04.R15, INV §8/§12).
 		return CredResult{Status: "failed", Detail: "status_check_failed"}
 	}
-	return CredResult{Status: "ok"}
+	return CredResult{Status: "skipped", Detail: "status_check_unavailable"}
 }
 
 // rejectsNoColorFlag recognizes common CLI-parser diagnostics while requiring
