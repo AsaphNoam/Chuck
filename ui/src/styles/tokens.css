@@ -117,6 +117,10 @@
   --ad-font-display: "Instrument Sans", sans-serif;
   --ad-font-text: "Instrument Sans", sans-serif;
   --ad-font-mono: "IBM Plex Mono", monospace;
+  --ad-size-compact: 0.75rem;
+  --ad-size-menu: 0.8125rem;
+  --ad-size-body: 0.875rem;
+  --ad-size-input: 1rem;
 
   --ad-space-1: 4px;
   --ad-space-2: 8px;

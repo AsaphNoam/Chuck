@@ -25,7 +25,7 @@
 .task-rearm > label {
   display: grid;
   gap: var(--ad-space-2);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
 }
 
 .tasks-attention-count {
@@ -62,7 +62,7 @@
 
 .tasks-project-counts {
   color: var(--ad-text-muted);
-  font-size: 0.82rem;
+  font-size: var(--ad-size-menu);
 }
 
 .tasks-groups {
@@ -126,7 +126,7 @@
  * so it is independently reachable with its own accessible state. */
 .task-collapse-toggle {
   flex: 0 0 auto;
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   white-space: nowrap;
 }
 
@@ -138,7 +138,7 @@
   color: var(--ad-text-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-1) var(--ad-space-4);
   margin: 0;
 }
@@ -269,7 +269,7 @@
 
 .task-form-section legend {
   color: var(--ad-text-secondary);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   font-weight: 650;
   padding-inline-end: var(--ad-space-3);
 }
@@ -277,7 +277,7 @@
 .task-record label {
   display: grid;
   gap: var(--ad-space-1);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   max-width: 36rem;
 }
 
@@ -306,7 +306,7 @@
 .task-query-state,
 .task-rearm-replacement {
   color: var(--ad-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
 }
 
 .task-outcome-choices,
@@ -321,7 +321,7 @@
 
 .task-outcome-choices legend,
 .task-advanced legend {
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   font-weight: 600;
   padding-inline: var(--ad-space-1);
 }
@@ -346,7 +346,7 @@
 
 .task-advanced summary {
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: var(--ad-size-menu);
   font-weight: 600;
 }
 
@@ -421,8 +421,8 @@
 
 .task-waiting,
 .task-attention {
-  font-family: var(--ad-font-mono);
-  font-size: 0.78rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
   margin: 0;
 }
 
@@ -433,7 +433,7 @@
 .task-row-meta {
   color: var(--ad-text-muted);
   display: flex;
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-4);
 }
 
@@ -445,14 +445,14 @@
 
 .task-rearm label {
   display: grid;
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-1);
 }
 
 .task-attention-link {
   color: var(--ad-state-busy);
-  font-family: var(--ad-font-mono);
-  font-size: 0.78rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
 }
 
 .tasks-empty {
@@ -510,7 +510,7 @@
   color: var(--ad-text-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-1) var(--ad-space-4);
   margin: 0;
 }
@@ -532,7 +532,7 @@
 .schedule-weekdays label {
   align-items: center;
   display: inline-flex;
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-1);
 }
 
@@ -549,21 +549,21 @@
 }
 
 .schedule-rule legend {
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   font-weight: 600;
   padding: 0 var(--ad-space-1);
 }
 
 .schedule-rule label {
   display: grid;
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-2);
 }
 
 .schedule-rule small,
 .task-check small {
   color: var(--ad-text-muted);
-  font-size: 0.75rem;
+  font-size: var(--ad-size-compact);
 }
 
 .schedule-weekdays {
@@ -584,7 +584,7 @@
 .task-check label {
   align-items: center;
   display: inline-flex;
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-1);
 }
 }

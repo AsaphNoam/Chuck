@@ -52,6 +52,10 @@ None.
 
 ## Design consistency notes
 
+- Desktop and phone share compact, menu, reading/form, and input text sizes (TS-08.R11).
+  Annotation labels and prose use the reading family, source references retain mono, and the
+  shared pointer menu styles load in both entries.
+
 - Next presentation review: decide whether crisp asymmetric technical-surface radii are deliberate
   under FS-12.R52.
 - When direct-action work resumes, align TS-01.R25/TS-03.R32 with TS-04.R40 and scope FS-17

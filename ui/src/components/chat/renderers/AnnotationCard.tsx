@@ -33,7 +33,7 @@ export function AnnotationCard({ event, recipientName }: { event: TranscriptEven
             <p>{annotation.anchor_kind === "file"
               ? `File ${String(annotation.path ?? "")}${annotation.start_line ? `:${String(annotation.start_line)}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : ""}`
               : annotation.path ? `${String(annotation.path)}:${String(annotation.start_line ?? "")}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : `Event ${String(annotation.seq ?? "")}`}</p>
-            <blockquote>{showSource ? (
+            <blockquote className={annotation.path && typeof annotation.start_line === "number" ? "annotation-source-excerpt" : undefined}>{showSource ? (
               <button type="button" className="annotation-source-link" onClick={showSource} aria-label={`Jump to source: ${excerpt}`}>{quote}</button>
             ) : quote}</blockquote>
             <p><strong>Instruction:</strong> <MarkedSourceText text={String(annotation.instruction ?? "")} partIndex={index*2+1} /></p>

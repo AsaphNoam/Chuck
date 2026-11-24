@@ -91,7 +91,7 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
                 <h3 className="annotation-draft-anchor">{roomAnchorLabel(draft)}</h3>
                 <button type="button" className="ad-button-danger" onClick={() => remove(sourceId, index)} disabled={send.isPending}>Remove</button>
               </div>
-              <blockquote>{draft.excerpt}</blockquote>
+              <blockquote className={draft.path && draft.start_line ? "annotation-source-excerpt" : undefined}>{draft.excerpt}</blockquote>
               <label>Instruction<AutoGrowTextarea autoFocus value={draft.instruction} maxLength={2000} onChange={(event) => updateInstruction(sourceId, index, event.target.value)} disabled={send.isPending} /></label>
             </li>
           ))}

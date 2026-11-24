@@ -53,7 +53,7 @@
   border-right: 0;
   display: flex;
   font-family: var(--ad-font-text);
-  font-size: 0.875rem;
+  font-size: var(--ad-size-body);
   font-weight: 600;
   letter-spacing: normal;
   padding: 0 var(--ad-space-3);
@@ -115,7 +115,7 @@
   color: var(--ad-text-secondary);
   display: flex;
   font-family: var(--ad-font-text);
-  font-size: 0.75rem;
+  font-size: var(--ad-size-compact);
   height: 30px;
   justify-content: center;
   max-width: 112px;
@@ -198,7 +198,7 @@
   color: var(--ad-text-secondary);
   display: flex;
   font-family: var(--ad-font-text);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-menu);
   padding: var(--ad-space-2) var(--ad-space-3);
 }
 
@@ -329,7 +329,7 @@
 
 .toast span {
   color: var(--ad-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   font-weight: 400;
 }
 

@@ -7,7 +7,7 @@
     align-items: center;
     color: var(--ad-text-muted);
     display: flex;
-    font-size: 0.75rem;
+    font-size: var(--ad-size-compact);
     justify-content: space-between;
     margin-bottom: var(--ad-space-3);
   }
@@ -81,7 +81,7 @@
 
   .pipeline-library-footnote {
     color: var(--ad-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--ad-size-compact);
     margin-top: var(--ad-space-4);
     text-align: center;
   }

@@ -124,7 +124,9 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
                   Remove
                 </button>
               </div>
-              <pre className="phone-pre">{draft.excerpt}</pre>
+              {draft.path && draft.start_line
+                ? <pre className="phone-pre">{draft.excerpt}</pre>
+                : <blockquote className="phone-annotate-excerpt">{draft.excerpt}</blockquote>}
               <label className="phone-field">
                 Instruction
                 <AutoGrowTextarea rows={2} maxHeight="30vh" maxLength={2000} value={draft.instruction} disabled={sending} onChange={(event) => updateInstruction(sourceId, index, event.target.value)} />

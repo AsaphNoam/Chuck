@@ -1195,8 +1195,8 @@ a.agent-mini-card:focus-visible {
 
 .transcript-held-label {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.7rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   margin: 0;
   text-transform: uppercase;
 }
@@ -1527,8 +1527,8 @@ a.agent-mini-card:focus-visible {
   align-items: center;
   color: var(--ad-text-muted);
   display: flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.67rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-2);
   justify-content: center;
   padding: var(--ad-space-3) 0;
@@ -1571,7 +1571,7 @@ a.agent-mini-card:focus-visible {
   background: var(--ad-surface-panel);
   border: var(--ad-border-thick) solid var(--ad-action-secondary);
   border-radius: var(--ad-radius-small) var(--ad-radius-large) var(--ad-radius-large) var(--ad-radius-large);
-  font-size: 0.86rem;
+  font-size: var(--ad-size-body);
   padding: var(--ad-space-4);
 }
 
@@ -1590,12 +1590,16 @@ a.agent-mini-card:focus-visible {
   justify-content: space-between;
 }
 
-.annotation-card header span,
 .annotation-tray-header span,
 .annotation-card section > p:first-child {
   color: var(--ad-text-muted);
   font-family: var(--ad-font-mono);
   font-size: 0.66rem;
+}
+
+.annotation-card header span {
+  color: var(--ad-text-muted);
+  font-size: var(--ad-size-compact);
 }
 
 .annotation-card section {
@@ -1611,6 +1615,10 @@ a.agent-mini-card:focus-visible {
   margin: var(--ad-space-2) 0;
   padding: var(--ad-space-2) var(--ad-space-3);
   white-space: pre-wrap;
+}
+
+.annotation-source-excerpt {
+  font-family: var(--ad-font-mono);
 }
 
 .annotation-card-overall {
@@ -1694,15 +1702,15 @@ a.agent-mini-card:focus-visible {
 .annotation-draft label,
 .annotation-overall {
   display: grid;
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
   gap: var(--ad-space-1);
 }
 
 .annotation-draft textarea,
 .annotation-overall textarea {
   font-family: var(--ad-font-text);
-  font-size: 1rem;
+  font-size: var(--ad-size-input);
   min-height: 54px;
 }
 
@@ -1711,7 +1719,7 @@ a.agent-mini-card:focus-visible {
 }
 
 .annotation-targets label {
-  font-size: 0.78rem;
+  font-size: var(--ad-size-body);
 }
 
 .annotation-targets select {
@@ -2389,8 +2397,8 @@ a.agent-mini-card:focus-visible {
 .terminal-readonly,
 .archive-readonly-label {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.72rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
 }
 
 .terminal-panel {

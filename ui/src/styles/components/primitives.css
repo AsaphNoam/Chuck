@@ -14,7 +14,7 @@ button {
   cursor: pointer;
   display: inline-flex;
   font-family: var(--ad-font-text);
-  font-size: 0.75rem;
+  font-size: var(--ad-size-compact);
   font-weight: 500;
   gap: var(--ad-space-2);
   justify-content: center;
@@ -452,5 +452,63 @@ input[type="radio"] {
 @keyframes ad-dialog-exit {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+
+/* Right-click menus: a compact raised panel of low, regular-weight rows (FS-12.R66). */
+.context-menu {
+  background: var(--ad-surface-raised);
+  border: var(--ad-border-thin) solid var(--ad-border-default);
+  border-radius: var(--ad-radius-medium);
+  box-shadow: var(--ad-shadow-keyline), var(--ad-shadow-offset);
+  display: grid;
+  gap: 0;
+  /* A menu taller than the short viewport is clamped to the top margin by
+     useMenuPlacement and scrolls from there, so no item is unreachable (J5). */
+  max-block-size: calc(100vh - 16px);
+  min-width: 184px;
+  overflow-y: auto;
+  padding: var(--ad-space-1);
+  position: fixed;
+  z-index: 30;
+}
+
+.context-menu > button {
+  background: transparent;
+  border: 0;
+  border-radius: var(--ad-radius-small);
+  color: var(--ad-text-primary);
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-menu);
+  font-weight: 450;
+  justify-content: flex-start;
+  line-height: 1.4;
+  min-height: 0;
+  padding: var(--ad-space-1) var(--ad-space-2);
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.context-menu > button:hover:not(:disabled),
+.context-menu > button:focus-visible {
+  background: color-mix(in srgb, var(--ad-text-primary) 6%, var(--ad-surface-raised));
+  box-shadow: none;
+  transform: none;
+}
+
+.context-menu > button:focus-visible {
+  outline: var(--ad-border-thin) solid var(--ad-action-secondary);
+  outline-offset: 0;
+}
+
+.context-menu > button:disabled {
+  color: var(--ad-text-muted);
+  opacity: 0.6;
+}
+
+.context-menu hr {
+  border: 0;
+  border-top: var(--ad-border-thin) solid var(--ad-border-default);
+  margin: var(--ad-space-1) var(--ad-space-2);
 }
 }

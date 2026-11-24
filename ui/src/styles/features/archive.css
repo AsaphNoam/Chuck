@@ -113,8 +113,8 @@
   background: var(--ad-technical-surface);
   border-left: var(--ad-space-1) solid var(--ad-action-secondary);
   color: var(--ad-technical-text);
-  font-family: var(--ad-font-mono);
-  font-size: 0.72rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
   overflow: hidden;
   padding: var(--ad-space-2) var(--ad-space-3);
   text-overflow: ellipsis;
@@ -144,7 +144,7 @@
 .archive-empty,
 .archive-loading {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
+  font-family: var(--ad-font-text);
   padding: var(--ad-space-6) 0;
 }
 

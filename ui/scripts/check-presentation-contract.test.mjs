@@ -147,7 +147,7 @@ test("promotes the shared soft overlay and message geometry to every appearance"
     assert.doesNotMatch(rule, /--ad-border-thick|\b8px solid/, selector);
   }
   // Right-click menus take the finer session-card construction (FS-12.R66).
-  const menu = featureRule("dashboard.css", ".context-menu");
+  const menu = featureRule("../components/primitives.css", ".context-menu");
   assert.match(menu, /border-radius:\s*var\(--ad-radius-medium\);/);
   assert.doesNotMatch(menu, /--ad-border-thick|\b8px solid/);
   // The approved pipeline study uses a quieter overview title (FS-12.R71).

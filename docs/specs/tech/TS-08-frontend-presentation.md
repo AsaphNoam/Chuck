@@ -65,6 +65,11 @@ primitive seam; the rejected alternatives are recorded in §5.
   display/text roles and IBM Plex Mono for technical roles, with their SIL Open Font License texts
   kept beside the assets. If implementation evidence makes either font unsuitable, changing it is a
   TS-08 visual-contract change rather than an inline component choice.
+  Core shares four size roles across desktop and phone: compact actions and secondary metadata
+  (0.75rem), menu labels (0.8125rem), reading text and ordinary form labels (0.875rem), and
+  text entry (1rem). Headings and technical renderers retain size choices suited to their content.
+  User-facing labels, status explanations, and prose excerpts use the text family. Technical
+  identifiers, code, source excerpts, and compact metrics may use the mono family.
 - **R12** — The core mark is one repository-owned SVG React component: a simple
   geometric Chuck mark plus text wordmark, using `currentColor` and no embedded raster/text
   payload. Other repository-owned icons follow the same seam. Existing visible text and accessible
