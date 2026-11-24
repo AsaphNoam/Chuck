@@ -31,7 +31,12 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**Start a first chat with Claude or Codex** —
+[`instant-first-chat-and-backend-setup.md`](../ready-changes/instant-first-chat-and-backend-setup.md).
+Installer startup is implemented and its focused bootstrap tests pass. Fresh-home eligibility,
+target-scoped provider checks, the preserved first-chat form and Settings repair are in progress;
+finish with integrated and rendered/API verification.
+Provider operations and frontend composition can proceed independently against TS-03.R87–R89.
 
 ## Decisions needing input
 

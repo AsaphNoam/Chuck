@@ -94,9 +94,9 @@ person's provider credentials or Chuck configuration.
   Codex provider with its tested adapters/SDKs/Node, but backend selection defaults to Installed
   (FS-09.R75). Without an installed CLI, the dashboard still opens and offers official provider
   installation instructions or the backend's explicit Bundle choice; never select it automatically.
-  Source builds without a managed bundle explain its unavailability. Interactive installer sign-in
-  uses only the selected available executable under R21; missing provider skips login with guidance,
-  not installation failure. This supersedes R5/A3's implicit bundled sign-in and qualifies R1/R3:
+  Source builds without a managed bundle explain its unavailability. R27 replaces interactive
+  installer sign-in with dashboard setup; explicit sign-in uses the selected executable under R21.
+  This supersedes R5/A3's implicit bundled sign-in and qualifies R1/R3:
   a separately installed provider is not necessary if the user explicitly selects Bundle. No provider
   installer or independent bundle updater runs automatically.
 - **R24** — Installed providers update through their own installer/package manager;
@@ -109,7 +109,7 @@ person's provider credentials or Chuck configuration.
   sessions. Rollback to a pre-policy binary restores that binary's old selection behavior and must
   be disclosed. Existing configs lacking mode adopt Installed without rewriting user state.
 
-- **R27** `(planned)` — The interactive installer opens Chuck directly after successful fresh
+- **R27** `(implemented 2026-11-24)` — The interactive installer opens Chuck directly after successful fresh
   installation under R6. First provider setup happens in the dashboard under FS-04.R62–R64. The
   installer does not stop for a Claude-only readiness or sign-in prompt. The existing explicit
   `chuck auth` commands remain available. Non-interactive and `--no-start` installs keep R6's
@@ -148,9 +148,8 @@ person's provider credentials or Chuck configuration.
   entry points from the selected private runtime, without changing global package locations or
   requiring them on PATH. *Verified:* release-layout/wrapper integration tests.
 - **A3 — superseded 2026-10-03 by A10–A12:** Described verifying default *bundled*-provider
-  sign-in. A fresh interactive install now offers sign-in for the selected (Installed-default)
-  backend under R21/R23, while declined, cancelled, failed, and successful sign-in each leave the
-  installer outcome truthful and route the person to onboarding or the running dashboard.
+  sign-in. R27 now opens dashboard setup directly; explicit sign-in for the selected
+  (Installed-default) backend remains available under R21/R23.
   *Verified:* fake-provider command tests and manual J2 credential branches; successful real-provider
   sign-in is credential-gated. Current coverage: A10–A12 below.
 - **A4** — A successful explicit update activates the new version without modifying

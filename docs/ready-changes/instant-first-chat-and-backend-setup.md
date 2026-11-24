@@ -1,6 +1,6 @@
 # Start a first chat with Claude or Codex
 
-**State:** Waiting to start
+**State:** In progress
 **Why:** The operator asked for a working first chat immediately after installation, one clear
 backend setup action, and direct Settings links on provider setup errors. The operator approved
 one-click bundle selection when an installed CLI is missing and explicit native configuration linking.
@@ -33,3 +33,16 @@ open the affected backend in a new tab and leave the current form ready to resum
 - Run deterministic tests against the real server/client boundary and the rendered desktop flow.
   Verify a first chat with existing native sign-in for each packaged provider and a packaged
   missing-CLI recovery through the bundle.
+
+## Implementation direction
+
+The first view serves the operator's first chat: provider outcomes arrive independently above
+one project selection and **Start chat** action. Keep the existing onboarding dialog, typography,
+semantic status tokens and folder picker; show repair beside its provider and keep advanced
+configuration subordinate in Settings. No new motion is needed. A check is readiness evidence,
+not a promise of model access. Preserve selection, folder and confirmed create/launch results
+through repair; an uncertain response offers recovery instead of automatically replaying it.
+
+Implementation slices: target-scoped provider/config API; first-chat and Settings composition;
+installer startup; integrated checks and rendered recovery. The parent owns integration and
+verification, with separate backend and frontend ownership during implementation.

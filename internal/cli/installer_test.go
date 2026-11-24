@@ -221,14 +221,15 @@ esac`)
 // Run each bootstrap mode through a pseudo-terminal: this is the path that
 // exposed the lockf re-exec losing parsed flags. A plain pipe would make the
 // child non-interactive even when it accidentally dropped --non-interactive.
-func TestBootstrapLockReexecPreservesNoStartAndNonInteractive(t *testing.T) {
+func TestBootstrapInteractiveStartupAndLockReexecModes(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		args       []string
-		wantNoAuth bool
+		name      string
+		args      []string
+		wantCalls string
 	}{
+		{name: "interactive", args: []string{"--version", "1.0.0"}, wantCalls: "dashboard start --detach\ndashboard open"},
 		{name: "no start", args: []string{"--version", "1.0.0", "--no-start"}},
-		{name: "non interactive", args: []string{"--version", "1.0.0", "--non-interactive"}, wantNoAuth: true},
+		{name: "non interactive", args: []string{"--version", "1.0.0", "--non-interactive"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := t.TempDir()
@@ -282,11 +283,8 @@ func TestBootstrapLockReexecPreservesNoStartAndNonInteractive(t *testing.T) {
 			if err != nil && !os.IsNotExist(err) {
 				t.Fatal(err)
 			}
-			if strings.Contains(string(calls), "dashboard") {
-				t.Fatalf("%s bootstrap started dashboard after lock re-exec: %q", tc.name, calls)
-			}
-			if tc.wantNoAuth && strings.TrimSpace(string(calls)) != "" {
-				t.Fatalf("non-interactive bootstrap invoked post-install commands: %q", calls)
+			if strings.TrimSpace(string(calls)) != tc.wantCalls {
+				t.Fatalf("%s bootstrap commands = %q, want %q", tc.name, calls, tc.wantCalls)
 			}
 		})
 	}

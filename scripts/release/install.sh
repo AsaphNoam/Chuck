@@ -248,20 +248,6 @@ if ! on_path "${app_root}/bin"; then
   fi
 fi
 
-if [ "$INTERACTIVE" = "1" ]; then
-  # Exit 3: no usable Claude provider yet. The command already printed install
-  # or Chuck-bundle guidance; skip sign-in rather than fail (FS-10.R23).
-  claude_status=0
-  "$shim" auth claude --check || claude_status=$?
-  if [ "$claude_status" = "0" ] || [ "$claude_status" = "3" ]; then
-    : # already signed in, or nothing to sign in to yet
-  elif confirm "Sign in to Claude now?"; then
-    if ! "$shim" auth claude; then
-      echo "Claude sign-in did not complete. Installation succeeded; retry with: \"${shim}\" auth claude"
-    fi
-  fi
-fi
-
 if [ "$NO_START" = "1" ] || [ "$INTERACTIVE" != "1" ]; then
   echo
   echo "Start Chuck when ready: \"${shim}\" dashboard start --detach"

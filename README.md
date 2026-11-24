@@ -60,7 +60,8 @@ curl -fsSL https://github.com/AsaphNoam/Chuck/releases/latest/download/install.s
 ```
 
 The installer checks the download against its published SHA-256 manifest. It may offer to add
-Chuck to your zsh `PATH` and to sign you in to Claude. It never asks for credentials itself. Then:
+Chuck to your zsh `PATH`, then opens the dashboard for provider setup. It never asks for
+credentials itself. For explicit sign-in or manual startup later:
 
 ```sh
 chuck auth claude              # or: chuck auth codex
