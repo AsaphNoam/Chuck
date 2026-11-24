@@ -213,8 +213,8 @@
   align-items: center;
   color: var(--ad-text-muted);
   display: inline-flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-2);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -271,7 +271,8 @@
 
 .gate-loading {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
   padding: var(--ad-space-8);
 }
 

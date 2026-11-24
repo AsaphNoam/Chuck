@@ -3,6 +3,7 @@ import { AutoGrowTextarea } from "../ui";
 import { IncludeOtherProjects, useProjectFirst } from "../ui/IncludeOtherProjects";
 import type { AnnotationDraft } from "../../api/types";
 import { annotationAnchor } from "../../lib/annotations";
+import { AnnotationSourceCaption } from "./AnnotationSourceCaption";
 import { useAgentStore } from "../../store/agentStore";
 import { useAnnotationStore } from "../../store/annotationStore";
 import { OUTCOME_TOAST_MS, useUiStore } from "../../store/uiStore";
@@ -118,11 +119,12 @@ function AnnotationDraftRow({ draft, index, sourceId, onRemove, onUpdate, disabl
     return () => cancelAnimationFrame(frame);
   }, []);
   const anchor = annotationAnchor(draft);
+  const captionKind = draft.anchor_kind === "file" ? "file" : draft.path ? undefined : "event";
   return (
     <li className="annotation-draft">
       {/* The anchor is what the reader scans for, so it is the row's heading
           rather than bold text sharing a line with a control (FS-13.R22). */}
-      <div className="annotation-draft-head"><h3 className="annotation-draft-anchor">{anchor}</h3><button type="button" className="ad-button-danger" onClick={() => onRemove(sourceId, index)} disabled={disabled}>Remove</button></div>
+      <div className="annotation-draft-head"><h3 className="annotation-draft-anchor"><AnnotationSourceCaption label={anchor} kind={captionKind} /></h3><button type="button" className="ad-button-danger" onClick={() => onRemove(sourceId, index)} disabled={disabled}>Remove</button></div>
       <blockquote className={draft.path && draft.start_line ? "annotation-source-excerpt" : undefined}>{draft.excerpt}</blockquote>
       <label>Instruction<AutoGrowTextarea autoFocus ref={instructionRef} value={draft.instruction} maxLength={2000} onChange={(event) => onUpdate(sourceId, index, event.target.value)} disabled={disabled} /></label>
     </li>

@@ -3,6 +3,7 @@ import { IncludeOtherProjects, useProjectFirst } from "../components/ui/IncludeO
 import { useRef, useState } from "react";
 import type { AgentState, AnnotationDraft } from "../api/types";
 import { annotationAnchor } from "../lib/annotations";
+import { AnnotationSourceCaption } from "../components/chat/AnnotationSourceCaption";
 import { useAnnotationStore } from "../store/annotationStore";
 import { useAnnotationDelivery, type AnnotationDelivery } from "../components/chat/annotationDelivery";
 import { useConnection } from "./connection";
@@ -119,7 +120,7 @@ function PhoneAnnotationSheet({ delivery, focusNewest, onClose }: { delivery: An
           {drafts.map((draft, index) => (
             <li key={`${draft.seq}-${draft.path ?? ""}-${index}`} className="phone-annotate-draft">
               <div className="phone-annotate-head">
-                <h3>{annotationAnchor(draft)}</h3>
+                <h3 className="annotation-draft-anchor"><AnnotationSourceCaption label={annotationAnchor(draft)} kind={draft.anchor_kind === "file" ? "file" : draft.path ? undefined : "event"} /></h3>
                 <button type="button" className="phone-link ad-button-danger" disabled={sending} onClick={() => remove(sourceId, index)}>
                   Remove
                 </button>

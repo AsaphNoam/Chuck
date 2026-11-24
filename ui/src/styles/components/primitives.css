@@ -149,8 +149,8 @@ button:disabled {
   border-radius: var(--ad-radius-round);
   color: var(--ad-text-secondary);
   display: inline-flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   font-weight: 600;
   gap: var(--ad-space-1);
   line-height: 1;
@@ -204,7 +204,7 @@ button:disabled {
 .ad-field label,
 .form-field label {
   color: var(--ad-text-secondary);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-body);
   font-weight: 650;
   letter-spacing: 0.025em;
 }
@@ -212,7 +212,7 @@ button:disabled {
 .ad-field-hint,
 .form-hint {
   color: var(--ad-text-muted);
-  font-size: 0.75rem;
+  font-size: var(--ad-size-compact);
 }
 
 .ad-field-error,
@@ -222,7 +222,7 @@ button:disabled {
 .background-task-error,
 .permission-error {
   color: var(--ad-state-error);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-body);
 }
 
 .group-picker { position: relative; }
@@ -354,8 +354,8 @@ input[type="radio"] {
 
 .ad-page-header [data-slot="eyebrow"] {
   color: var(--ad-action-primary);
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;

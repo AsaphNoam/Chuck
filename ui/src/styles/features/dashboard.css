@@ -46,8 +46,8 @@
 .density-control label {
   color: var(--ad-text-muted);
   display: grid;
-  font-family: var(--ad-font-mono);
-  font-size: 0.63rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
   gap: var(--ad-space-1);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -102,8 +102,8 @@
 
 .agent-group-header span {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
 }
 
 .group-release {
@@ -207,7 +207,7 @@
   color: var(--ad-agent-card-tone);
   display: inline-flex;
   font-family: var(--ad-font-text);
-  font-size: 0.6875rem;
+  font-size: var(--ad-size-compact);
   font-weight: 600;
   gap: var(--ad-space-1);
   min-height: 0;
@@ -308,7 +308,7 @@
   color: var(--ad-text-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-2);
   margin-top: var(--ad-space-4);
 }
@@ -333,7 +333,7 @@
 .agent-preview {
   color: var(--ad-text-primary);
   display: -webkit-box;
-  font-size: 0.8125rem;
+  font-size: var(--ad-size-body);
   line-height: 1.6;
   margin: var(--ad-space-4) 0 0;
   overflow: hidden;
@@ -353,7 +353,7 @@
   color: var(--ad-text-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-1) var(--ad-space-3);
   margin-top: var(--ad-space-3);
 }
@@ -407,7 +407,7 @@
 /* Labelled context row: "Context" and the figure above a thin track (FS-12.R65). */
 .context-bar {
   color: var(--ad-text-muted);
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
 }
 
 .context-bar-row {
@@ -496,7 +496,7 @@
 
 .dashboard-chat-pane .message {
   color: var(--ad-text-primary);
-  font-size: 0.8125rem;
+  font-size: var(--ad-size-body);
   line-height: 1.75;
 }
 
@@ -531,7 +531,7 @@
 .dashboard-chat-pane :is(.tool-run, .thinking, .runtime-child, .turn-activity-toggle) {
   border-left: var(--ad-border-thin) solid var(--ad-border-default);
   color: var(--ad-text-muted);
-  font-size: 0.6875rem;
+  font-size: var(--ad-size-compact);
   padding-left: var(--ad-space-3);
 }
 
@@ -583,8 +583,8 @@
 .state-badge {
   align-items: center;
   display: inline-flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.63rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-1);
   text-transform: uppercase;
 }
@@ -657,8 +657,8 @@
 
 .project-dashboard-eyebrow {
   color: var(--ad-text-secondary);
-  font-family: var(--ad-font-mono);
-  font-size: 0.625rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   letter-spacing: 0.12em;
   margin: 0;
   text-transform: uppercase;
@@ -794,15 +794,15 @@
   border-top: var(--ad-border-thin) solid var(--ad-border-default);
   color: var(--ad-text-muted);
   display: flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.6875rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-3);
   justify-content: space-between;
   padding-top: var(--ad-space-3);
 }
 
 .context-menu-color { display: grid; gap: var(--ad-space-2); padding: var(--ad-space-2); }
-.context-menu-color > span { color: var(--ad-text-muted); font-size: 0.625rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.context-menu-color > span { color: var(--ad-text-muted); font-size: var(--ad-size-compact); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .project-card.unavailable { opacity: .75; }
 /* A worktree project names its branch on the card so parallel streams stay
    distinguishable at a glance (FS-19.R6). It is quiet by design: the branch

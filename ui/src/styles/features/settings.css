@@ -106,8 +106,8 @@
 .config-eyebrow,
 .config-group-label {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.6875rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   font-weight: 500;
   letter-spacing: 0.12em;
   margin: 0;
@@ -115,7 +115,7 @@
 }
 
 .config-group-label {
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   letter-spacing: 0.1em;
 }
 
@@ -238,7 +238,7 @@
   background: color-mix(in srgb, var(--ad-state-done) 13%, var(--ad-surface-raised));
   border-radius: var(--ad-radius-small);
   color: var(--ad-settings-selected-text, var(--ad-state-done));
-  font-size: 0.6875rem;
+  font-size: var(--ad-size-compact);
   font-weight: 600;
   line-height: 1.3;
   padding: calc(var(--ad-space-1) / 2) var(--ad-space-1);
@@ -432,8 +432,8 @@
 .source-health {
   border-radius: var(--ad-radius-small);
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.625rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   padding: calc(var(--ad-space-1) / 2) var(--ad-space-1);
   text-transform: uppercase;
 }
@@ -744,8 +744,8 @@ p.model-capability-note {
 /* Appearance: three equal theme cards, palette preview over the choice. */
 .appearance-saving {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.6875rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   text-transform: uppercase;
 }
 

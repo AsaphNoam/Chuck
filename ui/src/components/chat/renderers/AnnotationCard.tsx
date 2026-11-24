@@ -2,6 +2,7 @@ import { useContext } from "react";
 import type { TranscriptEvent } from "../../../api/types";
 import { AnnotationLinkContext } from "../annotationNavigation";
 import { MarkedSourceText } from "../searchPassage";
+import { AnnotationSourceCaption } from "../AnnotationSourceCaption";
 
 /** The recipient agent id of an annotation batch assigned to another agent, for name lookup. */
 export function annotationTargetId(event: TranscriptEvent): string | undefined {
@@ -30,9 +31,9 @@ export function AnnotationCard({ event, recipientName }: { event: TranscriptEven
         const quote = <MarkedSourceText text={excerpt} partIndex={index*2} />;
         return (
           <section key={index}>
-            <p>{annotation.anchor_kind === "file"
+            <p><AnnotationSourceCaption kind={annotation.anchor_kind === "file" ? "file" : annotation.path ? undefined : "event"} label={annotation.anchor_kind === "file"
               ? `File ${String(annotation.path ?? "")}${annotation.start_line ? `:${String(annotation.start_line)}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : ""}`
-              : annotation.path ? `${String(annotation.path)}:${String(annotation.start_line ?? "")}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : `Event ${String(annotation.seq ?? "")}`}</p>
+              : annotation.path ? `${String(annotation.path)}:${String(annotation.start_line ?? "")}${annotation.end_line && annotation.end_line !== annotation.start_line ? `–${String(annotation.end_line)}` : ""}` : `Event ${String(annotation.seq ?? "")}`} /></p>
             <blockquote className={annotation.path && typeof annotation.start_line === "number" ? "annotation-source-excerpt" : undefined}>{showSource ? (
               <button type="button" className="annotation-source-link" onClick={showSource} aria-label={`Jump to source: ${excerpt}`}>{quote}</button>
             ) : quote}</blockquote>

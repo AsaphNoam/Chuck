@@ -35,7 +35,7 @@
 
 .tasks-summary {
   color: var(--ad-text-secondary);
-  font-size: 0.9rem;
+  font-size: var(--ad-size-body);
 }
 
 /* Project sections: heading and counts lead, related groups follow. */
@@ -161,7 +161,7 @@
 .task-detail-section {
   display: grid;
   gap: var(--ad-space-1);
-  font-size: 0.85rem;
+  font-size: var(--ad-size-body);
 }
 
 .task-detail-section p,
@@ -201,7 +201,7 @@
 .tasks-history > summary,
 .tasks-disclosure > summary {
   cursor: pointer;
-  font-size: 0.88rem;
+  font-size: var(--ad-size-menu);
   font-weight: 600;
 }
 
@@ -416,6 +416,8 @@
 
 .task-instruction {
   color: var(--ad-text-muted);
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-body);
   margin: 0;
 }
 
@@ -502,7 +504,7 @@
 
 .schedule-rule-text {
   color: var(--ad-text-secondary);
-  font-size: 0.85rem;
+  font-size: var(--ad-size-body);
   overflow-wrap: anywhere;
 }
 

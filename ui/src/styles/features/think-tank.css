@@ -80,8 +80,8 @@
   align-items: center;
   color: var(--ad-state-done);
   display: flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.625rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-2);
   letter-spacing: 0.13em;
   margin: 0;
@@ -826,7 +826,8 @@ a.think-tank-author:hover {
 .think-tank-member-instructions > summary {
   color: var(--ad-text-secondary);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-menu);
 }
 
 .think-tank-member-instructions > p {
@@ -1006,8 +1007,8 @@ a.think-tank-author:hover {
 
 .room-list-eyebrow {
   color: var(--ad-text-secondary);
-  font-family: var(--ad-font-mono);
-  font-size: 0.625rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   letter-spacing: 0.12em;
   margin: 0;
   text-transform: uppercase;
@@ -1153,7 +1154,7 @@ a.think-tank-author:hover {
 .room-card-phase {
   border-inline-start: var(--ad-border-thin) solid var(--ad-border-default);
   color: var(--ad-text-muted);
-  font-size: 0.6875rem;
+  font-size: var(--ad-size-compact);
   font-weight: 400;
   padding-inline-start: var(--ad-space-3);
 }
@@ -1164,7 +1165,7 @@ a.think-tank-author:hover {
   border-radius: var(--ad-radius-small);
   color: var(--ad-room-card-tone);
   display: flex;
-  font-size: 0.6875rem;
+  font-size: var(--ad-size-compact);
   font-weight: 600;
   gap: var(--ad-space-2);
   padding: var(--ad-space-1) var(--ad-space-2);
@@ -1200,7 +1201,7 @@ a.think-tank-author:hover {
 }
 
 .room-card-goal > span {
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   letter-spacing: 0.06em;
   margin-inline-end: var(--ad-space-2);
   text-transform: uppercase;
@@ -1271,7 +1272,7 @@ a.think-tank-author:hover {
 .room-card-person-meta,
 .room-card-person-state {
   color: var(--ad-text-muted);
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -1285,7 +1286,7 @@ a.think-tank-author:hover {
   color: var(--ad-text-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-2);
   justify-content: space-between;
   line-height: 1.6;
@@ -1316,7 +1317,7 @@ a.think-tank-author:hover {
 }
 
 .room-card-budget > small {
-  font-size: 0.625rem;
+  font-size: var(--ad-size-compact);
   line-height: 1.6;
   margin-top: var(--ad-space-2);
   max-width: 110px;
@@ -1561,7 +1562,8 @@ a.think-tank-author:hover {
 .think-tank-setup-instructions > summary {
   color: var(--ad-text-secondary);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-menu);
   overflow-wrap: anywhere;
 }
 

@@ -66,8 +66,8 @@
 
   .pipeline-template-index small {
     color: var(--ad-text-muted);
-    font-family: var(--ad-font-mono);
-    font-size: 0.625rem;
+    font-family: var(--ad-font-text);
+    font-size: var(--ad-size-compact);
     margin: 0;
     text-transform: uppercase;
   }

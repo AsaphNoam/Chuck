@@ -34,13 +34,13 @@
   background: var(--ad-surface-raised);
   border-color: var(--ad-border-strong);
   flex: 1;
-  font-size: 1rem;
+  font-size: var(--ad-size-input);
 }
 
 .archive-count {
   color: var(--ad-text-primary);
-  font-family: var(--ad-font-mono);
-  font-size: 0.7rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   white-space: nowrap;
 }
 
@@ -104,9 +104,14 @@
 .archive-row-meta {
   color: var(--ad-text-muted);
   display: flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-4);
+}
+
+.archive-row-sub > span:last-child,
+.archive-row-meta > span:not(.archive-updated) {
+  font-family: var(--ad-font-mono);
 }
 
 .archive-snippet {
@@ -130,8 +135,8 @@
   background: var(--ad-surface-subtle);
   border: var(--ad-border-thin) solid var(--ad-border-default);
   border-radius: var(--ad-radius-round);
-  font-family: var(--ad-font-mono);
-  font-size: 0.62rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   padding: var(--ad-space-1) var(--ad-space-2);
   text-transform: uppercase;
 }

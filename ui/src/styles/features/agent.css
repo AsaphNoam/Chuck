@@ -554,7 +554,7 @@ a.agent-mini-card:focus-visible {
   background: transparent;
   border: 0;
   font-family: var(--ad-font-text);
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
   font-weight: 500;
   padding: 0;
   text-transform: capitalize;
@@ -591,7 +591,7 @@ a.agent-mini-card:focus-visible {
 .context-meter-detailed {
   color: var(--ad-text-muted);
   display: grid;
-  font-size: 0.7rem;
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-2);
 }
 
@@ -626,7 +626,7 @@ a.agent-mini-card:focus-visible {
 
 .context-meter-detailed em {
   font-family: var(--ad-font-mono);
-  font-size: 0.65rem;
+  font-size: var(--ad-size-compact);
   font-style: normal;
 }
 
@@ -634,7 +634,7 @@ a.agent-mini-card:focus-visible {
    in its type scale and semantic colours; no motion. */
 .subscription-quota {
   color: var(--ad-text-muted);
-  font-size: 0.7rem;
+  font-size: var(--ad-size-compact);
   margin-top: var(--ad-space-2);
 }
 
@@ -700,7 +700,7 @@ a.agent-mini-card:focus-visible {
 .subscription-quota-row em,
 .subscription-quota-checked {
   font-family: var(--ad-font-mono);
-  font-size: 0.65rem;
+  font-size: var(--ad-size-compact);
   font-style: normal;
 }
 
@@ -712,7 +712,7 @@ a.agent-mini-card:focus-visible {
   border-top: var(--ad-border-thin) solid color-mix(in srgb, var(--ad-border-default) 50%, var(--ad-surface-raised));
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-3) var(--ad-space-4);
   padding: var(--ad-space-3) var(--ad-space-8);
 }
@@ -752,7 +752,7 @@ a.agent-mini-card:focus-visible {
 
 .chat-runtime-picker .form-field label {
   color: var(--ad-text-muted);
-  font-size: 0.72rem;
+  font-size: var(--ad-size-body);
   font-weight: 400;
 }
 
@@ -763,7 +763,7 @@ a.agent-mini-card:focus-visible {
   border-radius: 0;
   color: var(--ad-text-primary);
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: var(--ad-size-input);
   max-width: 11rem;
   min-height: 1.75rem;
   padding: var(--ad-space-1) var(--ad-space-4) var(--ad-space-1) 0;
@@ -860,7 +860,7 @@ a.agent-mini-card:focus-visible {
   border-radius: var(--ad-radius-round);
   color: var(--ad-text-muted);
   cursor: pointer;
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
   padding: var(--ad-space-1) var(--ad-space-3);
   position: relative;
   transition: background-color 150ms ease-out, color 150ms ease-out;
@@ -903,7 +903,7 @@ a.agent-mini-card:focus-visible {
 
 .chat-runtime-hint {
   color: var(--ad-text-muted);
-  font-size: 0.65rem;
+  font-size: var(--ad-size-compact);
   margin-left: auto;
   opacity: 0.85;
 }
@@ -912,7 +912,7 @@ a.agent-mini-card:focus-visible {
   align-items: center;
   color: var(--ad-state-waiting);
   display: flex;
-  font-size: 0.68rem;
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-3);
   margin-left: auto;
 }
@@ -938,8 +938,8 @@ a.agent-mini-card:focus-visible {
 
 .new-agent-provider {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.72rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   margin: 0;
   overflow-wrap: anywhere;
 }
@@ -947,12 +947,12 @@ a.agent-mini-card:focus-visible {
 .new-agent-runtime > span:first-child {
   color: var(--ad-text-muted);
   flex-basis: 100%;
-  font-size: 0.8rem;
+  font-size: var(--ad-size-compact);
 }
 
 .new-agent-runtime > strong,
 .new-agent-runtime > span:not(:first-child) {
-  font-size: 0.9rem;
+  font-size: var(--ad-size-body);
 }
 
 .new-agent-options {
@@ -996,7 +996,7 @@ a.agent-mini-card:focus-visible {
   border-radius: 0;
   color: var(--ad-text-muted);
   font-family: var(--ad-font-text);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-menu);
   letter-spacing: normal;
   margin-bottom: calc(var(--ad-border-thin) * -1);
   min-height: auto;
@@ -1169,7 +1169,7 @@ a.agent-mini-card:focus-visible {
   align-items: center;
   color: var(--ad-text-muted);
   display: flex;
-  font-size: 0.86rem;
+  font-size: var(--ad-size-body);
   gap: var(--ad-space-2);
   padding: var(--ad-space-2) 0;
 }
@@ -1411,7 +1411,7 @@ a.agent-mini-card:focus-visible {
   background: transparent;
   border: 0;
   color: inherit;
-  font-family: var(--ad-font-mono);
+  font-family: var(--ad-font-text);
   justify-content: flex-start;
   min-height: auto;
   padding: 0;
@@ -1436,7 +1436,7 @@ a.agent-mini-card:focus-visible {
   color: var(--ad-text-secondary);
   column-gap: var(--ad-space-3);
   display: grid;
-  font-size: 0.8rem;
+  font-size: var(--ad-size-body);
   grid-template-columns: auto minmax(0, 1fr);
   padding: calc(var(--ad-space-4) + var(--ad-space-1));
   row-gap: var(--ad-space-1);
@@ -1456,7 +1456,7 @@ a.agent-mini-card:focus-visible {
 
 .permission-prompt [data-slot="title"] {
   color: color-mix(in srgb, var(--ad-state-waiting) 70%, var(--ad-text-primary));
-  font-size: 0.85rem;
+  font-size: var(--ad-size-body);
   overflow-wrap: anywhere;
 }
 
@@ -1512,8 +1512,8 @@ a.agent-mini-card:focus-visible {
   border: var(--ad-border-thin) solid var(--ad-state-done);
   border-radius: var(--ad-radius-round);
   color: var(--ad-state-done);
-  font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   padding: var(--ad-space-1) var(--ad-space-2);
   text-transform: uppercase;
 }
@@ -1548,7 +1548,7 @@ a.agent-mini-card:focus-visible {
   color: var(--ad-text-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.8rem;
+  font-size: var(--ad-size-body);
   gap: var(--ad-space-2);
   padding: var(--ad-space-1) 0;
 }
@@ -1593,8 +1593,8 @@ a.agent-mini-card:focus-visible {
 .annotation-tray-header span,
 .annotation-card section > p:first-child {
   color: var(--ad-text-muted);
-  font-family: var(--ad-font-mono);
-  font-size: 0.66rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
 }
 
 .annotation-card header span {
@@ -1694,8 +1694,8 @@ a.agent-mini-card:focus-visible {
 }
 
 .annotation-draft-anchor {
-  font-family: var(--ad-font-mono);
-  font-size: 0.72rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   overflow-wrap: anywhere;
 }
 
@@ -1836,8 +1836,8 @@ a.agent-mini-card:focus-visible {
   border-radius: 0;
   color: var(--ad-text-secondary);
   display: flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.72rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-menu);
   gap: var(--ad-space-1);
   min-height: 2rem;
   min-width: 0;
@@ -1859,7 +1859,7 @@ a.agent-mini-card:focus-visible {
 .file-tab-source {
   color: var(--ad-text-muted);
   font-family: var(--ad-font-text);
-  font-size: 0.66rem;
+  font-size: var(--ad-size-compact);
   font-weight: 400;
 }
 
@@ -1946,8 +1946,8 @@ a.agent-mini-card:focus-visible {
 .file-viewer-meta {
   color: var(--ad-text-muted);
   flex: none;
-  font-family: var(--ad-font-mono);
-  font-size: 0.66rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   margin: 0;
   padding: var(--ad-space-2) var(--ad-space-3);
 }
@@ -2097,7 +2097,7 @@ a.agent-mini-card:focus-visible {
    (FS-03.R55, INV §8). */
 .file-viewer-error {
   color: var(--ad-state-error);
-  font-size: 0.82rem;
+  font-size: var(--ad-size-body);
   margin: 0;
 }
 
@@ -2238,14 +2238,14 @@ a.agent-mini-card:focus-visible {
 }
 
 .composer-picker-label {
-  font-family: var(--ad-font-mono);
-  font-size: 0.78rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-menu);
   white-space: nowrap;
 }
 
 .composer-picker-desc {
   color: var(--ad-text-muted);
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2253,7 +2253,7 @@ a.agent-mini-card:focus-visible {
 
 .composer-picker-hint {
   color: var(--ad-text-muted);
-  font-size: 0.7rem;
+  font-size: var(--ad-size-compact);
   font-style: italic;
   margin-left: auto;
   white-space: nowrap;
@@ -2262,12 +2262,12 @@ a.agent-mini-card:focus-visible {
 .composer-picker-empty {
   padding: var(--ad-space-1) var(--ad-space-2);
   color: var(--ad-text-muted);
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
 }
 
 .composer-picker-group {
   color: var(--ad-text-secondary);
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
   font-weight: 700;
   padding: var(--ad-space-1) var(--ad-space-2);
 }
@@ -2339,7 +2339,7 @@ a.agent-mini-card:focus-visible {
 .chat-attachment-name {
   overflow: hidden;
   color: var(--ad-text-primary);
-  font-size: 0.72rem;
+  font-size: var(--ad-size-compact);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2347,7 +2347,7 @@ a.agent-mini-card:focus-visible {
 .chat-attachment-meta,
 .chat-attachment-retry {
   color: var(--ad-text-muted);
-  font-size: 0.65rem;
+  font-size: var(--ad-size-compact);
   overflow-wrap: anywhere;
 }
 
@@ -2359,13 +2359,13 @@ a.agent-mini-card:focus-visible {
   border: 0;
   background: transparent;
   color: var(--ad-text-secondary);
-  font-size: 0.68rem;
+  font-size: var(--ad-size-compact);
 }
 
 .chat-attachment-remove:disabled { opacity: 0.6; }
 .composer.is-file-drop-target { outline: var(--ad-border-thick) solid var(--ad-highlight-foreground); outline-offset: 2px; }
 .composer-drop-hint,
-.composer-retry { grid-column: 1 / -1; margin: 0; color: var(--ad-text-secondary); font-size: 0.72rem; }
+.composer-retry { grid-column: 1 / -1; margin: 0; color: var(--ad-text-secondary); font-size: var(--ad-size-body); }
 .composer-retry button { padding: 0 var(--ad-space-1); border: 0; background: transparent; color: var(--ad-text-primary); text-decoration: underline; }
 .composer-attach { align-self: start; min-height: 36px; padding-inline: var(--ad-space-3); }
 .chat-message-attachments { margin-top: var(--ad-space-2); }
@@ -2376,12 +2376,12 @@ a.agent-mini-card:focus-visible {
 .chat-image-dialog > img { display: block; width: 100%; max-height: calc(90dvh - 5rem); object-fit: contain; }
 .chat-image-unavailable { color: var(--ad-text-muted); font-size: 0.75rem; }
 .chat-local-image { display: grid; gap: var(--ad-space-1); justify-items: start; padding: var(--ad-space-2); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-small); background: var(--ad-surface-subtle); color: var(--ad-text-primary); text-align: left; }
-.chat-local-image span:last-child { color: var(--ad-text-muted); font-size: 0.68rem; }
+.chat-local-image span:last-child { color: var(--ad-text-muted); font-size: var(--ad-size-compact); }
 .markdown-image-placeholder { color: var(--ad-text-muted); font-size: 0.75rem; }
 
 .composer-notice {
   color: var(--ad-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-body);
   margin: 0;
 }
 
@@ -2438,7 +2438,7 @@ a.agent-mini-card:focus-visible {
 .tracked-count {
   color: var(--ad-text-muted);
   font-family: var(--ad-font-mono);
-  font-size: 0.68rem;
+  font-size: var(--ad-size-compact);
   white-space: nowrap;
 }
 
@@ -2486,8 +2486,8 @@ a.agent-mini-card:focus-visible {
 .tracked-row-meta {
   color: var(--ad-text-muted);
   display: flex;
-  font-family: var(--ad-font-mono);
-  font-size: 0.66rem;
+  font-family: var(--ad-font-text);
+  font-size: var(--ad-size-compact);
   gap: var(--ad-space-3);
 }
 
@@ -2507,7 +2507,7 @@ a.agent-mini-card:focus-visible {
 /* Live-only reasoning: a subdued, collapsed disclosure beside the turn (TS-08.R59). */
 .thinking {
   color: var(--ad-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-body);
 }
 
 .thinking-text {
@@ -2519,7 +2519,7 @@ a.agent-mini-card:focus-visible {
    position; opened rows stay in place behind a quiet rule (TS-08.R105). */
 .turn-activity-toggle {
   color: var(--ad-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-compact);
   margin-bottom: var(--ad-space-3);
 }
 
@@ -2531,7 +2531,7 @@ a.agent-mini-card:focus-visible {
 
 .turn-outcome {
   color: var(--ad-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-body);
   margin: 0 0 var(--ad-space-2);
 }
 
@@ -2539,7 +2539,7 @@ a.agent-mini-card:focus-visible {
    Indentation stops after two levels; the label keeps the ancestry. */
 .runtime-child {
   color: var(--ad-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-body);
 }
 
 .runtime-child-indent > .runtime-child-content {
@@ -2564,7 +2564,7 @@ a.agent-mini-card:focus-visible {
 /* On-demand running commands, state before metadata (TS-08.R146). */
 .running-tasks {
   color: var(--ad-text-muted);
-  font-size: 0.8rem;
+  font-size: var(--ad-size-body);
 }
 
 .running-tasks-popover {
@@ -2612,7 +2612,7 @@ a.agent-mini-card:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--ad-font-mono);
+  font-family: var(--ad-font-text);
   overflow-wrap: anywhere;
 }
 
@@ -2744,7 +2744,7 @@ a.agent-mini-card:focus-visible {
 
 .chat-panel .transcript-pending {
   color: var(--ad-state-done);
-  font-size: 0.78rem;
+  font-size: var(--ad-size-body);
 }
 
 .chat-panel .jump-to-latest {
