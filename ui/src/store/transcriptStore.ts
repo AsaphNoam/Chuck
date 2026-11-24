@@ -50,6 +50,16 @@ function kindOf(event: TranscriptEvent) {
   return event.kind ?? event.type;
 }
 
+function promptDeliveryEvent(event: TranscriptEvent): TranscriptEvent {
+  if (kindOf(event) !== "annotation" || !event.prompt_paired) return event;
+  return {
+    kind: "user_text",
+    seq: typeof event.prompt_seq === "number" ? event.prompt_seq : undefined,
+    text: String(event.prompt_text ?? ""),
+    request_id: typeof event.prompt_request_id === "string" ? event.prompt_request_id : undefined,
+  };
+}
+
 // Queued assignment input leaves the tail once history holds the sequenced
 // user_text carrying its own request ID, whichever of the prompt snapshot and
 // that event arrived first (FS-03.R48/R118).
@@ -57,7 +67,8 @@ export function undeliveredQueued<T extends { request_id: string }>(queued: T[],
   if (!queued.length || !events?.length) return queued;
   const sent = new Set<string>();
   for (const event of events) {
-    if (kindOf(event) === "user_text" && !event.steer_pending && event.seq != null && event.request_id) sent.add(event.request_id);
+    const delivery = promptDeliveryEvent(event);
+    if (kindOf(delivery) === "user_text" && !delivery.steer_pending && delivery.seq != null && delivery.request_id) sent.add(delivery.request_id);
   }
   return queued.some((item) => sent.has(item.request_id)) ? queued.filter((item) => !sent.has(item.request_id)) : queued;
 }
@@ -74,8 +85,9 @@ function textOf(event: TranscriptEvent) {
 export function matchesPromptDelivery(
   event: TranscriptEvent, text: string, requestId: string | undefined, afterSeq = 0,
 ): boolean {
-  return kindOf(event) === "user_text" && !event.steer_pending && event.seq != null &&
-    (event.request_id ? event.request_id === requestId : event.seq > afterSeq && textOf(event) === text);
+  const delivery = promptDeliveryEvent(event);
+  return kindOf(delivery) === "user_text" && !delivery.steer_pending && delivery.seq != null &&
+    (delivery.request_id ? delivery.request_id === requestId : delivery.seq > afterSeq && textOf(delivery) === text);
 }
 
 function reconcileUserMessage(events: TranscriptEvent[], event: TranscriptEvent) {

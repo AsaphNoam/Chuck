@@ -360,7 +360,24 @@ Example:
   refusal (`released`), ended-assignment release (`releaseEndedAssignmentInput`) and startup
   release. Readers: the prompt snapshot's `queued`, history and search (only after `user_text`),
   the desktop held projection and the phone screen. FS-03.R48/R118, TS-09.R69, TS-10.R29 and INV
-  §19 state outcomes but no transition table. Missing or divergent rules (code-confirmed unless
+  §19 state outcomes but no transition table.
+  Browser projection inventory refreshed for ANNOTATION-QUEUE-2 (2026-11-24): ordinary Send and
+  self-annotation Send share `admitConversationInput` before `SendMessageOrHold`; explicit Steer
+  uses `SteerMessage`. `readHeldRecovery` writes `heldStore.queuedByAgent` from the prompt snapshot;
+  `Composer` writes accepted runtime holds through `acceptHold`, while mount/state changes and
+  self-annotation acceptance hydrate them through `readHeldRecovery`. Withdrawal, held Steer,
+  delivery matching, empty snapshots and stopped-composer restoration release the held mirror.
+  Desktop SSE append/refetch and phone transcript reads feed `foldTranscript`/`appendRenderedEvent`:
+  self-annotation prompts move their exact identity into the card's `prompt_request_id` and
+  `prompt_seq`. `promptDeliveryEvent` now gives both `undeliveredQueued` and
+  `matchesPromptDelivery` the same sequenced delivery projection, closing ANNOTATION-QUEUE-1.
+  Consumers are desktop Composer and TranscriptView, phone AgentScreen and desktop
+  `useHeldProjection` (shared by ChatPanel and DashboardChatPane). The phone keeps its own prompt
+  query and refetches it on transcript updates. FS-03.R48/R118, FS-13.R37 and TS-08.R56 require
+  the same request's sequenced delivery to settle either tail; an annotation source card or
+  unsequenced echo alone cannot settle it. Broader snapshot/receipt transition questions below
+  remain design work rather than part of that display correction.
+  Missing or divergent rules (code-confirmed unless
   marked):
   - no event is published on claim, submit, release or failure, so a card leaves only on a
     snapshot refetch or its own `user_text`; a release or failure stays visible until the next

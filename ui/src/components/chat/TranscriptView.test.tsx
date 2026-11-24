@@ -429,8 +429,11 @@ describe("TranscriptView pending follow-up", () => {
     expect(queued?.textContent).toContain("and rerun the tests");
   });
 
-  // ANNOTATION-QUEUE-1: delivered annotation prompts must settle their queued tail (FS-03.R118).
-  it.skip("drops a delivered assignment annotation after its prompt folds into the source card", () => {
+  it.each([
+    { deliveredRequestId: "annotation-queued-batch", promptSeq: 9, remainsQueued: false },
+    { deliveredRequestId: "annotation-another-batch", promptSeq: 9, remainsQueued: true },
+    { deliveredRequestId: "annotation-queued-batch", promptSeq: undefined, remainsQueued: true },
+  ])("settles a folded assignment annotation only on sequenced delivery ($deliveredRequestId, $promptSeq)", ({ deliveredRequestId, promptSeq, remainsQueued }) => {
     const requestId = "annotation-queued-batch";
     const text = `${annotationBlockSentinel}\n\nReview the selected passage`;
     useHeldStore.getState().setQueued("a1", [
@@ -441,12 +444,12 @@ describe("TranscriptView pending follow-up", () => {
       { kind: "annotation", seq: 8, target: { kind: "self" }, annotations: [
         { seq: 7, excerpt: "First line", instruction: "Review the selected passage" },
       ] },
-      { kind: "user_text", seq: 9, text, request_id: requestId },
+      { kind: "user_text", seq: promptSeq, text, request_id: deliveredRequestId },
     ]);
     renderTranscript(true, sent, true);
 
     expect(screen.getByText("Review the selected passage")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Queued for this assignment")).toBeNull();
+    expect(screen.queryByLabelText("Queued for this assignment") !== null).toBe(remainsQueued);
   });
 
   it("keeps the message visible when withdrawing it fails", async () => {

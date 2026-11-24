@@ -35,13 +35,7 @@ export function useHeldProjection(id: string, agent: Pick<AgentState, "running" 
     if (!held && !heldAttachments?.length) return;
     // A held annotation batch's prompt is quieted under FS-13.R23; its card
     // records where that prompt landed instead.
-    const delivered = (events ?? []).some((event) => {
-      const delivery = (event.kind ?? event.type) === "annotation" && event.prompt_paired
-        ? { kind: "user_text", seq: Number(event.prompt_seq ?? 0), text: String(event.prompt_text ?? ""),
-            request_id: typeof event.prompt_request_id === "string" ? event.prompt_request_id : undefined }
-        : event;
-      return matchesPromptDelivery(delivery, held ?? "", heldRequestId, heldAfterSeq);
-    });
+    const delivered = (events ?? []).some((event) => matchesPromptDelivery(event, held ?? "", heldRequestId, heldAfterSeq));
     if (delivered) releaseHeld(id);
   }, [events, held, heldAttachments, heldRequestId, heldAfterSeq, id, releaseHeld]);
 }
