@@ -141,6 +141,8 @@ describe("ThinkTankPage", () => {
     window.getSelection()?.removeAllRanges(); window.getSelection()?.addRange(range);
     fireEvent.contextMenu(body);
     fireEvent.click(await screen.findByText("Annotate selection"));
+    const caption = screen.getByRole("heading", { name: "File notes.md:1" });
+    expect(caption.querySelector("code")).toHaveTextContent(/^notes\.md:1$/);
     expect(Object.values(useAnnotationStore.getState().bySource).flat()).toEqual(expect.arrayContaining([expect.objectContaining({ room_anchor: "file", source_id: "src_23", path: "notes.md" })]));
     window.getSelection()?.removeAllRanges();
   });

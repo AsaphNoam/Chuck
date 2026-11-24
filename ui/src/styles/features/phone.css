@@ -16,7 +16,7 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; --ad-phone-wallpaper-
 .phone-navigation-overlay { position: fixed; inset: 65px 0 0; background: color-mix(in srgb, var(--ad-text-primary) 15%, transparent); z-index: 10; }
 .phone-navigation { position: fixed; top: calc(65px + var(--ad-space-2)); left: max(var(--ad-space-4), calc((100vw - 480px) / 2 + var(--ad-space-4))); width: min(280px, calc(100vw - var(--ad-space-8))); background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-default); border-radius: var(--ad-radius-large); box-shadow: var(--ad-shadow-offset); padding: var(--ad-space-4); z-index: 11; }
 .phone-navigation h2 { margin: 0 0 var(--ad-space-2); }
-.phone-navigation button { align-items: center; background: transparent; border: 0; color: var(--ad-text-primary); display: flex; font-size: 0.875rem; gap: var(--ad-space-3); justify-content: flex-start; min-height: 48px; padding: var(--ad-space-3); text-align: left; width: 100%; }
+.phone-navigation button { align-items: center; background: transparent; border: 0; color: var(--ad-text-primary); display: flex; font-size: var(--ad-size-menu); gap: var(--ad-space-3); justify-content: flex-start; min-height: 48px; padding: var(--ad-space-3); text-align: left; width: 100%; }
 .phone-navigation button svg:last-child { margin-left: auto; }
 .phone-navigation button[aria-current="page"] { background: var(--ad-surface-subtle); color: var(--ad-state-done); }
 .phone-screen { display: grid; align-content: start; gap: var(--ad-space-6); padding: calc(var(--ad-space-6) + var(--ad-border-thin)) calc(var(--ad-space-6) - var(--ad-border-thick)); min-width: 0; }

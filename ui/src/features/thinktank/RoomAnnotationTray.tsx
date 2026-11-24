@@ -88,7 +88,7 @@ export function RoomAnnotationTray({ room }: { room: ThinkTankDetail }) {
           {drafts.map((draft, index) => (
             <li className="annotation-draft" key={`${draft.room_anchor}-${draft.seq ?? draft.path}-${index}`}>
               <div className="annotation-draft-head">
-                <h3 className="annotation-draft-anchor">{roomAnchorLabel(draft)}</h3>
+                <h3 className="annotation-draft-anchor"><RoomAnchorCaption draft={draft} /></h3>
                 <button type="button" className="ad-button-danger" onClick={() => remove(sourceId, index)} disabled={send.isPending}>Remove</button>
               </div>
               <blockquote className={draft.path && draft.start_line ? "annotation-source-excerpt" : undefined}>{draft.excerpt}</blockquote>
@@ -146,11 +146,24 @@ function toWire(draft: AnnotationDraft): RoomAnnotationWire {
   };
 }
 
-export function roomAnchorLabel(draft: AnnotationDraft): string {
+function roomAnchorParts(draft: AnnotationDraft) {
   if (draft.room_anchor === "file") {
     const lines = draft.start_line ? `:${draft.start_line}${draft.end_line && draft.end_line !== draft.start_line ? `–${draft.end_line}` : ""}` : "";
-    return `File ${draft.path}${lines}`;
+    return { label: "File ", reference: `${draft.path}${lines}` };
   }
-  if (draft.room_anchor === "activity") return draft.path ? `${draft.path} (activity ${draft.seq})` : `Activity ${draft.seq}`;
-  return `Room entry ${draft.seq}`;
+  if (draft.room_anchor === "activity") {
+    if (draft.path) return { label: "", reference: draft.path, activity: String(draft.seq) };
+    return { label: "Activity ", reference: String(draft.seq) };
+  }
+  return { label: "Room entry ", reference: String(draft.seq) };
+}
+
+function roomAnchorLabel(draft: AnnotationDraft): string {
+  const { label, reference, activity } = roomAnchorParts(draft);
+  return `${label}${reference}${activity === undefined ? "" : ` (activity ${activity})`}`;
+}
+
+function RoomAnchorCaption({ draft }: { draft: AnnotationDraft }) {
+  const { label, reference, activity } = roomAnchorParts(draft);
+  return <>{label}<code>{reference}</code>{activity !== undefined && <> (activity <code>{activity}</code>)</>}</>;
 }

@@ -66,6 +66,13 @@ try {
       });
       if (home.tagline || home.overflow || home.gaps.some((gap) => gap < 8)) failures.push(`${skin || "core"}/${width} home: ${JSON.stringify(home)}`);
       await page.screenshot({ path: `${prefix}-${skin || "core"}-home-${width}.png`, fullPage: true, animations: "disabled" });
+      await page.getByRole("button", { name: "Open navigation" }).click();
+      const menu = page.getByRole("navigation", { name: "Mobile navigation" });
+      const sizes = await menu.getByRole("button").evaluateAll((items) => items.map((item) => getComputedStyle(item).fontSize));
+      if (sizes.length !== 2 || sizes.some((size) => size !== "13px")) {
+        failures.push(`${skin || "core"}/${width} navigation menu: expected 13px labels, got ${sizes.join(", ")}`);
+      }
+      await page.keyboard.press("Escape");
       await page.evaluate(() => { history.pushState(null, "", "/agent/a1"); window.dispatchEvent(new PopStateEvent("popstate")); });
       await page.getByRole("list", { name: "Conversation" }).waitFor();
       const chat = await page.evaluate(() => {
