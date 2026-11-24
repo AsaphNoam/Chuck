@@ -232,6 +232,7 @@ func (s *Server) handleRefreshProvider(w http.ResponseWriter, r *http.Request) {
 		if writeErr != nil {
 			if durable, readErr := s.configStore.ReadBackends(); readErr == nil && backendCatalogETag(durable) != backendCatalogETag(current) {
 				saved := durable.Backends[backendID]
+				s.logProviderCheckFailure(backendID, "", saved.DefaultModel, true, runtime.CodeInternal)
 				s.invalidateOnboardingCache()
 				w.Header().Set("ETag", backendCatalogETag(durable))
 				writeJSON(w, http.StatusOK, refreshProviderResponse{Backend: &saved, CheckError: apiError(runtime.CodeInternal, "backend settings changed but the save could not finish; reload before checking")})
@@ -248,6 +249,7 @@ func (s *Server) handleRefreshProvider(w http.ResponseWriter, r *http.Request) {
 	var checkedRuntime *providerRuntime
 	var checkedCredentials *credcheck.CredResult
 	failCheck := func(code, message string) {
+		s.logProviderCheckFailure(backendID, req.ModelID, be.DefaultModel, committed != nil, code)
 		if committed == nil {
 			writeAPIError(w, apiError(code, message))
 			return
@@ -401,4 +403,19 @@ func (s *Server) promoteFirstChatBackend(backendID, etag string) error {
 	}
 	s.invalidateOnboardingCache()
 	return nil
+}
+
+// logProviderCheckFailure records one bounded decision for a provider check
+// that was refused or only partly finished, including a committed save whose
+// HTTP 200 carries check_error (INV §22). It logs identities and the typed
+// code only, never backend settings or credentials.
+func (s *Server) logProviderCheckFailure(backendID, modelID, defaultModel string, saved bool, code string) {
+	if modelID == "" {
+		modelID = defaultModel
+	}
+	operation := "check"
+	if saved {
+		operation = "save_and_check"
+	}
+	s.log.Warn("provider check: not completed", "backend", backendID, "model", modelID, "operation", operation, "reason", code)
 }

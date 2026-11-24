@@ -56,12 +56,15 @@ Releases support **Apple-silicon Macs** (macOS arm64). You also need
 installed and signed in.
 
 ```sh
-curl -fsSL https://github.com/AsaphNoam/Chuck/releases/latest/download/install.sh | bash
+curl -fsSLo install.sh https://github.com/AsaphNoam/Chuck/releases/latest/download/install.sh
+bash install.sh
 ```
 
-The installer checks the download against its published SHA-256 manifest. It may offer to add
-Chuck to your zsh `PATH`, then opens the dashboard for provider setup. It never asks for
-credentials itself. For explicit sign-in or manual startup later:
+The installer checks the download against its published SHA-256 manifest. Run from a terminal as
+above, it may offer to add Chuck to your zsh `PATH`, then opens the dashboard for provider setup.
+It never asks for credentials itself. Piping it instead (`curl … | bash`) installs
+non-interactively: it prompts for nothing, starts nothing and prints the `dashboard start` command
+to run next. For explicit sign-in or manual startup later:
 
 ```sh
 chuck auth claude              # or: chuck auth codex

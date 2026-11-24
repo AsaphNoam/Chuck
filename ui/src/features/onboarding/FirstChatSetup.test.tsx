@@ -127,7 +127,9 @@ describe("first chat setup", () => {
       }),
       http.put("/api/config", async ({ request }) => {
         completions++;
-        expect(await request.json()).toMatchObject({ onboarding_complete: true, onboarding_backend: "claude", default_project: "work" });
+        const body = await request.json();
+        expect(body).toMatchObject({ onboarding_complete: true, onboarding_backend: "claude", onboarding_default_project: "work" });
+        expect(body).not.toHaveProperty("default_project");
         return completions === 1 ? HttpResponse.json({ error: { message: "Disk unavailable" } }, { status: 500 }) : HttpResponse.json({});
       }),
     );

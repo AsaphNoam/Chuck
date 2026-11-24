@@ -110,9 +110,8 @@ export function FirstChatSetup({ onComplete }: { onComplete: (agentId?: string) 
   }, [eligible, project, config]);
 
   const finish = async (selection: { id: string; backend: string; project: string; etag?: string }) => {
-    const savedDefault = config?.default_project;
-    const defaultUsable = !!savedDefault && (config?.onboarding.launchable_projects ?? []).includes(savedDefault) && !!projectsQuery.data?.[savedDefault] && !projectsQuery.data[savedDefault].archived;
-    await complete.mutateAsync({ onboarding_complete: true, onboarding_backend: selection.backend, onboarding_catalog_etag: selection.etag, ...(!defaultUsable ? { default_project: selection.project } : {}) });
+    // The server fills the default only if the stored one is unusable (FS-04.R64).
+    await complete.mutateAsync({ onboarding_complete: true, onboarding_backend: selection.backend, onboarding_catalog_etag: selection.etag, onboarding_default_project: selection.project });
     onComplete(selection.id);
   };
   const start = async () => {

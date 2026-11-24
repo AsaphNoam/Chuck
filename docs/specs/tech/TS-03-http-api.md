@@ -1303,7 +1303,11 @@ Keep the old response fields for existing clients. An active first-chat config r
 catalog and project eligibility without waiting for a provider command; an unchecked backend has
 `done:false` with a checking detail until an identity-matching ready observation is available.
 Expose the eligible project ids in `onboarding.launchable_projects` for this flow. The server
-checks the existing launch path's project and directory conditions before a first chat starts.
+checks the existing launch path's project and directory conditions before a first chat starts,
+including its rule for an owned checkout lost out of band: such a project is eligible when its
+recorded branch still exists, and the eligibility check itself recreates nothing (FS-19.R7).
+A provider check that is refused, or a save whose check did not finish, logs one bounded record
+of backend, model, operation and typed reason (INV §22).
 
 Extend R53's local-only `POST /api/backends/{id}/refresh-provider` with optional
 `check_only:true` or an editable `backend` definition. They are mutually exclusive. Check-only
@@ -1340,7 +1344,11 @@ failure at its failed step. On uncertain create or launch response, refetch curr
 sessions and offer recovery through the existing lists. Do not automatically replay a request
 with an unknown outcome. A confirmed launch exposes its exact chat link even if completion fails.
 Complete setup using `PUT /api/config` with `onboarding_complete:true` and optional
-`onboarding_backend` and `onboarding_catalog_etag` for the completed launch selection. `Set up later`
+`onboarding_backend` and `onboarding_catalog_etag` for the completed launch selection, plus
+`onboarding_default_project` naming the launched project. The server applies that candidate
+under the config lock only when the stored `default_project` is unset, missing, archived or, during
+first-chat setup, not launchable, so a default saved meanwhile survives completion and its retry;
+the legacy wizard's resumed completion uses the same field. `Set up later`
 sends only the existing completion flag. Only an active fresh setup can promote a default.
 Perform the optional catalog promotion under the catalog lock after revalidating its captured
 ETag and original default. A catalog changed by another writer or a non-seeded default skips

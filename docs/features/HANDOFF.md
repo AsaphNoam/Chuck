@@ -71,8 +71,8 @@ None.
 
 ## Review queue
 
-No implementation unit awaits its first review. **Start a first chat with Claude or Codex**
-remains open as the same unit under **Review findings**, awaiting `/fix`.
+No implementation unit awaits its first review. **Start a first chat with Claude or Codex** is
+closed; its remaining same-cause completion/default questions are an entry in `docs/ideas.md`.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
@@ -154,71 +154,6 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
-
-### FIRST-CHAT — Start a first chat with Claude or Codex (reviewed 2026-11-24 at `b27289e9`) — **Fix model:** medium — Codex Terra or Claude Opus.
-
-[`instant-first-chat-and-backend-setup.md`](../ready-changes/instant-first-chat-and-backend-setup.md):
-substantive commits `406251af`, `01d8573e`, `be225a99`, `f95ce4d8`; unrelated interleaved
-changes and administrative closure excluded. Scope: FS-04.R62–R65, FS-09.R84–R85,
-FS-10.R27, TS-02.R66, TS-03.R87–R89, TS-04.R15/R112 and TS-08.R165–R167.
-
-- **Must fix** — FIRST-CHAT-DEFAULT-1 (`ui/src/features/onboarding/FirstChatSetup.tsx:112`,
-  `internal/server/config_handlers.go:1090`; FS-04.R64, INV §3/§5). Completion decides whether
-  to fill the project default from a client snapshot, then sends an ordinary unconditional
-  `default_project` write. A person saving a usable default from another Settings tab while the
-  first chat launches loses that choice when completion arrives. Reproduced through the real
-  UI/server boundary: hold the serialized completion request, save a different existing project
-  as default, then release completion; the launched project overwrites the saved choice. Make
-  first-chat default filling conditional on current server state under the existing config
-  authority, retaining explicit ordinary Settings writes. Cover concurrent default selection and
-  completion-only retry without a second launch. **Fix complexity: medium.**
-- **Must fix** — FIRST-CHAT-WORKTREE-1 (`internal/server/config_handlers.go:780`; FS-04.R64,
-  FS-19.R7/A3, TS-12.R4, INV §2/§10). Incomplete fresh setup omits a configured owned worktree
-  whenever its disposable checkout is missing, although ordinary launch can recreate it. The
-  documented conservative exclusion is not accepted as a local choice: it narrows the promise to
-  use a configured launchable project. A real-Git probe creates an owned project, removes its
-  checkout out of band and observes `launchable_projects:[]`; the ordinary start resolver then
-  recreates that same project successfully. Keep eligibility read-only while sharing the start
-  path's ownership/recoverability rules. Preserve rejection of unusable ordinary directories and
-  invalid ownership; test discovery has no recreation/setup side effects. This affects configured
-  owned projects during incomplete setup, not the ordinary empty-home path.
-  **Fix complexity: medium.**
-- **Worth fixing** — FIRST-CHAT-DIAGNOSTIC-1 (`internal/server/provider_refresh.go:250`;
-  TS-03.R88, INV §22). A Save & check that commits while another check owns the provider returns
-  HTTP 200 with `check_error.provider_check_busy`, but Chuck logs only the successful request
-  status. Post-check catalog conflicts likewise lack a typed decision record. A held-probe
-  reproduction captures only request statuses 200/409, with no failure code. Log one bounded
-  backend/model/operation/reason record at the refusal/partial-outcome seam, without settings or
-  credential payloads. Assert the diagnostic for a committed partial outcome.
-  **Fix complexity: trivial/easy.**
-- **Worth fixing** — FIRST-CHAT-INSTALL-1 (`README.md:40`, `README.md:45`; FS-10.R6/R27,
-  INV §10). The new text promises that the installer opens setup immediately after the recommended
-  `curl … | bash` command. Piped stdin deliberately selects noninteractive mode
-  (`scripts/release/install.sh:117,251`), so that command instead prints manual-start guidance.
-  A piped-bootstrap probe without `--non-interactive` confirms no dashboard start. Qualify the
-  startup claim and show the interactive invocation or explicit startup required for that recipe;
-  retain the specified noninteractive installer behavior. **Fix complexity: trivial/easy.**
-- **Must fix** — FIRST-CHAT-INVENTORY-1 (workflow §7; `config.onboarding_complete` /
-  `config.default_project`, INV §2/§3/§5). This completion owner already had findings repaired in
-  `2997aadb` and `04305b5d` on 2026-11-22. Before another local patch, inventory every writer of
-  these fields and every completion entry point (legacy wizard, first-chat finish/skip/retry,
-  backfill and config API), and identify where legal default-preservation/completion moves are
-  stated. Use that bounded inventory to repair the existing authority; no new lifecycle mechanism
-  is requested. **Fix complexity: medium.**
-
-Review evidence is outside the repository in shared project resources under `first-chat-review/`
-(`report.json`, Core/Sky screenshots and browser harnesses in the parent directory). Focused UI
-rendering at 1024×768 also verifies keyboard-focused provider repair, preserved New Agent input,
-no automatic relaunch and a usable removed-target Settings list (`repair-report.json`). Focused UI
-checks pass 96 tests; focused config/server checks pass both SQLite variants and targeted race
-checks; native-auth process-boundary and installer PTY checks pass. Review-only Go overlays under
-`/private/tmp/firstchat_review_overlay.json` and `/private/tmp/auth-review-installer-overlay.json`
-reproduce the worktree, diagnostic and installer findings; output is in
-`/private/tmp/firstchat_review_diagnostics.log`. Existing changed tests use meaningful boundaries;
-native-auth fixtures agree with the pinned adapter parser. Backend-promotion ETag conflicts
-correctly skip promotion without blocking completion. Packaged native-provider acceptance remains
-owed in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md). The grouped unit remains whole for `/fix`;
-no product code or specifications changed in review.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 

@@ -79,14 +79,12 @@ export function LaunchStep({ onDone, initialProject, claimMutation, releaseMutat
           setLaunchSucceeded(true);
           // The project created in this wizard becomes the default for later
           // launches in the same completion write (FS-04.R20). A resumed wizard
-          // no longer knows which project it created, so the launched project
-          // also fills a default that is unset or no longer an active project;
-          // a valid saved default is never replaced.
-          const savedDefault = configData?.default_project;
-          const defaultUsable = Boolean(savedDefault && projectsData?.[savedDefault] && !projectsData[savedDefault].archived);
-          const completion = project === initialProject || !defaultUsable
+          // no longer knows which project it created, so the server fills the
+          // default with the launched project only when the stored one is unset
+          // or no longer active; a valid saved default is never replaced.
+          const completion = project === initialProject
             ? { onboarding_complete: true, default_project: project }
-            : { onboarding_complete: true };
+            : { onboarding_complete: true, onboarding_default_project: project };
           putConfig.mutate(completion, {
             onSuccess: () => onDone(result.agent.agent_id),
             onError: (e) => {

@@ -1,11 +1,15 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -76,7 +80,14 @@ func TestSaveAndCheckReturnsCommittedSettingsWhenCheckBusy(t *testing.T) {
 	target.Name = "Saved Claude"
 	body, _ := json.Marshal(map[string]any{"backend": target})
 	server.providerChecks = map[string]bool{providerObsKey("claude", "sonnet"): true}
+	var logs bytes.Buffer
+	server.log = slog.New(slog.NewJSONHandler(&logs, nil))
 	response := refresh(t, handler, etag, string(body))
+	// FIRST-CHAT-DIAGNOSTIC-1 (INV §22): the committed partial outcome leaves one
+	// typed record, without the saved settings.
+	if record := logs.String(); !strings.Contains(record, `"operation":"save_and_check"`) || !strings.Contains(record, `"reason":"provider_check_busy"`) || !strings.Contains(record, `"backend":"claude"`) || strings.Contains(record, "Saved Claude") {
+		t.Fatalf("diagnostic = %s", record)
+	}
 	var result refreshProviderResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
@@ -177,5 +188,112 @@ func TestSaveAndCheckFencesCatalogChangeDuringProbe(t *testing.T) {
 	}
 	if len(server.providerObs) != 0 {
 		t.Fatal("stale check published a readiness observation")
+	}
+}
+
+// FIRST-CHAT-DEFAULT-1 (FS-04.R64): completion fills default_project only when
+// the stored default is unusable, decided under configMu, so a default saved
+// from Settings while the first chat launches survives completion and its
+// completion-only retry.
+func TestFirstChatCompletionPreservesConcurrentDefault(t *testing.T) {
+	server := testServer(t, false)
+	settings := config.DefaultConfig()
+	settings.FirstChatEligible = true
+	if err := server.configStore.WriteConfig(settings); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"launched", "chosen"} {
+		if err := server.configStore.WriteProject(id, config.Project{Title: id, Cwd: t.TempDir(), AddDirs: []string{}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := server.routes()
+	put := func(body map[string]any) *httptest.ResponseRecorder {
+		return doRequest(t, handler, http.MethodPut, "/api/config", body)
+	}
+	complete := map[string]any{"onboarding_complete": true, "onboarding_default_project": "launched"}
+	write := server.writeConfig
+	server.writeConfig = func(config.Config) error { return errors.New("injected config failure") }
+	if first := put(complete); first.Code != http.StatusInternalServerError {
+		t.Fatalf("completion = %d %s", first.Code, first.Body)
+	}
+	server.writeConfig = write
+	if saved := put(map[string]any{"default_project": "chosen"}); saved.Code != http.StatusOK {
+		t.Fatalf("settings save = %d %s", saved.Code, saved.Body)
+	}
+	if retry := put(complete); retry.Code != http.StatusOK {
+		t.Fatalf("retry = %d %s", retry.Code, retry.Body)
+	}
+	stored, _ := server.configStore.ReadConfig()
+	if !stored.OnboardingComplete || stored.DefaultProject != "chosen" {
+		t.Fatalf("completion overwrote the saved default: %+v", stored)
+	}
+
+	// An unusable stored default (archived) is filled by the candidate.
+	chosen, _ := server.configStore.ReadProject("chosen")
+	chosen.Archived = true
+	if err := server.configStore.WriteProject("chosen", chosen); err != nil {
+		t.Fatal(err)
+	}
+	if replay := put(complete); replay.Code != http.StatusOK {
+		t.Fatalf("replay = %d %s", replay.Code, replay.Body)
+	}
+	if stored, _ = server.configStore.ReadConfig(); stored.DefaultProject != "launched" {
+		t.Fatalf("unusable default not filled: %q", stored.DefaultProject)
+	}
+}
+
+// FIRST-CHAT-WORKTREE-1 (FS-04.R64, FS-19.R7): an owned project whose checkout
+// was lost out of band stays launchable during first-chat setup because the
+// start path rebuilds it; discovery itself recreates nothing. A lost checkout
+// whose branch is gone is not launchable.
+func TestFirstChatListsOwnedProjectWithRecreatableCheckout(t *testing.T) {
+	repo := newWorktreeTestRepo(t)
+	srv := testServer(t, false)
+	seedWorktreeSource(t, srv, "app", repo, config.Project{Title: "App", SetupCommand: "echo ran > setup-marker.txt"})
+	rec := forkProject(t, srv, "app", map[string]any{"title": "Fork", "branch": "chuck/first-chat"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("fork = %d %s", rec.Code, rec.Body)
+	}
+	var result forkResult
+	_ = json.Unmarshal(rec.Body.Bytes(), &result)
+	forkID, checkout := result.Project.ProjectID, result.Project.Cwd
+	settings, _ := srv.configStore.ReadConfig()
+	settings.FirstChatEligible = true
+	if err := srv.configStore.WriteConfig(settings); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(checkout); err != nil {
+		t.Fatal(err)
+	}
+	launchable := func() []string {
+		var response configResponse
+		if err := json.Unmarshal(doGET(t, srv.routes(), "/api/config").Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		return response.Onboarding.LaunchableProjects
+	}
+	if got := launchable(); !slices.Contains(got, forkID) {
+		t.Fatalf("launchable = %v, want %s", got, forkID)
+	}
+	if _, err := os.Lstat(checkout); !os.IsNotExist(err) {
+		t.Fatalf("discovery recreated the checkout: %v", err)
+	}
+	if _, _, ae := srv.ensureWorktreeCheckout(t.Context(), forkID, checkout); ae != nil {
+		t.Fatalf("start path could not recreate the listed project: %v", ae)
+	}
+
+	if err := os.RemoveAll(checkout); err != nil {
+		t.Fatal(err)
+	}
+	git := srv.worktreeGit()
+	if err := git.PruneWorktrees(t.Context(), repo); err != nil {
+		t.Fatal(err)
+	}
+	if err := git.DeleteBranch(t.Context(), repo, "chuck/first-chat"); err != nil {
+		t.Fatal(err)
+	}
+	if got := launchable(); slices.Contains(got, forkID) {
+		t.Fatalf("launchable = %v, listed a checkout whose branch is gone", got)
 	}
 }

@@ -5,6 +5,22 @@ work. The specifications describe the product today; this file does not.
 
 ## New ideas
 
+- **One declared rule for setup completion and the default project.** FIRST-CHAT-INVENTORY-1
+  (2026-11-24), following `2997aadb`, `04305b5d` and the FIRST-CHAT-DEFAULT-1 repair. Writers of
+  `config.onboarding_complete` / `config.default_project`: `PUT /api/config`
+  (`server/config_handlers.go` `handlePutConfig`, under `configMu`, field merge) and the startup
+  backfill `backfillOnboardingCompletion` (completion only, skips first-chat homes); the CLI's
+  pre-server `PrepareDefaultPersonaUpgrade` rewrites the whole config but touches neither field.
+  Completion entry points: legacy wizard Launch (`LaunchStep.tsx`: created project sets
+  `default_project`, resumed sends `onboarding_default_project`), first-chat finish and its
+  completion-only retry (`FirstChatSetup.tsx`, `onboarding_default_project`), both **Set up
+  later** paths (flag only), and the backfill. The fill-only-if-unusable rule now lives in the
+  server (`defaultProjectUsable`); legal moves are otherwise stated only in FS-04.R20/R64/R67 and
+  TS-03.R89. Left open, same cause: PUT still accepts `onboarding_complete:false` with no stated
+  rule on whether completion is monotonic; FS-04.R20 lets a wizard-created project overwrite a
+  usable default saved meanwhile (unconditional `default_project`), unlike R64; "usable" differs
+  between first-chat (launchable) and legacy (active) homes.
+
 - **One declared rule for quota episode state.** QUOTA-DISMISS-2 inventory (2026-11-22), following
   `4c896077`, `95779e0c` and the QUOTA-DISMISS-1 banner repair. `quota_intents.state` writers
   (guarded by `TestStatusTableWriterInventory`): `state/quota.go` (observe/insert, refill of an

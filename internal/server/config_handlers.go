@@ -772,13 +772,23 @@ func (s *Server) computeOnboarding(ctx context.Context) onboardingBlock {
 	return ob
 }
 
-func (s *Server) firstChatProjectLaunchable(ctx context.Context, projectID string, project config.Project) bool {
-	cwd, err := config.ExpandTilde(project.Cwd)
+// defaultProjectUsable reports whether cfg's stored default names an active
+// project, and during an incomplete first-chat setup one that setup could
+// launch. Callers hold configMu so the answer and the write see one state.
+func (s *Server) defaultProjectUsable(ctx context.Context, cfg config.Config) bool {
+	if cfg.DefaultProject == "" {
+		return false
+	}
+	project, err := s.configStore.ReadProject(cfg.DefaultProject)
 	if err != nil || project.Archived {
 		return false
 	}
-	info, err := os.Stat(cwd)
-	if err != nil || !info.IsDir() {
+	return !(cfg.FirstChatEligible && !cfg.OnboardingComplete) || s.firstChatProjectLaunchable(ctx, cfg.DefaultProject, project)
+}
+
+func (s *Server) firstChatProjectLaunchable(ctx context.Context, projectID string, project config.Project) bool {
+	cwd, err := config.ExpandTilde(project.Cwd)
+	if err != nil || project.Archived {
 		return false
 	}
 	s.lifecycleMu.Lock()
@@ -791,7 +801,17 @@ func (s *Server) firstChatProjectLaunchable(ctx context.Context, projectID strin
 	if err != nil {
 		return false
 	}
-	if exists && sameCheckoutPath(owned.CheckoutPath, cwd) {
+	ownsPath := exists && sameCheckoutPath(owned.CheckoutPath, cwd)
+	if !isExistingDir(cwd) {
+		// A lost owned checkout is launchable when the start path would rebuild
+		// it (FS-19.R7); this check is read-only and recreates nothing.
+		if _, err := os.Lstat(cwd); !ownsPath || !os.IsNotExist(err) {
+			return false
+		}
+		leaf, err := s.configStore.WorktreePath(projectID)
+		return err == nil && sameCheckoutPath(leaf, cwd) && s.ownedCheckoutRecreatable(ctx, projectID, owned) == nil
+	}
+	if ownsPath {
 		return s.configStore.ValidateOwnedWorktreePath(projectID, cwd) == nil && s.verifyOwnedCheckoutRepo(ctx, projectID, owned) == nil
 	}
 	return true
@@ -957,17 +977,20 @@ func normalizeMessageBudget(cfg *config.Config) {
 // configPutBody is the request body for PUT /api/config (§5.5).
 // Only the user-editable subset; version and port are rejected.
 type configPutBody struct {
-	OnboardingComplete    *bool                       `json:"onboarding_complete"`
-	OnboardingBackend     string                      `json:"onboarding_backend"`
-	OnboardingCatalogETag string                      `json:"onboarding_catalog_etag"`
-	SkipPermissions       *bool                       `json:"skip_permissions"`
-	DefaultProject        *string                     `json:"default_project"`
-	DefaultRole           *string                     `json:"default_role"`
-	AppearanceSkin        *string                     `json:"appearance_skin"`
-	AutoContinue          json.RawMessage             `json:"auto_continue"`
-	Notifications         *config.NotificationsConfig `json:"notifications"`
-	TaskConcurrency       *int                        `json:"task_concurrency"`
-	MessageBudgetPerTurn  *int                        `json:"message_budget_per_turn"`
+	OnboardingComplete    *bool  `json:"onboarding_complete"`
+	OnboardingBackend     string `json:"onboarding_backend"`
+	OnboardingCatalogETag string `json:"onboarding_catalog_etag"`
+	// OnboardingDefaultProject is a completion's candidate default: applied only
+	// when the stored default_project is unset or unusable (FS-04.R20/R64).
+	OnboardingDefaultProject *string                     `json:"onboarding_default_project"`
+	SkipPermissions          *bool                       `json:"skip_permissions"`
+	DefaultProject           *string                     `json:"default_project"`
+	DefaultRole              *string                     `json:"default_role"`
+	AppearanceSkin           *string                     `json:"appearance_skin"`
+	AutoContinue             json.RawMessage             `json:"auto_continue"`
+	Notifications            *config.NotificationsConfig `json:"notifications"`
+	TaskConcurrency          *int                        `json:"task_concurrency"`
+	MessageBudgetPerTurn     *int                        `json:"message_budget_per_turn"`
 	// Sentinel fields: reject if present.
 	Version *int `json:"version"`
 	Port    *int `json:"port"`
@@ -1031,19 +1054,35 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	normalizeMessageBudget(&cfg)
 
+	// Completion fills the default only when the stored one is unusable, decided
+	// here under configMu so a default saved meanwhile survives (FS-04.R20/R64).
+	// An unused candidate is not validated, so it cannot fail completion.
+	fillDefault := body.DefaultProject == nil && body.OnboardingDefaultProject != nil &&
+		*body.OnboardingDefaultProject != "" && !s.defaultProjectUsable(r.Context(), cfg)
+	candidate := body.OnboardingDefaultProject
+	if !fillDefault {
+		candidate = nil
+	}
 	// Validate that referenced defaults exist (a dangling default would surface as
 	// a broken pre-selection in the launch modal / onboarding).
-	if body.DefaultProject != nil && *body.DefaultProject != "" {
-		project, err := s.configStore.ReadProject(*body.DefaultProject)
+	for _, ref := range []struct {
+		field string
+		value *string
+	}{{"default_project", body.DefaultProject}, {"onboarding_default_project", candidate}} {
+		field, value := ref.field, ref.value
+		if value == nil || *value == "" {
+			continue
+		}
+		project, err := s.configStore.ReadProject(*value)
 		if err != nil {
 			writeValidationError(w, &config.ValidationErrors{Errors: []config.FieldError{
-				{Field: "default_project", Code: "not_found", Message: "no such project: " + *body.DefaultProject},
+				{Field: field, Code: "not_found", Message: "no such project: " + *value},
 			}})
 			return
 		}
 		if project.Archived {
 			writeValidationError(w, &config.ValidationErrors{Errors: []config.FieldError{
-				{Field: "default_project", Code: "project_archived", Message: "default project is archived"},
+				{Field: field, Code: "project_archived", Message: "default project is archived"},
 			}})
 			return
 		}
@@ -1076,6 +1115,8 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.DefaultProject != nil {
 		cfg.DefaultProject = *body.DefaultProject
+	} else if fillDefault {
+		cfg.DefaultProject = *body.OnboardingDefaultProject
 	}
 	if body.DefaultRole != nil {
 		cfg.DefaultRole = *body.DefaultRole

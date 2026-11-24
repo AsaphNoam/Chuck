@@ -195,19 +195,10 @@ func (s *Server) ensureWorktreeCheckout(ctx context.Context, projectID, cwd stri
 			fmt.Sprintf("project directory %q does not exist — set project %q to an existing path", cwd, projectID))
 	}
 
+	if ae := s.ownedCheckoutRecreatable(ctx, projectID, row); ae != nil {
+		return false, "", ae
+	}
 	git := s.worktreeGit()
-	exists, err := git.BranchExists(ctx, row.RepoPath, row.Branch)
-	if err != nil {
-		return false, "", apiError(runtime.CodeValidation,
-			fmt.Sprintf("cannot read repository %q for project %q: %v", row.RepoPath, projectID, err))
-	}
-	if !exists {
-		// Never silently substitute the base branch: the branch is the durable
-		// thing this project is (FS-19.R7).
-		return false, "", apiError(runtime.CodeValidation, fmt.Sprintf(
-			"the checkout for project %q is missing and its branch %q no longer exists in %s — recreate the branch, or point the project at another directory",
-			projectID, row.Branch, row.RepoPath))
-	}
 	if _, err := s.configStore.EnsureWorktreeRoot(projectID); err != nil {
 		return false, "", apiError(runtime.CodeValidation, "cannot prepare the worktree directory: "+err.Error())
 	}
@@ -222,6 +213,25 @@ func (s *Server) ensureWorktreeCheckout(ctx context.Context, projectID, cwd stri
 	}
 	warning = s.runProjectSetup(ctx, projectID, row.CheckoutPath)
 	return true, warning, nil
+}
+
+// ownedCheckoutRecreatable is the read-only rule for rebuilding a missing owned
+// checkout, shared by the start path and first-chat eligibility (INV §2): the
+// recorded branch must still exist. It never creates, prunes or adds anything.
+func (s *Server) ownedCheckoutRecreatable(ctx context.Context, projectID string, row state.ProjectWorktree) *runtime.APIError {
+	exists, err := s.worktreeGit().BranchExists(ctx, row.RepoPath, row.Branch)
+	if err != nil {
+		return apiError(runtime.CodeValidation,
+			fmt.Sprintf("cannot read repository %q for project %q: %v", row.RepoPath, projectID, err))
+	}
+	if !exists {
+		// Never silently substitute the base branch: the branch is the durable
+		// thing this project is (FS-19.R7).
+		return apiError(runtime.CodeValidation, fmt.Sprintf(
+			"the checkout for project %q is missing and its branch %q no longer exists in %s — recreate the branch, or point the project at another directory",
+			projectID, row.Branch, row.RepoPath))
+	}
+	return nil
 }
 
 // verifyOwnedCheckoutRepo refuses a directory at the owned checkout path that

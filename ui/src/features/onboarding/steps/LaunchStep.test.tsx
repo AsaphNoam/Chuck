@@ -81,13 +81,12 @@ describe("LaunchStep", () => {
     expect(configPut).toEqual({ onboarding_complete: true, default_project: "user-proj" });
   });
 
-  // FS-04.R20/A45: a resumed wizard has no created-project memory. With no
-  // usable saved default the launched project fills it; a valid saved default
-  // is kept.
+  // FS-04.R20/A45: a resumed wizard has no created-project memory, so it offers
+  // the launched project as a candidate; the server fills only an unusable
+  // stored default (covered server-side), never a choice saved meanwhile.
   it.each([
-    ["", { onboarding_complete: true, default_project: "user-proj" }],
-    ["gone", { onboarding_complete: true, default_project: "user-proj" }],
-    ["my-app", { onboarding_complete: true }],
+    ["", { onboarding_complete: true, onboarding_default_project: "user-proj" }],
+    ["my-app", { onboarding_complete: true, onboarding_default_project: "user-proj" }],
   ])("resumed completion with saved default %j writes %j", async (savedDefault, want) => {
     let configPut: unknown = null;
     server.use(
