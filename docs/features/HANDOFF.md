@@ -73,7 +73,6 @@ None.
 
 - Shared interface typography — `7a947b56`, TS-08.R11 and FS-12.R52. Check dense labels
   and annotation captions in native desktop and phone layouts.
-- Sent annotation source navigation — `2480ca75`, FS-13.R38/A28 and TS-08.R175.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
@@ -155,6 +154,37 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### ANNOTATION-SOURCE — sent annotation source navigation (`2480ca75`, reviewed at `80b8a17a`) — **Fix model:** medium — Codex Terra or Claude Opus.
+
+- **Must fix** — ANNOTATION-SOURCE-1 (medium, INV §10, INV §13, INV §17, FS-13.R38/A28, TS-08.R175).
+  Select a unique passage across two rendered Markdown paragraphs, then activate its sent excerpt.
+  Capture uses the browser's selection text (`ui/src/lib/annotations.ts:27`), which includes the
+  paragraph break. `findPassage` searches concatenated `textContent` (`ui/src/components/chat/annotationNavigation.ts:79`),
+  misses the quote, and centers the source row. Chromium showed the entire passage outside the
+  viewport in desktop chat, archive replay and phone chat, while the single-paragraph control
+  landed at the passage. Match the rendered selection with offsets back to the source DOM and
+  preserve the ambiguous-quote fallback. Verify a browser-created cross-paragraph selection by
+  checking that the actual passage is visible after the jump.
+- **Must fix** — ANNOTATION-SOURCE-2 (trivial/easy, INV §10, INV §13, INV §17, FS-13.R38, TS-08.R175).
+  Expand a diff's unchanged context, annotate a gutter line there, and activate the excerpt in a
+  fresh view. `DiffBlock.tsx:48` adds a marker only when the library renders that line. The jump
+  opens the diff without revealing its collapsed context. Chromium verified the line was selectable
+  after manual expansion and absent after the jump on all three surfaces. Feed the saved side and
+  line into the viewer's existing line-reveal option and verify the line's position. Use a changed
+  line and the opposite side as controls.
+- **Must fix** — ANNOTATION-SOURCE-3 (medium, INV §2, INV §10, FS-13.R38, TS-08.R175).
+  Annotate a desktop resolved permission status and open the same conversation on the phone.
+  `ui/src/remote/AgentScreen.tsx:198,217–232,464–467` draws the resolved status but uses the
+  phone's capture allowlist both to decide if the excerpt gets a jump and to mount the focus target.
+  Chromium confirmed desktop selection is eligible, the desktop and archive jump works, and
+  the phone draws the status but leaves the sent excerpt plain. Resolve jumps against the rows the
+  phone displays and preserve its capture rules. Exercise a desktop-created anchor in phone chat.
+- **Worth fixing** — ANNOTATION-SOURCE-4 (medium, INV §2, INV §10, FS-13.R1/R38).
+  J13 already repaired unified diff side decoding in `07bc14f6`. Inventory the writers of saved
+  diff side and line, the capture and reveal entry points for desktop, archive and phone, and the
+  rules that map those coordinates through the viewer, including collapsed context. Record the
+  inventory before further patches to that mapping.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
