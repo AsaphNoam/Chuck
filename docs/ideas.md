@@ -496,8 +496,9 @@ the relevant feature and technical specifications; it does not change product co
 
 - **Skills in the phone composer.** The operator requested a popup triggered by `/`, `#`, `$`,
   and `@`. [Draft behavior and acceptance](specs/features/FS-20-mobile-remote-control.md#5-acceptance-criteria)
-  are in FS-20.R57–R58/A29–A30. Awaiting confirmation of command-only suggestions for all four
-  triggers and the existing desktop command spelling on insertion.
+  are in FS-20.R57–R58/A29–A30. The operator confirmed command-only suggestions and desktop
+  invocation spelling. TS-08.R176–R177 draft the frontend. The phone's command-metadata read
+  requires a decision on which provider-advertised fields paired devices may receive.
 
 ## ACP Wait-list
 

@@ -70,6 +70,9 @@ primitive seam; the rejected alternatives are recorded in §5.
   text entry (1rem). Headings and technical renderers retain size choices suited to their content.
   User-facing labels, status explanations, and prose excerpts use the text family. Technical
   identifiers, code, source excerpts, and compact metrics may use the mono family.
+  A source caption uses the compact size on both desktop and phone. Use the text family for
+  caption words such as “File” and “Event”, and reserve mono for the path, line range, or event
+  number. Conversation excerpts and instructions use the reading role.
 - **R12** — The core mark is one repository-owned SVG React component: a simple
   geometric Chuck mark plus text wordmark, using `currentColor` and no embedded raster/text
   payload. Other repository-owned icons follow the same seam. Existing visible text and accessible
@@ -2364,6 +2367,26 @@ rendered-document-relative file targets through `resolveFromFile` before opening
   sequences, against the loaded transcript. Reuse turn and activity disclosure state
   and scope navigation to the mounted transcript. Resolve quotes from rendered text
   inside the source row. Navigation needs no transcript writes or new wire fields.
+
+- **R176 (planned) — Share command completion with the phone composer.** For FS-20.R57–R58,
+  reuse the chat autocomplete command matching and invocation formatting. Scope the phone
+  caller to the command source and its four prefixes. Filter the bounded TS-03.R24 snapshot in
+  memory as the query changes, with at most one active lookup per open token. Key the lookup and
+  its selection to the mounted composer, agent, live runtime identity from the existing agent
+  snapshot and active token. Invalidate results and pending
+  selection on dismissal, loss of the token, external draft replacement, agent/runtime change,
+  offline transition or unmount. A late response cannot reopen the popup or replace draft text.
+  Render the advertised strings as text. Pending, empty and refused reads are local picker states
+  and leave phone input delivery available under its normal rules (INV §1/§2/§8/§16/§23).
+
+- **R177 (planned) — Accept in place through the phone draft path.** Use the textarea's current
+  selection to verify the token before accepting. Defer detection and acceptance during IME
+  composition. Apply one text replacement through the same browser-local draft path as typing,
+  then restore textarea focus and the caret after the inserted text. Only the existing Send and
+  Steer controls submit. Use the shared picker presentation with a phone anchor and a scrollable
+  list sized to the visible viewport with the software keyboard open. Verify the geometry and
+  touch-to-typing sequence in FS-20.A29, and stale response and failure behavior in FS-20.A30
+  (INV §2/§13/§17).
 
 ## 3. Interfaces & data shapes
 

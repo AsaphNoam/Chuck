@@ -35,9 +35,10 @@ None.
 
 ## Decisions needing input
 
-- **Phone skill picker** — Awaiting feature-scope confirmation for FS-20.R57–R58/A29–A30.
-  The draft offers commands on `/`, `#`, `$`, and `@`, and inserts the same invocation as desktop.
-  The next step after confirmation is the technical specification.
+- **Phone skill picker** — FS-20.R57–R58/A29–A30 scope confirmed; TS-08.R176–R177 drafted.
+  TS-13.R21 currently denies `available-commands` to paired devices. Decide whether to allow
+  the existing read with provider-advertised names, descriptions and hints, or expose names
+  only. Record the approved response in TS-13 and promote the idea to the ready queue.
 
 ## Resolved decisions
 
