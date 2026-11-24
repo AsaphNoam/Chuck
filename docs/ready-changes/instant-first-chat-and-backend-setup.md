@@ -1,11 +1,11 @@
 # Start a first chat with Claude or Codex
 
-**State:** In progress
+**State:** Finished — packaged provider acceptance gates owed
 **Why:** The operator asked for a working first chat immediately after installation, one clear
 backend setup action, and direct Settings links on provider setup errors. The operator approved
 one-click bundle selection when an installed CLI is missing and explicit native configuration linking.
 **Relevant requirements:** FS-04.R62–R65, FS-09.R84–R85, FS-10.R27, TS-02.R66, TS-03.R87–R89,
-TS-04.R112, TS-08.R165–R167, INV §1, §2, §3, §5, §8, §10–§17, §20, §23–§24.
+TS-04.R15/R112, TS-08.R165–R167, INV §1, §2, §3, §5, §8, §10–§17, §20, §23–§24.
 
 ## Outcome
 
@@ -46,3 +46,25 @@ through repair; an uncertain response offers recovery instead of automatically r
 Implementation slices: target-scoped provider/config API; first-chat and Settings composition;
 installer startup; integrated checks and rendered recovery. The parent owns integration and
 verification, with separate backend and frontend ownership during implementation.
+
+## Verification receipt — 2026-11-24
+
+Implemented in `406251af`, `01d8573e`, `be225a99` and `f95ce4d8`.
+Final-source `make test` passes both Go configurations; `make dist` and the final Go-only
+`make build` pass. The full UI suite passes 1,423 tests across 132 files. Focused provider
+concurrency race checks and native-status process-boundary regressions pass; the latter failed
+before the repair. Unknown or malformed native authentication output no longer reports ready.
+
+Rendered Core and Sky desktop flows cover independent readiness, targeted keyboard repair,
+draft preservation, partial completion retry without duplicate creation, Settings save/check,
+explicit native-link failure and return-to-form recovery without automatic launch. Evidence is
+in the shared project resources under `first-chat-browser/` (`report.json`,
+`settings-report.json`, `repaired-error-report.json` and screenshots). These use real production
+server routes with fake providers/ACP and isolated homes, not live native authentication.
+The final repaired-error rendering routes the final built static UI over the existing isolated
+server APIs, without replaying completed setup operations.
+
+First-chat project suggestions conservatively exclude currently missing owned-worktree checkouts;
+ordinary launch retains its existing recreation path. Packaged native authentication, executable
+resolution and model access remain unverified; the explicit acceptance gates are recorded in
+[ACCEPTANCE-GATES.md](../features/ACCEPTANCE-GATES.md).

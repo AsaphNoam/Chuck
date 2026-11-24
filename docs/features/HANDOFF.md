@@ -31,18 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**Start a first chat with Claude or Codex** —
-[`instant-first-chat-and-backend-setup.md`](../ready-changes/instant-first-chat-and-backend-setup.md).
-Installer, provider/config APIs, first-chat form and Settings repair are implemented. Focused
-bootstrap/config/server/race and UI checks pass; the first full UI suite and fake-provider rendered
-flows pass. The rendered pass exposed a stale repaired-provider error, now fixed with a selected-model
-check and focused regression; final UI suite/build and corrected rendering pass. The full Go closure
-is running after correcting its legacy-home fixture. The shared native-check false-ready gap is
-repaired against the pinned Claude adapter's auth-status contract; pre-fix regressions fail and
-the full probe suite plus focused server checks pass. Rerun the full Go closure and build on this
-final parser source before final closure. Packaged provider gates remain in ACCEPTANCE-GATES.md.
-Use `GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-firstchat-gocache` with CHUCK_RUNTIME_ROOT unset.
-Provider operations and frontend composition can proceed independently against TS-03.R87–R89.
+None.
 
 ## Decisions needing input
 
@@ -81,6 +70,15 @@ Provider operations and frontend composition can proceed independently against T
   switch shows it above the composer.
 
 ## Review queue
+
+**Start a first chat with Claude or Codex** —
+[`instant-first-chat-and-backend-setup.md`](../ready-changes/instant-first-chat-and-backend-setup.md).
+Review substantive commits `406251af`, `01d8573e`, `be225a99` and `f95ce4d8`;
+interleaved unrelated commits and administrative closure are not additional review units.
+Scope: FS-04.R62–R65, FS-09.R84–R85, FS-10.R27, TS-02.R66, TS-03.R87–R89,
+TS-04.R15/R112 and TS-08.R165–R167. Implementation and deterministic/rendered verification
+are complete; packaged native-provider acceptance remains in
+[ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md). See the change's verification receipt.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix
