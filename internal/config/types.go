@@ -142,6 +142,7 @@ type Config struct {
 	SkipPermissions    bool                `json:"skip_permissions"`    // true on fresh installs
 	AutoContinue       bool                `json:"auto_continue"`       // true when absent
 	OnboardingComplete bool                `json:"onboarding_complete"` // set after first launch
+	FirstChatEligible  bool                `json:"first_chat_eligible,omitempty"`
 	Notifications      NotificationsConfig `json:"notifications"`
 	Switch             SwitchConfig        `json:"switch"`
 	// TaskConcurrency is how many agent runtimes dependent work may bring up at

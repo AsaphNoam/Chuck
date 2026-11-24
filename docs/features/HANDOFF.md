@@ -33,9 +33,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 **Start a first chat with Claude or Codex** —
 [`instant-first-chat-and-backend-setup.md`](../ready-changes/instant-first-chat-and-backend-setup.md).
-Installer startup is implemented and its focused bootstrap tests pass. Fresh-home eligibility,
-target-scoped provider checks, the preserved first-chat form and Settings repair are in progress;
-finish with integrated and rendered/API verification.
+Installer startup, fresh-home eligibility and target-scoped provider/config APIs are implemented;
+focused bootstrap/config/server checks pass. First-chat and Settings integration are in progress;
+finish with the full closure matrix, focused race check and rendered recovery/API verification.
+Use `GOFLAGS=-p=1 GOCACHE=/private/tmp/chuck-firstchat-gocache` with CHUCK_RUNTIME_ROOT unset.
 Provider operations and frontend composition can proceed independently against TS-03.R87–R89.
 
 ## Decisions needing input
@@ -75,9 +76,6 @@ Provider operations and frontend composition can proceed independently against T
   switch shows it above the composer.
 
 ## Review queue
-
-- Shared interface typography — `7a947b56`, TS-08.R11 and FS-12.R52. Check dense labels
-  and annotation captions in native desktop and phone layouts.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix

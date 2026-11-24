@@ -1780,7 +1780,7 @@ only when a permission request also recorded them.
 - **Retention:** the detail lives and is deleted with the transcript. Existing transcripts are
   not backfilled.
 
-**R112 (planned) — Setup, refresh, and Save & check share provider readiness.** For
+**R112 (implemented 2026-11-24) — Setup, refresh, and Save & check share provider readiness.** For
 FS-04.R62–R63 and FS-09.R84, use R15, R71–R72 and R75's fixed probes, execution environment and
 provider resolution through one target-scoped operation. Use the same person-owned native
 authentication origin that launch uses. Keep the existing Codex session-home and one-way profile

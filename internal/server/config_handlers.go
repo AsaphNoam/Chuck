@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/AsaphNoam/Chuck/internal/backend"
 	"github.com/AsaphNoam/Chuck/internal/backend/credcheck"
+	"github.com/AsaphNoam/Chuck/internal/backend/providerexec"
 	"github.com/AsaphNoam/Chuck/internal/config"
 	"github.com/AsaphNoam/Chuck/internal/runtime"
 	"github.com/AsaphNoam/Chuck/internal/state"
@@ -691,8 +693,10 @@ type onboardingStep struct {
 
 // onboardingBlock is the computed onboarding status returned by GET /api/config.
 type onboardingBlock struct {
-	Satisfied bool `json:"satisfied"`
-	Steps     struct {
+	Satisfied          bool     `json:"satisfied"`
+	FirstChat          bool     `json:"first_chat,omitempty"`
+	LaunchableProjects []string `json:"launchable_projects"`
+	Steps              struct {
 		Backend onboardingStep `json:"backend"`
 		Project onboardingStep `json:"project"`
 		Role    onboardingStep `json:"role"`
@@ -709,7 +713,9 @@ type configResponse struct {
 // computeOnboarding computes the min-viable-config onboarding status.
 // The backend cred-check result is cached for ~60s per §3.6.
 func (s *Server) computeOnboarding(ctx context.Context) onboardingBlock {
-	var ob onboardingBlock
+	ob := onboardingBlock{LaunchableProjects: []string{}}
+	cfg, _ := s.configStore.ReadConfig()
+	ob.FirstChat = cfg.FirstChatEligible && !cfg.OnboardingComplete
 
 	// Role step: ≥1 role exists.
 	roles, err := s.configStore.ListRoles()
@@ -723,9 +729,12 @@ func (s *Server) computeOnboarding(ctx context.Context) onboardingBlock {
 	// preferences, but cannot satisfy a setup that has no eligible launch target.
 	projects, err := s.configStore.ListProjects()
 	activeProjects := 0
-	for _, project := range projects {
+	for projectID, project := range projects {
 		if !project.Archived {
 			activeProjects++
+			if ob.FirstChat && s.firstChatProjectLaunchable(ctx, projectID, project) {
+				ob.LaunchableProjects = append(ob.LaunchableProjects, projectID)
+			}
 		}
 	}
 	if err == nil && activeProjects > 0 {
@@ -735,10 +744,57 @@ func (s *Server) computeOnboarding(ctx context.Context) onboardingBlock {
 	}
 
 	// Backend step: backends.json parses, version==2, default backend + model with ok creds.
-	ob.Steps.Backend = s.computeBackendStep(ctx)
+	if ob.FirstChat {
+		sort.Strings(ob.LaunchableProjects)
+		ob.Steps.Backend = onboardingStep{Detail: "checking providers"}
+		if catalog, readErr := s.configStore.ReadBackends(); readErr == nil {
+			for backendID, target := range catalog.Backends {
+				model, exists := target.Models[target.DefaultModel]
+				if !exists {
+					continue
+				}
+				selection, supported := providerexec.ForBackend(target, model)
+				if supported && s.providerReady(backendID, catalog, selection) {
+					ob.Steps.Backend = onboardingStep{Done: true, Detail: backendID + " ready"}
+					break
+				}
+			}
+		}
+		ob.Steps.Project.Done = len(ob.LaunchableProjects) > 0
+		if !ob.Steps.Project.Done {
+			ob.Steps.Project.Detail = "choose an existing project folder"
+		}
+	} else {
+		ob.Steps.Backend = s.computeBackendStep(ctx)
+	}
 
 	ob.Satisfied = ob.Steps.Backend.Done && ob.Steps.Project.Done && ob.Steps.Role.Done
 	return ob
+}
+
+func (s *Server) firstChatProjectLaunchable(ctx context.Context, projectID string, project config.Project) bool {
+	cwd, err := config.ExpandTilde(project.Cwd)
+	if err != nil || project.Archived {
+		return false
+	}
+	info, err := os.Stat(cwd)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	s.lifecycleMu.Lock()
+	removing := s.removingCheckouts[canonicalCheckoutPath(cwd)]
+	s.lifecycleMu.Unlock()
+	if removing {
+		return false
+	}
+	owned, exists, err := s.readOwnedWorktree(projectID)
+	if err != nil {
+		return false
+	}
+	if exists && sameCheckoutPath(owned.CheckoutPath, cwd) {
+		return s.configStore.ValidateOwnedWorktreePath(projectID, cwd) == nil && s.verifyOwnedCheckoutRepo(ctx, projectID, owned) == nil
+	}
+	return true
 }
 
 // backfillOnboardingCompletion records onboarding_complete once for a home that
@@ -753,7 +809,7 @@ func (s *Server) backfillOnboardingCompletion() error {
 	if errors.Is(err, config.ErrNotFound) || errors.Is(err, config.ErrCorrupt) {
 		return nil
 	}
-	if err != nil || cfg.OnboardingComplete {
+	if err != nil || cfg.OnboardingComplete || cfg.FirstChatEligible {
 		return err
 	}
 	agents, err := s.stateStore.ListAgents()
@@ -901,15 +957,17 @@ func normalizeMessageBudget(cfg *config.Config) {
 // configPutBody is the request body for PUT /api/config (§5.5).
 // Only the user-editable subset; version and port are rejected.
 type configPutBody struct {
-	OnboardingComplete   *bool                       `json:"onboarding_complete"`
-	SkipPermissions      *bool                       `json:"skip_permissions"`
-	DefaultProject       *string                     `json:"default_project"`
-	DefaultRole          *string                     `json:"default_role"`
-	AppearanceSkin       *string                     `json:"appearance_skin"`
-	AutoContinue         json.RawMessage             `json:"auto_continue"`
-	Notifications        *config.NotificationsConfig `json:"notifications"`
-	TaskConcurrency      *int                        `json:"task_concurrency"`
-	MessageBudgetPerTurn *int                        `json:"message_budget_per_turn"`
+	OnboardingComplete    *bool                       `json:"onboarding_complete"`
+	OnboardingBackend     string                      `json:"onboarding_backend"`
+	OnboardingCatalogETag string                      `json:"onboarding_catalog_etag"`
+	SkipPermissions       *bool                       `json:"skip_permissions"`
+	DefaultProject        *string                     `json:"default_project"`
+	DefaultRole           *string                     `json:"default_role"`
+	AppearanceSkin        *string                     `json:"appearance_skin"`
+	AutoContinue          json.RawMessage             `json:"auto_continue"`
+	Notifications         *config.NotificationsConfig `json:"notifications"`
+	TaskConcurrency       *int                        `json:"task_concurrency"`
+	MessageBudgetPerTurn  *int                        `json:"message_budget_per_turn"`
 	// Sentinel fields: reject if present.
 	Version *int `json:"version"`
 	Port    *int `json:"port"`
@@ -1000,6 +1058,12 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Merge provided fields.
+	if body.OnboardingComplete != nil && *body.OnboardingComplete && cfg.FirstChatEligible && !cfg.OnboardingComplete && body.OnboardingBackend != "" {
+		if err := s.promoteFirstChatBackend(body.OnboardingBackend, body.OnboardingCatalogETag); err != nil {
+			writeAPIError(w, apiError(runtime.CodeInternal, "chat started; could not save the default backend; retry completion"))
+			return
+		}
+	}
 	if body.OnboardingComplete != nil {
 		cfg.OnboardingComplete = *body.OnboardingComplete
 		// Invalidate the onboarding cred-check cache so the next GET re-evaluates.
@@ -1035,6 +1099,10 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.writeConfig(cfg); err != nil {
 		s.log.Error("config: write", "err", err)
+		if cfg.FirstChatEligible && body.OnboardingComplete != nil && *body.OnboardingComplete && body.OnboardingBackend != "" {
+			writeAPIError(w, apiError(runtime.CodeInternal, "chat started; could not finish setup; retry completion"))
+			return
+		}
 		writeAPIError(w, apiError("internal", "internal error"))
 		return
 	}

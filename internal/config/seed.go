@@ -239,7 +239,11 @@ func SeedIfAbsent() error {
 
 // SeedIfAbsent is the method form, operating on this Store's home.
 func (s *Store) SeedIfAbsent() error {
-	if err := s.seedFileIfAbsent(s.configPath(), DefaultConfig()); err != nil {
+	seedConfig := DefaultConfig()
+	_, configErr := os.Stat(s.configPath())
+	_, backendsErr := os.Stat(s.backendsPath())
+	seedConfig.FirstChatEligible = errors.Is(configErr, os.ErrNotExist) && errors.Is(backendsErr, os.ErrNotExist)
+	if err := s.seedFileIfAbsent(s.configPath(), seedConfig); err != nil {
 		return err
 	}
 	if err := s.seedFileIfAbsent(s.backendsPath(), DefaultBackends()); err != nil {

@@ -250,8 +250,9 @@ type Server struct {
 	// providerObs holds the last accepted Refresh provider observation per
 	// configured backend/model (TS-04.R72). Response metadata only: never
 	// persisted, discarded on any catalog change.
-	providerObsMu sync.Mutex
-	providerObs   map[string]providerObservation
+	providerObsMu  sync.Mutex
+	providerObs    map[string]providerObservation
+	providerChecks map[string]bool
 
 	// configMu serializes read-modify-write of config.json across PUT
 	// /api/config and PUT /api/remote so neither erases the other's field.

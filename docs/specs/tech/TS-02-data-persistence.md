@@ -1004,7 +1004,7 @@ table or retention rule is added. Subscription quota observations stay in memory
 TS-04.R89. Verify the migration on a populated store under both SQLite build variants and that
 an old journal replays with every fork action unavailable (INV §7/§9/§11).
 
-**R66 (planned) — First-chat eligibility comes from fresh seeding.** For FS-04.R62–R64 and
+**R66 (implemented 2026-11-24) — First-chat eligibility comes from fresh seeding.** For FS-04.R62–R64 and
 TS-03.R87, write a first-chat eligibility flag with `config.json` only when both config and backend
 catalog are absent before ordinary seeding. Persist the flag with the absent-only config write so a
 partially completed seed can resume. A missing flag on upgrade, pre-existing catalog, or corrupt

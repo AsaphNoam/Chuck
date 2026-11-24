@@ -1295,7 +1295,7 @@ deltas, accents/non-Latin text, empty collections, stale digests and budget exha
 upgraded old documents and failed reconstruction; verify no GET writes or lifecycle/provider calls.
 Keep endpoint/client Go/TypeScript shapes aligned (INV §7/§8/§11/§14/§16/§17).
 
-**R87 (planned) — First-run readiness reuses a target-scoped provider operation.** For
+**R87 (implemented 2026-11-24) — First-run readiness reuses a target-scoped provider operation.** For
 FS-04.R62–R64, extend `GET /api/config` with an optional `onboarding.first_chat` boolean derived
 from the first-chat seed marker and `onboarding_complete`. When active, the new first-run client
 uses the separate provider outcomes below even if the legacy `satisfied` projection is true.
@@ -1316,7 +1316,7 @@ variants retain the catalog `If-Match` guard, typed errors and the same result s
 executable resolves. Opening a form performs no check except the first-run readiness flow and
 returning from a requested repair. No route or field is exposed through remote allowlists.
 
-**R88 (planned) — Save & check writes one backend before probing its committed settings.** For
+**R88 (implemented 2026-11-24) — Save & check writes one backend before probing its committed settings.** For
 FS-09.R84 and the explicit first-run bundle choice, reuse R87's backend-definition request with
 the same `If-Match` precondition. Under the existing catalog lock merge only that id and validate
 the full candidate with the ordinary catalog validator and source-prune/restore path. The target
@@ -1333,7 +1333,7 @@ available. A check refused before any provider work omits `runtime`/`credentials
 the partial outcome instead of fabricating results. Go serializers, browser schemas and real API
 tests ship together (INV §3/§5/§8/§11/§15).
 
-**R89 (planned) — Finish first chat without replaying project creation or launch.** For
+**R89 (implemented 2026-11-24) — Finish first chat without replaying project creation or launch.** For
 FS-04.R64 use the existing project create and session launch services with the explicitly selected
 project and backend. Retain each confirmed result in the active setup form. Retry a definite
 failure at its failed step. On uncertain create or launch response, refetch current projects or

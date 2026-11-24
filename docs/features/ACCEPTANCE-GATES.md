@@ -4,6 +4,11 @@ Live list of native, provider, device and hosted checks that have not been run. 
 gate; remove an entry when its receipt exists. A gate that was run and failed is a finding in
 [HANDOFF.md](HANDOFF.md#review-findings), not an entry here (workflow §4).
 
+- **First chat (FS-04.A41–A42, FS-10.A15):** on a clean home with the packaged runtime,
+  start one first chat with each provider's existing native sign-in, and recover a missing
+  installed CLI through the explicit Chuck bundle choice. Deterministic provider and fake-ACP
+  evidence cannot establish native authentication, packaged executable resolution or model access.
+
 - **Inline task assignments (FS-16.A44, FS-18.A19 sample):** pinned Claude and Codex smokes:
   a fresh task launch with project-skill syntax and no reporting prose; an existing-agent and a
   resumed task whose heading keeps the instruction from replaying as a native command; an aware
@@ -209,4 +214,3 @@ gate; remove an entry when its receipt exists. A gate that was run and failed is
 - **TS-06.R32:** two-point Claude/Codex smoke on ACP 0.85.1/2.1.1 and Codex 0.159.3, one notice,
   Steer during a running command, and refused model switch where policy allows. Automated assembly,
   fake-runtime, release-CI assembly, and native-provider proofs passed; live receipts are owed.
-
