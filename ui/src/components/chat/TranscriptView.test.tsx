@@ -429,6 +429,26 @@ describe("TranscriptView pending follow-up", () => {
     expect(queued?.textContent).toContain("and rerun the tests");
   });
 
+  // ANNOTATION-QUEUE-1: delivered annotation prompts must settle their queued tail (FS-03.R118).
+  it.skip("drops a delivered assignment annotation after its prompt folds into the source card", () => {
+    const requestId = "annotation-queued-batch";
+    const text = `${annotationBlockSentinel}\n\nReview the selected passage`;
+    useHeldStore.getState().setQueued("a1", [
+      { request_id: requestId, text, assignment_task_id: "task_1", attachments: [] },
+    ]);
+    const sent = foldTranscript([
+      ...events,
+      { kind: "annotation", seq: 8, target: { kind: "self" }, annotations: [
+        { seq: 7, excerpt: "First line", instruction: "Review the selected passage" },
+      ] },
+      { kind: "user_text", seq: 9, text, request_id: requestId },
+    ]);
+    renderTranscript(true, sent, true);
+
+    expect(screen.getByText("Review the selected passage")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Queued for this assignment")).toBeNull();
+  });
+
   it("keeps the message visible when withdrawing it fails", async () => {
     useHeldStore.getState().hold("a1", "still queued");
     const failing = vi.spyOn(client, "withdrawPrompt").mockRejectedValue(new Error("gone"));

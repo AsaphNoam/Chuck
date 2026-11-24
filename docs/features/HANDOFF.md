@@ -138,6 +138,68 @@ specs, live user state or unrelated dirty files changed.
 
 ## Review findings
 
+### ANNOTATION-QUEUE — delivered annotation remains queued; mid-turn message delivery (investigated 2026-11-24 at `e0e82d1f`) — **Fix model:** trivial/easy — Claude Sonnet or Codex Luna.
+
+**Report (verbatim):** “sending an annotation message while the agent is running put it in queue,
+when the turn ended the message was sent (shown in transcript) but the queue display in the dashed
+border still showed until the message was sent. Also a regular message I sent mid turn popped up
+as a notification and then the message appeared regularly in the transcript rather than in a dashed
+border queue appearance, with no withdraw option - is this some new change? Why/when does this happen?”
+No affected agent identity, incident timestamp, notification text, clicked action, installed version,
+device or incident logs were supplied. Source investigation is on macOS; inspected local dashboard
+logs do not identify the reported incident. An optional clarification was requested.
+
+**Expected behavior / diagnosis:** FS-03.R48–R50/R118 and TS-08.R56 distinguish Send (one held,
+withdrawable follow-up behind an active turn) from explicit Steer (immediate delivery into the turn,
+ordinary user row, no hold to withdraw). A Send received after actual turn completion starts its own
+turn even if the browser still looks busy. FS-13.R37 and TS-03.R78 apply these seams to self annotations;
+an annotation source card is recorded on acceptance, before its generated prompt is delivered, so
+the card's presence alone does not prove delivery. Assignment-owned input has its own labelled tail
+and continuation (FS-03.R48), separate from the runtime's withdrawable hold.
+
+**Confirmed history:** distinct Send/Steer dates to `ae3740eb` (2026-09-10); no automatic-Steer
+default was found. `e7699576` (2026-11-20) changed desktop delivery feedback to three-second toasts;
+`3590f5c5` later that day records Steer before calling the provider and settles its initially
+unconfirmed row. Fresh ordinary Send/Enter still selects the prompt path on desktop and phone.
+Whether the reported regular message used Steer, arrived after turn completion, or took another
+path is **undetermined**. No regular-Send defect or missing diagnostic is established.
+
+- **Must fix** — ANNOTATION-QUEUE-1 (confirmed; code defect; fix trivial/easy):
+  `ui/src/store/transcriptStore.ts:55–62,160–168`,
+  `ui/src/components/chat/TranscriptView.tsx:89` and
+  `ui/src/components/chat/useHeldProjection.ts:19`. An assignment-queued self annotation's
+  delivered `user_text` folds into its annotation card, preserving `prompt_seq` and
+  `prompt_request_id`. `undeliveredQueued` only searches remaining `user_text` rows, so it
+  leaves that exact request in the dashed assignment tail after delivery (FS-03.R118,
+  FS-13.R37, INV §1/§2/§19). This is a real desktop schedule: runtime publishes busy before
+  its goroutine claims queued input (`internal/runtime/chat.go:1342–1388`), so a busy-triggered
+  snapshot can still contain queued input; arrival of the delivered prompt does not refresh
+  that snapshot, and the desktop read key stays unchanged during the turn. Phone uses the same
+  defective filter (`ui/src/remote/AgentScreen.tsx:742`) but also refetches on transcript updates,
+  normally limiting the stale display to the next successful read. Runtime-held annotations
+  already settle from paired metadata in `useHeldProjection.ts:36–43`; this reproduction does
+  not establish which queue or device the person observed. Extend the existing exact-request
+  settlement to paired annotation deliveries, preserving unrelated queued requests and pending
+  delivery semantics. The skipped `TranscriptView.test.tsx` case “drops a delivered assignment
+  annotation after its prompt folds into the source card” reproduces the visible stale tail;
+  unskip for the fix and retain an unrelated-request guard.
+- **Worth fixing** — ANNOTATION-QUEUE-2 (confirmed; repeated-fix inventory; fix trivial/easy):
+  the same browser queue projection was repaired by `de246a42` (2026-11-15) and `cac7edfb`
+  (2026-11-20). Before another patch, refresh the existing INPUT-8 / PROMPT-4 / QUEUED-TAIL-4
+  inventories in `docs/ideas.md`: enumerate held/queued snapshot writers, Send/Steer/self-annotation
+  admission, raw-to-rendered prompt folding, and each desktop/phone settlement consumer; identify
+  where exact-ID acceptance, delivery and removal rules are stated. Keep this bounded to the
+  projection failure; the broader lifecycle redesign ideas remain separate. Required by workflow
+  §7's second-fix-round rule; extend the existing inventory rather than duplicate it.
+
+**Verification / limits:** the new component reproduction failed on the stale queue assertion
+with the exact request already paired into the annotation card, then was marked skipped as §12
+requires. Focused TranscriptView/ChatPanel and delegated Composer/phone checks are recorded in
+the investigation commit. These are frontend fixtures and source/history evidence, not a live
+provider reproduction of the person's incident. No product code or specifications changed.
+Next: `/fix` this unit; correlate the original ordinary-message incident if its identity/action
+or notification text becomes available.
+
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution
