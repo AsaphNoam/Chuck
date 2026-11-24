@@ -35,7 +35,9 @@ None.
 
 ## Decisions needing input
 
-None.
+- **Phone skill picker** — Awaiting feature-scope confirmation for FS-20.R57–R58/A29–A30.
+  The draft offers commands on `/`, `#`, `$`, and `@`, and inserts the same invocation as desktop.
+  The next step after confirmation is the technical specification.
 
 ## Resolved decisions
 

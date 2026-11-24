@@ -431,6 +431,23 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   reload. R37's tracked-path/no-follow access, R55's annotation scope and the existing offline
   rules remain unchanged. Tabs add no arbitrary-file route, archive reader or phone room screen.
 
+- **R57 (planned) — Find skills and commands while composing on the phone.** In a running chat
+  agent's phone composer, typing `/`, `#`, `$`, or `@` at the start of the draft or after
+  whitespace opens the same list of that agent's advertised skills and commands. Typing after
+  the prefix filters by advertised name or description, ignoring case. An empty query shows the
+  full list. Rows show the invocation, description and input hint when supplied. The list has
+  command entries only. Prefixes inside a word, such as the `@` in an email address, stay plain text.
+- **R58 (planned) — Insert a command and keep editing.** The non-modal popup sits above the
+  composer, stays usable with the phone keyboard open and scrolls when its rows exceed the
+  available space. Tapping a row replaces the active token with the FS-03.R33 invocation and a
+  separating space, preserving surrounding draft text and attachments. The caret lands after the
+  insertion and the composer remains ready to type. For example, `$rev` can complete to `/$review `
+  when the agent advertises `$review`. The result is ordinary browser-local draft text under R49.
+  The person sends it via the normal Send or Steer action. Dismissing the popup or leaving the
+  token preserves the draft. While looking up commands, with no match, or if the list is
+  unavailable, the composer remains usable. Suggestions belong to the active chat and token, and
+  the popup closes when leaving the chat. The feature covers the phone agent composer.
+
 ## 5. Acceptance criteria
 
 - **A1 (planned)** (R1–R4, R29) — Turning remote control on joins the tailnet, shows each connection
@@ -594,6 +611,17 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   restored tabs do not show a saved file snapshot as current, and reconnect uses normal read
   authority. *Verify:* phone component/storage integration and existing remote-filter tests,
   phone browser journeys in each appearance; actual-device touch/reconnect remains a manual gate.
+
+- **A29 (planned)** (R57–R58) — In a live phone chat with an advertised `$review` skill, open the
+  popup with each prefix, narrow by name and description, and tap the skill in a draft that also
+  has other text and an attachment. Verify the displayed `/$review ` insertion, caret and browser-local
+  draft, continued typing, and delivery only after the existing Send or Steer action. Verify with
+  phone component tests, a rendered phone-width browser journey, and tap, scroll, and keyboard
+  checks on paired iPhone and Android devices.
+- **A30 (planned)** (R57–R58) — In the phone composer, type an email address, dismiss the popup,
+  and exercise no match and an unavailable list. Switch chats while results are pending and verify
+  that the new chat never offers the previous chat's suggestions. Check that the draft can still
+  be edited and sent normally when suggestions are unavailable. Verify with phone component tests.
 
 ## 6. Deviations & open decisions
 

@@ -494,6 +494,11 @@ Example:
 These are worth shaping into a possible change, but are not ready to build. Defining an idea updates
 the relevant feature and technical specifications; it does not change product code.
 
+- **Skills in the phone composer.** The operator requested a popup triggered by `/`, `#`, `$`,
+  and `@`. [Draft behavior and acceptance](specs/features/FS-20-mobile-remote-control.md#5-acceptance-criteria)
+  are in FS-20.R57–R58/A29–A30. Awaiting confirmation of command-only suggestions for all four
+  triggers and the existing desktop command spelling on insertion.
+
 ## ACP Wait-list
 
 These are capabilities Chuck implements above ACP, or has deliberately deferred, because the
