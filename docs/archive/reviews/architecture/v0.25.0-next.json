@@ -19,5 +19,14 @@
     { "id": "ARCH-POST025-3", "severity": "worth_fixing" },
     { "id": "ARCH-POST025-4", "severity": "worth_fixing" }
   ],
-  "updates": []
+  "updates": [
+    {
+      "kind": "fix",
+      "commits": ["992725bd71282b4b4843f5e038182a41117cd2ab"],
+      "finding_ids": ["ARCH-POST025-1"],
+      "closes": ["ARCH-POST025-1"],
+      "verified": true,
+      "evidence": "Journal-release timeout or client cancellation after the process ends returns ErrStopJournalPending. Stop and Archive then tear down and cancel the captured quota schedule; refusals keep it, and Switch keeps the barrier. The review probe became TestStopDisconnectDuringJournalCloseCancelsQuota (stop and archive). Each path fails without its repair and passes with it, -race -count=3. Affected paths: go test ./... and -tags sqlite_fts5 (GOFLAGS=-p=1, loopback), make build, check-specs.sh. Independent Opus 5.5 fix check found no defects and identified the archive sibling."
+    }
+  ]
 }
