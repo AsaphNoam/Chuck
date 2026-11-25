@@ -425,9 +425,10 @@ shared target guarantees.
   by `TestPrivateCodexResolvesWithoutGlobalInstall`, `TestRequiredLayoutAndManifestComponentsAgree`,
   and `TestAuthCommandIsPresentForEveryProvider`.
 - Spec lint: `scripts/check-specs.sh`.
-- Role-launcher contract: `scripts/check-launcher-contract.sh`, with
-  `scripts/check-launcher-contract-test.sh` proving each guarded rule fails on a launcher or
-  workflow copy that states its opposite. Both run under `make check-specs`.
+- Role launchers route both providers to the same shared startup and role procedure. Under
+  `make check-specs`, `scripts/check-launcher-contract.sh` and its mutation tests check provider
+  parity, reachable instructions and required companion or safety routes. Decision replays on
+  representative changes verify the judgment those links are meant to support.
 - CI: `.github/workflows/ci.yml`.
 - Fake integration peer: `internal/runtime/testdata/fakeacp`, server integration tests. Its
   `stress_stream` scenario (`FAKEACP_STRESS_CHUNKS`, `FAKEACP_STRESS_CHUNK_BYTES`,

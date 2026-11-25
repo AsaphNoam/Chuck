@@ -31,7 +31,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**Streamline Chuck's development workflow** (requested directly, baseline `0cf9a04f`).
+First checkpoint establishes TS-06's verification contract. Next: consolidate startup, review/fix
+and model routing; migrate the twelve skill pairs and their routing checks; narrow design, browser,
+testing and release reads. Verify scoped mutation checks and matched clean/easy/concurrent-loss
+decision replays, record model and token evidence, then queue the completed unit for review.
 
 ## Decisions needing input
 
