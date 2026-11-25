@@ -1,0 +1,87 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/AsaphNoam/Chuck/internal/state"
+)
+
+func TestArchitectureProbeQuotaSlotInvalidatesTasks(t *testing.T) {
+	s := testServer(t, true)
+	cfg, err := s.configStore.ReadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.TaskConcurrency = 1
+	if err := s.configStore.WriteConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	q := seedQuotaHTTP(t, s, "stopped-quota-assignee")
+	owner := newAgentTask(t, s, q.AgentID, "quota owner")
+	ready := newLaunchTask(t, s, "otherwise eligible ready task")
+	if _, err := s.stateStore.DB().Exec(`UPDATE tasks
+SET state=?, assigned_agent_id=?, assigned_generation=?, runtime_claim=?,
+execution_handle='existing-execution', started_at=created_at WHERE task_id=?`,
+		state.TaskRunning, q.AgentID, q.SourceGeneration, state.ClaimBorrowed, owner.TaskID); err != nil {
+		t.Fatal(err)
+	}
+	due := time.Now().UTC().Add(-time.Second)
+	q, err = s.stateStore.ObserveQuota(state.QuotaObservation{
+		AgentID: q.AgentID, EpisodeID: "quota-owned-by-task", SourceGeneration: q.SourceGeneration,
+		ExecutingTurn: "task-turn", Owner: state.QuotaOwner{Kind: "task", TaskID: owner.TaskID},
+		ObservedAt: due.Add(-2 * time.Minute), ResetAt: quotaResetFor(due), DueAt: &due, State: state.QuotaScheduled,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.stateMgr.Touch(q.AgentID); err != nil {
+		t.Fatal(err)
+	}
+	events, unsubscribe := s.eventBus.Subscribe()
+	defer unsubscribe()
+	slotWait := func() bool {
+		t.Helper()
+		w := quotaHTTP(t, s, http.MethodGet, "/api/tasks/"+ready.TaskID, "")
+		var out struct {
+			Waiting bool `json:"waiting_for_runtime_slot"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || w.Code != http.StatusOK {
+			t.Fatalf("GET task: %d, %s, %v", w.Code, w.Body.String(), err)
+		}
+		return out.Waiting
+	}
+	if slotWait() {
+		t.Fatal("borrowed source unexpectedly occupies a slot")
+	}
+
+	// The ordinary resume refuses because this stopped assignee has no usable
+	// session snapshot. Capacity is committed before that preflight.
+	s.startQuotaContinuation(context.Background(), q)
+	quota, err := s.stateStore.GetQuota(q.AgentID)
+	if err != nil || quota.State != state.QuotaNeedsAttention || quota.ReasonCode != "provider_start_failed" {
+		t.Fatalf("wanted pre-runtime quota hold: %+v, %v", quota, err)
+	}
+	updated, err := s.stateStore.ReadTask(owner.TaskID)
+	if err != nil || updated.RuntimeClaim != state.ClaimWoke || !slotWait() {
+		t.Fatalf("authoritative task/slot did not change: %+v, %v", updated, err)
+	}
+	var saw []string
+	for {
+		select {
+		case ev := <-events:
+			saw = append(saw, ev.Type)
+			if ev.Type == "task_update" || ev.Type == "task_capacity_update" {
+				return
+			}
+			if u, ok := ev.Data.(state.AgentStateUpdate); ev.Type == "state_update" && ok && u.Running {
+				return
+			}
+		default:
+			t.Fatalf("REST switched to waiting_for_runtime_slot=true; connected Tasks cache receives no invalidation: %v", saw)
+		}
+	}
+}

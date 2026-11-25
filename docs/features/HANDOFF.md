@@ -17,7 +17,9 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   operator authorized shipping with QUOTA-DISMISS-1 open; it is fixed on main after v0.25.0.
 - **Architecture:** the v0.25.0 review is complete in
   [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json); the gate passed. The
-  next release needs its own review (receipt `v0.25.0-next.json`).
+  [post-v0.25.0 source review](../archive/reviews/architecture/v0.25.0-next.json) covers
+  `1edbe326`. One release-blocking finding is open. Complete the receipt on the prepared
+  release candidate with verified fix and affected-coverage evidence.
 - **Verification:** Native, provider and device gates in
   [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md) remain owed.
 - **Installed runtime:** managed current was v0.20.0 at audit; v0.25.0 is not installed locally.
@@ -168,6 +170,41 @@ recovery (`fb410fdb`); it does not establish when the reported inference began. 
 specs, live user state or unrelated dirty files changed.
 
 ## Review findings
+
+### ARCH-POST025 — combined source review at `1edbe326` — **Fix model:** medium — Codex Sol 6.1/6.2 or Claude Opus 5.5.
+
+[Review evidence and probes](../archive/reviews/architecture/v0.25.0-next-evidence.md).
+
+- **Must fix** — ARCH-POST025-1: a disconnected Stop can kill the process and leave its quota
+  continuation armed. `ChatRuntime.Stop` deletes the running row, then waits for journal release
+  using the HTTP context (`internal/runtime/chat.go:1716–1729`). If the client disconnects during
+  that wait, `stopAgentClaimed` returns on `ErrStopNotSettled` before it cancels the captured
+  quota revision (`internal/server/sessions.go:955–980`). The real Stop route against fake ACP and a
+  delayed writer returned 500 with the runtime gone and a still-due intent. Dispatching that intent
+  restarted the same conversation under a new generation and sent a prompt to fake ACP. The Stop
+  probe passed with the previous runtime implementation. Keep the journal barrier for callers
+  that write after Stop. Once termination commits, settle manual control independently of client
+  lifetime, under the existing lifecycle/quota claims. An actual stop refusal must still keep its
+  schedule. FS-01.R6/R43, TS-10.R43, INV §15.
+- **Worth fixing** — ARCH-POST025-2: quota resume can take the last task runtime slot without
+  invalidating the open Tasks view. `internal/server/quota_dispatch.go:282–299` commits the
+  borrowed-to-woke claim before attempting Resume. If Resume refuses before a process starts,
+  such as a missing session snapshot, only a non-running `state_update` arrives. The live stream
+  at `ui/src/api/sse.ts:196–208` skips that update for Tasks. The real REST and event-bus probe
+  changes `waiting_for_runtime_slot` from false to true with no matching invalidation. Publish
+  the capacity change at the committed claim boundary, including when launch fails, and verify
+  the connected cache against a fresh read. FS-16.R7/R42, TS-10.R11/R17, INV §1/§8.
+- **Worth fixing** — ARCH-POST025-3: a timed-out dynamic import in the SSE watchdog test can
+  outlive module reset and contaminate the next revision-discard test (`ui/src/api/sse.test.ts:81–132`).
+  An initially loaded run produced both failures. A controlled delay on the SSE module transform
+  reproduced the same pair, and the ordinary isolated suite passed. Fence or finish import setup
+  before resetting the module/store identity, and verify the timeout branch cannot yield a second
+  misleading recovery failure. TS-06.R35, INV §17.
+- **Worth fixing** — ARCH-POST025-4: the retired cutover still appears as an owed rehearsal in
+  `docs/features/ACCEPTANCE-GATES.md:198` and as planned in TS-02.R41. Both refer to FS-10.R25/A14,
+  which now record that the operator completed the cutover and retired it. Reconcile the remaining
+  planned text and checklist entry to the recorded retirement so release work has one answer.
+  FS-10.R25/A14, TS-02.R41, INV §10.
 
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
