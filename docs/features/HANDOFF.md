@@ -15,11 +15,13 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
   [Release CI](https://github.com/AsaphNoam/Chuck/actions/runs/44996541049) passed; the
   downloaded archive's size and SHA-256 match the manifest, and the installer is attached. The
   operator authorized shipping with QUOTA-DISMISS-1 open; it is fixed on main after v0.25.0.
-- **Architecture:** the v0.25.0 review is complete in
-  [v0.24.0-next.json](../archive/reviews/architecture/v0.24.0-next.json); the gate passed. The
-  [post-v0.25.0 source review](../archive/reviews/architecture/v0.25.0-next.json) covers
-  `1edbe326`. ARCH-POST025-1 was closed by `992725bd`; no release-blocking finding is open. Complete the receipt on the prepared
-  release candidate with verified fix and affected-coverage evidence.
+- **v0.26.0 candidate** (2026-11-26): prepared at `11b0a4b2`
+  ([notes](../archive/state/RELEASE-v0.26.0-notes.md)); nothing agent-facing changed. Not tagged:
+  the three review-queue units and ARCH-POST025-2/3/4 (Worth fixing) await the operator's
+  decision to ship with them open.
+- **Architecture:** the [post-v0.25.0 receipt](../archive/reviews/architecture/v0.25.0-next.json)
+  is complete: source review at `1edbe326`, ARCH-POST025-1 closed by `992725bd`, and coverage for
+  the later README, check-specs and release-notes commits. No release-blocking finding is open.
 - **Verification:** Native, provider and device gates in
   [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md) remain owed.
 - **Installed runtime:** managed current was v0.20.0 at audit; v0.25.0 is not installed locally.
@@ -248,5 +250,5 @@ Editing that older release is separate publication work.
 
 ## Release record
 
-Prepared notes: [v0.25.0](../archive/state/RELEASE-v0.25.0-notes.md).
+Prepared notes: [v0.26.0](../archive/state/RELEASE-v0.26.0-notes.md) (candidate, untagged).
 Latest published version: [v0.25.0](https://github.com/AsaphNoam/Chuck/releases/tag/v0.25.0).

@@ -2,10 +2,10 @@
   "schema": 1,
   "previous_release": "v0.25.0",
   "reviewed_commit": "1edbe326a9b347c9b3111e3ac6deb4b6ad741d0f",
-  "review_complete": false,
+  "review_complete": true,
   "reviewer": "Codex with two focused independent GPT-6.1 Sol reviewers, 2026-11-25. No reviewer authored candidate changes.",
   "coverage": [
-    "Source assessment of v0.25.0..1edbe326 (36 commits, 180 files). Started from 867e514, reconciled the intervening rebase and verified against immutable source. Combined source assessment complete; next-release preparation is pending, so the release receipt remains incomplete. Evidence and reproduction commands are in docs/archive/reviews/architecture/v0.25.0-next-evidence.md.",
+    "Source assessment of v0.25.0..1edbe326 (36 commits, 180 files). Started from 867e514, reconciled the intervening rebase and verified against immutable source. Combined source assessment complete; the v0.26.0 candidate adds only the verified closure and coverage updates below. Evidence and reproduction commands are in docs/archive/reviews/architecture/v0.25.0-next-evidence.md.",
     "Recoverable work and faithful delivery. The journal, session snapshot, active revision fold and input receipt retain authority. Stop's new journal-release barrier satisfies Switch rollback's inactive append prerequisite. A client cancellation at that barrier can leave a stopped runtime's quota intent due (ARCH-POST025-1). A loopback follow-up ran that intent and observed the same agent under a new generation with one prompt delivered to fake ACP. Sent annotation folds settle held input by its exact sequenced request ID; unrelated or unsequenced echoes remain pending. Sent source links disclose loaded retained events without changing history.",
     "Progress and truthful results. Durable task state, reservation/claim, execution handle, generation and pipeline owner still govern admission and outcomes. Ordinary admission publishes after its commit. Quota resume can consume the last task slot without publishing the Tasks invalidation when startup fails before liveness changes (ARCH-POST025-2). Independently compared the live event bus with before/after REST. Existing transition ownership remains in give-agent-execution-one-owner.md.",
     "Intended execution and workspace. Shared provider executable selection and native auth probes govern readiness; catalog/precondition and executable identity fence stale results. Saved backend settings, completion/default writes and first-chat launch use separate authorities. Missing owned checkouts qualify only through the shared recreation rule. Configuration, readiness, installer and first-chat component fixtures passed. AUTH-TRUST-3 and the first-chat inventory keep their owners.",
@@ -14,19 +14,47 @@
     "Runtime and package. Node 22.22.0, Claude ACP 0.85.1+chuck.3, Codex ACP 2.1.1+chuck.3 and native Codex 0.159.3 are unchanged. Installed/Bundled target selection remains explicit; changed installer uses interactive dashboard startup with fixture-tested noninteractive behavior. Local UI and embedded Go builds pass. No release archive assembly, installed runtime or credentialed provider run. Keep outstanding acceptance gates visible."
   ],
   "findings": [
-    { "id": "ARCH-POST025-1", "severity": "must_fix" },
-    { "id": "ARCH-POST025-2", "severity": "worth_fixing" },
-    { "id": "ARCH-POST025-3", "severity": "worth_fixing" },
-    { "id": "ARCH-POST025-4", "severity": "worth_fixing" }
+    {
+      "id": "ARCH-POST025-1",
+      "severity": "must_fix"
+    },
+    {
+      "id": "ARCH-POST025-2",
+      "severity": "worth_fixing"
+    },
+    {
+      "id": "ARCH-POST025-3",
+      "severity": "worth_fixing"
+    },
+    {
+      "id": "ARCH-POST025-4",
+      "severity": "worth_fixing"
+    }
   ],
   "updates": [
     {
       "kind": "fix",
-      "commits": ["992725bd71282b4b4843f5e038182a41117cd2ab"],
-      "finding_ids": ["ARCH-POST025-1"],
-      "closes": ["ARCH-POST025-1"],
+      "commits": [
+        "992725bd71282b4b4843f5e038182a41117cd2ab"
+      ],
+      "finding_ids": [
+        "ARCH-POST025-1"
+      ],
+      "closes": [
+        "ARCH-POST025-1"
+      ],
       "verified": true,
       "evidence": "Journal-release timeout or client cancellation after the process ends returns ErrStopJournalPending. Stop and Archive then tear down and cancel the captured quota schedule; refusals keep it, and Switch keeps the barrier. The review probe became TestStopDisconnectDuringJournalCloseCancelsQuota (stop and archive). Each path fails without its repair and passes with it, -race -count=3. Affected paths: go test ./... and -tags sqlite_fts5 (GOFLAGS=-p=1, loopback), make build, check-specs.sh. Independent Opus 5.5 fix check found no defects and identified the archive sibling."
+    },
+    {
+      "kind": "coverage",
+      "commits": [
+        "f121765b7552636436373ce6756388232a3002ca",
+        "d60f5643e87608e5cb76edc0812b1c05ea3739f9",
+        "11b0a4b2621cc6cfc5ac8884cbef257accf3f9a8"
+      ],
+      "verified": true,
+      "evidence": "Affected coverage for the v0.26.0 candidate. f121765b and 11b0a4b2 change README prose and release notes only; no install, command or component claim changes (install.sh still never prompts for credentials). d60f5643 changes only scripts/check-specs.sh finding-contract parsing (CHECK-CONTRACT-1); scripts/check-review-finding-contract-test.sh and make check-specs pass on BSD awk. Candidate checks at d60f5643 plus docs: make test (both Go variants), ui npm test (1421 tests), make dist VERSION=0.26.0 all pass (GOFLAGS=-p=1, isolated GOCACHE). No product, runtime or dependency change after 992725bd."
     }
   ]
 }
