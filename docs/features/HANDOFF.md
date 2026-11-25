@@ -71,6 +71,10 @@ None.
 
 ## Review queue
 
+- **Phone bottom pull to refresh** — available for independent review. One commit on `56f23882`,
+  "phone: pull up at the newest message to refresh". Scope: FS-20.R59/A31, `pullUpRefresh.ts`,
+  the phone chat hint. The paired-device gate is in ACCEPTANCE-GATES.
+
 - **Invariant inventory maintenance** — available for independent review. Baseline `993d8dd0`;
   finding citation checker `22e5edd4` plus the inventory and startup changes closing this unit.
   Scope: INV §§1–24, TS-01 §4, TS-06 spec lint. Decision replays covered a replacement agent

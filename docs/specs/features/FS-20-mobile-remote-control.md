@@ -447,6 +447,13 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   token preserves the draft. While looking up commands, with no match, or if the list is
   unavailable, the composer remains usable. Suggestions belong to the active chat and token, and
   the popup closes when leaving the chat. The feature covers the phone agent composer.
+- **R59 — Pull up at the newest message to refresh.** The browser's own pull-down at the top of
+  a phone conversation reloads the page. Pulling up past a clear threshold while the
+  conversation is already at its newest message gives the same reload from the bottom. During
+  the pull, a hint near the bottom edge says whether letting go will refresh. Letting go short of
+  the threshold, starting away from the newest message, starting in a text field or sheet,
+  pulling while a text field has focus, or using more than one finger does not refresh.
+  Ordinary scrolling and the existing composer, draft (R49) and position (R54) rules stay unchanged.
 
 ## 5. Acceptance criteria
 
@@ -622,6 +629,11 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   and exercise no match and an unavailable list. Switch chats while results are pending and verify
   that the new chat never offers the previous chat's suggestions. Check that the draft can still
   be edited and sent normally when suggestions are unavailable. Verify with phone component tests.
+- **A31** (R59) — In a phone conversation at its newest message, pull up past the threshold and
+  let go: the page reloads, with the hint shown during the pull. A short pull, a pull started
+  away from the newest message, in the composer text field, with a text field focused, or with
+  two fingers does not reload. *Verify:* phone component tests; the gesture and hint on paired
+  iPhone and Android devices remain a manual gate.
 
 ## 6. Deviations & open decisions
 
@@ -687,3 +699,4 @@ Phone connection: `Connected ↔ Reconnecting → Mac unreachable (since <time>)
   `TestRemoteRouteInventoryIsClassified`).
 - A13 (automated half): `remote_routes_test.go` (`TestRemoteDeniesEveryTaskRoute`),
   `remote_home_test.go`; `PhoneApp.test.tsx` (`/task/<id>` opens Home).
+- A31 (automated half): `ui/src/remote/pullUpRefresh.test.tsx`.

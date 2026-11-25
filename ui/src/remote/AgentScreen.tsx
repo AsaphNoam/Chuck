@@ -50,6 +50,7 @@ import { getRuntimeOptions } from "./api";
 import { navigate } from "./router";
 import { PhoneIcon } from "./PhoneIcon";
 import { PhoneSheet } from "./PhoneSheet";
+import { usePullUpRefresh } from "./pullUpRefresh";
 import { recallPlace, rememberPlace } from "./scrollMemory";
 import { bumpChatDraftRevision, getChatDraft, setChatDraft, subscribeChatDraft } from "../components/chat/drafts";
 import { reconcileRecoverySettlement, refreshInputQueries, withdrawHeldMessage } from "../lib/heldMessage";
@@ -75,6 +76,7 @@ const EARLIER_PAGES = 3;
 const EARLIER_EVENTS = TRANSCRIPT_PAGE * EARLIER_PAGES;
 const EARLIER_BYTES = 3 * 1024 * 1024;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const reloadPage = () => window.location.reload();
 const isAtLatest = () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 48;
 
 function retainEarlier(events: TranscriptEvent[]) {
@@ -316,6 +318,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
   const [rename, setRename] = useState("");
   const [diffSeq, setDiffSeq] = useState<number | null>(null);
   const chat = agent?.interface !== "terminal";
+  const pull = usePullUpRefresh(tab === "chat" && chat, reloadPage);
   const files = useQuery({ queryKey: ["tracked-files", agentId, rev], queryFn: () => getTrackedFiles(agentId), enabled: tab === "files" });
   // This phone's saved file tabs for the agent. Each tab keeps its tracked
   // path as its read key, so Reload asks for exactly that path even when the
@@ -885,6 +888,7 @@ export function AgentScreen({ agentId }: { agentId: string }) {
             </div>
           )}
           {recovery && <RecoveryOffer key={recovery.request_id} agentId={agentId} recovery={recovery} phone offline={offline} />}
+          {pull !== "idle" && <p className="phone-pull-refresh" role="status">{pull === "refreshing" ? "Refreshing…" : pull === "armed" ? "Release to refresh" : "Pull up to refresh"}</p>}
           {awayFromLatest && <button type="button" className="phone-jump-latest ad-button-secondary" onClick={() => window.scrollTo(0, document.documentElement.scrollHeight)}>Jump to latest</button>}
           {agent.running && (
             <div className="phone-runtime-controls">

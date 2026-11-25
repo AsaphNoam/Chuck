@@ -103,6 +103,9 @@ gate; remove an entry when its receipt exists. A gate that was run and failed is
   reconnect, non-Chromium engines, and rendered proof of the 500-total/2 MiB limits and the
   storage-unavailable notice (unit-tested only) remain owed.
 
+- **FS-20.A31 (bottom pull to refresh):** the pull-up gesture, its hint and the reload on a paired
+  iPhone Home Screen app and Android Chrome remain owed; jsdom covers only the touch logic.
+
 - **ASF-2 native/device receipts:** deterministic fake-ACP wire counts, HTTP/CLI/component checks,
   and isolated desktop Chromium withdrawal/unknown-recovery journeys establish the repaired input
   boundaries. They do not establish credentialed Claude/Codex consumption timing or a physical

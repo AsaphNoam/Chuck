@@ -130,6 +130,8 @@ body { min-height: 100dvh; -webkit-text-size-adjust: 100%; --ad-phone-wallpaper-
 .phone-model-switch::before, .phone-jump-latest::before { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-strong); border-radius: var(--ad-radius-small); box-shadow: var(--ad-shadow-keyline), var(--ad-shadow-offset); content: ""; inset: var(--ad-space-1) 0; pointer-events: none; position: absolute; z-index: -1; }
 /* The desktop transcript's Jump to latest, floating over the page-scrolled chat. */
 .phone-jump-latest { background: transparent; border: 0; color: var(--ad-state-done); font-size: 0.75rem; padding: 0 var(--ad-space-3); position: fixed; bottom: calc(var(--ad-space-4) + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 3; }
+/* The bottom twin of the browser's pull-down refresh, in Jump to latest's place (FS-20.R59). */
+.phone-pull-refresh { background: var(--ad-surface-panel); border: var(--ad-border-thin) solid var(--ad-border-strong); border-radius: var(--ad-radius-small); box-shadow: var(--ad-shadow-keyline), var(--ad-shadow-offset); color: var(--ad-text-secondary); font-size: 0.75rem; margin: 0; padding: var(--ad-space-1) var(--ad-space-3); pointer-events: none; position: fixed; bottom: calc(var(--ad-space-4) + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); white-space: nowrap; z-index: 3; }
 .phone-composer-actions.phone-actions > button { flex: 0 0 auto; }
 /* Fill/shape/size now come from .ad-button-icon-primary; the button is already a 44px touch target. */
 .phone-send-icon { flex-shrink: 0; }
