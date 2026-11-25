@@ -48,6 +48,20 @@ expect_failure() {
 }
 
 file="$work/valid/HANDOFF.md"
+# Derive current recommendations from their sole policy source.
+recommendations=$(awk -F '|' '/^\| (trivial\/easy|medium|difficult) \|/ { value=$3; sub(/^ +/, "", value); sub(/ +$/, "", value); print value }' "$ROOT/docs/features/MODEL-ROUTING.md")
+index=0
+while IFS= read -r recommendation; do
+  index=$((index + 1))
+  file="$work/current-$index/HANDOFF.md"
+  write_handoff "$file" "### current — **Fix model:** $recommendation" '' '- **Must fix** — Localized.'
+  expect_pass 'current recommendation' "$file"
+done <<EOF
+$recommendations
+EOF
+[ "$index" -eq 3 ] || fail 'model map must define three recommendations'
+
+file="$work/valid/HANDOFF.md"
 write_handoff "$file" \
   '### grouped-review — **Fix model:** difficult — Codex Sol.' \
   '' \

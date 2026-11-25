@@ -157,7 +157,22 @@ check_spec_file() {
 # for code findings. This validates the recorded shape, not the classification.
 check_review_findings() {
   file=$1
+  model_map="$ROOT/docs/features/MODEL-ROUTING.md"
+  if [ ! -f "$model_map" ]; then
+    fail 'missing model routing map'
+    return
+  fi
   problems=$(awk '
+    NR == FNR {
+      if ($0 ~ /^\| (trivial\/easy|medium|difficult) \|/) {
+        split($0, columns, "|")
+        recommendation = columns[3]
+        sub(/^[[:space:]]+/, "", recommendation)
+        sub(/[[:space:]]+$/, "", recommendation)
+        models[++models_count] = "**Fix model:** " recommendation
+      }
+      next
+    }
     function validate_unit(   normalized, copy, tag_count, model_count) {
       if (unit == "") return
       normalized = unit
@@ -165,6 +180,8 @@ check_review_findings() {
       copy = normalized
       tag_count = gsub(/\*\*Fix model:\*\*/, "", copy)
       model_count = 0
+      for (model in models) if (index(normalized, models[model]) > 0) model_count++
+      # Compatibility with recommendations recorded before central routing.
       if (index(normalized, "**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.") > 0) model_count++
       if (index(normalized, "**Fix model:** medium — Codex Terra or Claude Opus.") > 0) model_count++
       if (index(normalized, "**Fix model:** difficult — Codex Sol.") > 0) model_count++
@@ -203,7 +220,7 @@ check_review_findings() {
     }
     insection && buf != "" { buf = buf " " $0; next }
     END { if (insection) { flush_finding(); validate_unit() } }
-  ' "$file")
+  ' "$model_map" "$file")
 
   [ -n "$problems" ] || return
   old_ifs=$IFS
