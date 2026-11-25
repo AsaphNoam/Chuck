@@ -11,15 +11,14 @@ service, no telemetry.
 
 ## What you can do
 
-Every agent gets a persistent name, a live status and a full
-streaming chat. No need to learn how to use Chuck, just ask Chucky, the built-in coordinator / guide, 
-for an outcome and it proposes the agents and steps to get there.
+Every agent gets a persistent name, a live status and a full streaming chat. No need to learn
+Chuck first: ask Chucky, the built-in coordinator and guide, for an outcome and it proposes the agents and steps to get there.
 
 ![Chucky proposing a plan in chat](docs/images/chat.png)
 
 **Run repeatable pipelines.** Define stages once (design, implement, review, ship) and start a run
-with a goal. Chuck starts lets complex multi step tasks move between stages with standing instructions and orchestrators to manage the show. 
-Define it once and reuse as much as you like.
+with a goal. Chuck moves complex multi-step work between stages, with standing instructions and
+orchestrators running the show. Define it once and reuse as much as you like.
 
 ![A completed pipeline run](docs/images/pipeline-run.png)
 
@@ -38,7 +37,7 @@ send it to this agent or another one.
 
 ![Annotating a sentence and assigning it to the code reviewer](docs/images/annotate.png)
 
-**Kepp working on the go.** Pair a phone over your own Tailscale network to see what needs you,
+**Keep working on the go.** Pair a phone over your own Tailscale network to see what needs you,
 approve permission requests and keep conversations going while you're away.
 
 <img src="docs/images/phone-approve.png" alt="Approving a deploy permission request on a phone" width="320">
