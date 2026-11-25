@@ -1,76 +1,39 @@
 # Chuck invariants — normative technical-spec appendix
 
-Every class below cost at least one review cycle; most recurred in two or more subsystems before
-being named. The evidence base is multiple full top-to-bottom reviews, the repo's `review fix:`
-commit history, and the field bug investigations of §12 of the workflow. Treat these as **load-bearing rules, not suggestions**: a diff that violates one is
-wrong until proven otherwise, and a review finding that matches one is almost certainly real.
-This file is governed by TS-01 and indexed with the technical specs as `INV`; it is not a third
-product-spec set. Add or change a binding rule here through the same spec-delta lifecycle as a TS.
+Chuck's recurring failure modes have stable citations (`INV §n`). Each numbered class owns a binding constraint under TS-01. Its check shows how to distinguish a violation at the affected boundary. When reporting a defect, establish the reachable consequence and cite the class that explains it. A matching trigger is a reason to inspect the code.
 
-**The principle behind most classes: every fact has one owner.** One builder (§2), one teardown
-(§4), one claim (§5), one receipt (§19), one outcome (§20). Any other copy of a fact — an in-memory
-duplicate, a browser cache, a parallel list — states which authority it derives from, how long it
-lives, and how it is rebuilt. When a case fits no class below, apply that test.
+Read cited and affected classes directly. The [shared startup](AGENT-WORKFLOW.md#1-start-with-the-current-state) defines when to scan the index. Use the helper registry at the end to locate an existing implementation. When ownership is unclear, identify who writes the fact, who observes it and what happens after replacement or restart.
 
-The hot-spot areas: launch/resume/switch composition, `internal/runtime` concurrency,
-`internal/state`/`internal/index` persistence, terminal/PTY, UI forms over seeded config.
-
-How the loop uses this file:
-- **/work** — before building in a hot-spot area, read the matching class; new interfaces
-  must complete the §6 contract checklist.
-- **/review** — check the diff against the classes **by the trigger index below**; tag each finding
-  with its class number.
-- **/fix** — note the class in the commit message; if a fix reveals a new canonical pattern, add it
-  to its class. Keep this file curated — merge near-duplicates, don't let it become a graveyard.
-
-**A new rule arrives with a guard.** Written classes were violated after they were written; the
-one rule with a hook (§7's `rows.Err`) stopped recurring. So a new class, or a new rule inside one,
-names the test, lint or hook that fails when it is broken, as a `**Guard:**` line. A rule nobody can
-check mechanically is added only after two independent incidents, and never in place of a guard
-that could have been written. Incident history is not kept here: the evidence behind each class
-through 2026-11-13 is in the
-[incident archive](../archive/reviews/invariant-incidents-through-2026-11-13.md), and later
-evidence belongs in the commit that fixes it.
-
-Read the trigger index first. Its rule column is binding on its own; a class body adds the
-canonical patterns and guards. Read in full only the classes your diff actually touches — reading
-every class for a diff that touches one is waste, not diligence. Class numbers are stable citations
-(`INV §n`): narrow or extend a class, never renumber. Read one class with:
-
-```bash
-awk '/^## 7\./{f=1} f&&/^## 8\./{exit} f' docs/features/INVARIANTS.md
-```
+**Maintaining a class.** Extend an existing rule when it explains the failure. A distinct failure mechanism can earn a new class through the technical-spec change process. For each new rule, use **Guard** to name the test, lint or hook and its coverage. If a mechanical guard is impractical, cite two independent incidents and give reviewers a distinguishing check. Keep IDs and meanings stable. Preserve incident evidence in the repair commit or [incident archive](../archive/reviews/invariant-incidents-through-2026-11-13.md).
 
 ## Trigger index
 
-| # | Rule | Read the body when the diff touches |
-|---|---|---|
-| 1 | Crossing a lifecycle boundary explicitly resets or republishes every piece of state derived from the old side. | reconnect, relaunch, resume, switch, or any lifecycle transition that leaves derived state behind |
-| 2 | Two paths that build the same artifact or projection share one helper from the moment the second path appears. | a second code path constructing an artifact or projection that already has a builder (check the canonical-helpers registry below) |
-| 3 | A persisted field never receives one-shot data, and a form over seeded config merges instead of replacing. | a field that is both sent to the runtime and persisted; any form that writes seeded config |
-| 4 | Everything created at registration is torn down by one shared, generation-scoped function on every exit path. | anything created at registration — hook tokens, MCP sessions/files, hook-settings files, temp artifacts |
-| 5 | Check-then-act across goroutines claims atomically or rechecks a generation token; only the winner emits side effects. | "if pending then resolve" / "if active then fire" across goroutines; `internal/runtime` concurrency |
-| 6 | A new interface, runtime or driver walks the full contract checklist; silence on any line is a bug. | a new interface, runtime, driver, or adapter — walk the checklist line by line |
-| 7 | Iteration and repair code treats each record as independently failable: check the real error, skip, continue, report. | iteration, repair, migration, or recovery code over records |
-| 8 | What a person sees is parsed, bounded and in vocabulary; every mutation surfaces its failure and names what blocks a disabled action. | card previews, `status.detail`, toasts, rendered output, disabled controls, or a UI mutation's error/recovery path |
-| 9 | OS and SQLite liveness and durability primitives are weaker than they look; corroborate before any destructive action. | SQLite, file locks, signals, process liveness, timeouts, fsync |
-| 10 | A feature is done when every surface that promises it can reach it and every document describing it matches. | a feature reachable from some surfaces but not all; a gating stub; docs left behind |
-| 11 | Data crossing a boundary keeps its meaning: collections are never `null`, and identity, status and error semantics survive transport. | Go structs crossing to the UI; nil slices/maps; ACP or streaming payload identity/status/error semantics |
-| 12 | A user-installed tool runs at whatever version the user has: optional flags retry bare, parsing is defensive, and uninterrogable means unknown, never failed. | any `exec.Command` or adapter call to a user-installed tool — agent CLIs, probers, git |
-| 13 | The test suite cannot see CSS or layout: every className has a selector, and geometry contracts get a real-browser assertion. | `ui/src` markup or `ui/src/styles/**`; anything about where an element is, how large it is, or what it covers |
-| 14 | A loopback bind is not a security boundary: every route sits behind the local or remote guard, and everything under `~/.chuck` is owner-only. | HTTP handlers, CORS, file paths from requests, anything reachable from a browser |
-| 15 | Persist and publish local state before an effect becomes externally observable; a retryable multi-store mutation is atomic, rolled back, or idempotent. | an operation that makes work externally observable or lets a peer proceed |
-| 16 | Streams, queues, retained collections, sweeps and fan-out are bounded at admission, with a stated limit and lifetime. | external output, streams, queues, sweeps, retained maps/lists, goroutine fan-out, or per-client state |
-| 17 | A test's oracle is independent of the code it checks, and its doubles mirror the real producer's shapes and failures. | regression or acceptance tests, contract enumerations, mocks/fixtures, build tags, packaging or release gates |
-| 18 | A durable wait records who can end it, gives that party a legal move from every honest state, and raises attention when they cannot act. | a durable state that waits on an agent, person, child task or peer; a status derived from an event stream; turn-end/exit handlers; protocol dispositions |
-| 19 | Submitted input is accepted durably under one owning record or refused with no side effect; handoffs between owners are acknowledged. | prompts, steers, answers, reports, proposals or annotations being queued, held, withdrawn, recovered, rerouted, or carried into an assignment or handoff |
-| 20 | Offered comes from the executor, effective is what it reported back, missing evidence is `unknown`, and one validated outcome feeds every consumer. | a model, effort, capability, session identity, saved setting or turn outcome decided by a peer or another component and then persisted, displayed, offered for selection, or used to settle work |
-| 21 | Text an agent acts on is machine contract: it shares the code's vocabulary, and each refusal has one meaning and names the next valid move. | assignment text, tool descriptions, standing guidance, refusal codes/messages, or forwarding a provider-native command under an assignment |
-| 22 | Every refusal, delivery transition, process start/stop and boundary error logs who, which operation and the typed reason — never payloads. | a refusal, a delivery or ownership transition, process start/stop, an error crossing a process or wire boundary, client error handling |
-| 23 | Anything with a lifecycle is keyed by its name plus a generation or birth proof, and a late action rechecks that pair. | a map, cooldown, cache, token, session or signal keyed by agent id, PID, session id or another reusable name; work that can arrive after its owner was replaced |
-| 24 | A fallback fails closed or becomes a recorded, visible, time-limited mode that is re-tested for recovery. | a default for an absent field, a retry on a different path, a degraded mode, a catch-all route, a cache of a failed response, "warn and continue" |
-
-Open a class body only when its trigger matches.
+| INV § | Boundary or change to inspect |
+|---|---|
+| 1 | Reconnect, resume, switch or config change leaves old derived state visible. |
+| 2 | A second path builds the same artifact, projection or transition. |
+| 3 | One-shot launch data enters storage, or a form overwrites seeded config. |
+| 4 | Registration allocates resources that exits, failures or replacement must release. |
+| 5 | Competing callers can both pass a check before claiming an effect. |
+| 6 | A new execution backend joins the agent lifecycle through a runtime, driver or external interface. |
+| 7 | Iteration, repair or migration can skip a read error or abort later records. |
+| 8 | A human-facing preview, status, mutation error or disabled action obscures the outcome. |
+| 9 | Process liveness, SQLite, file writes or locks underpin a durability or destructive decision. |
+| 10 | A promised entry point, integration or published instruction can be left behind. |
+| 11 | Serialization changes a collection, identity, status or error seen by a consumer. |
+| 12 | An external CLI's version, flags, environment or output can differ from the developer's. |
+| 13 | CSS, layout or markup changes visual behavior that DOM-only tests cannot see. |
+| 14 | An HTTP route or local file exposes private state, credentials or actions. |
+| 15 | An external effect can precede durable state, or retry can repeat a partial commit. |
+| 16 | Incoming streams, queues, retained collections, sweeps or fan-out can grow without bounds. |
+| 17 | A test, double or release gate can agree with a broken implementation. |
+| 18 | Durable work waits on a party that lacks a legal move or can disappear. |
+| 19 | Submitted input crosses owners, gets refused, retried, withdrawn or recovered. |
+| 20 | A consumer claims an offered, effective or terminal value from incomplete peer evidence. |
+| 21 | An agent acts on assignment text, tool guidance, a command or a refusal. |
+| 22 | A refusal, delivery transition, process boundary or error needs a trace safe to retain. |
+| 23 | A late action targets an agent ID, PID, token or session name that can be reused. |
+| 24 | A retry, default or degraded path can silently change guarantees or persist after recovery. |
 
 ---
 
@@ -82,6 +45,10 @@ republished. Nothing "just stays valid."
 
 **Canonical patterns:** reset connection-scoped state in `onopen`, not the constructor; republish
 the affected agent after any read/delete mutation; per-agent request tokens for async UI fetches.
+
+**Failure/check:** a reconnect leaves an old permission badge or an agent-tab fetch overwrites the
+new tab. Cross the boundary with stale state and a delayed response; assert only the new owner's
+state is visible and its current snapshot is published.
 
 ## 2. Parallel paths that build "the same thing" must share one helper
 
@@ -96,12 +63,20 @@ builder, and add a row when a second path appears.
 how many statements write `quota_intents`, `tasks` and `pipeline_runs` in each file. A new writer
 fails it until the change either routes through an existing writer or raises the count on purpose.
 
+**Failure/check:** launch and resume compose different settings, or replay differs from live chat.
+Compare both entry paths for the same input and verify they call the shared builder. The inventory
+guard above covers status writers, not every builder in this class.
+
 ## 3. Persisted fields never receive one-shot data; forms merge, never replace
 
 **Rule:** a field that is both sent to the runtime AND persisted must never have transient data
 concatenated into it — one-shot additions need a separate field the persistence path is
 structurally blind to. Symmetrically: a UI form pre-populated from seeded server config must
 merge-preserve the seeded collection on submit, never write back its partial on-screen view.
+
+**Failure/check:** a resumed prompt repeats a one-shot instruction, or saving one form erases hidden
+seeded entries. Submit, reload the durable record and resume; verify transient text is absent and
+untouched seeded entries remain.
 
 ## 4. Create/teardown symmetry: one teardown function, generation-scoped, on every exit path
 
@@ -111,46 +86,57 @@ switch, failed launch, failed resume, and unsolicited crash. Teardown is scoped 
 generation, not just an agent id. Teardown of the OLD strictly precedes registration of the NEW
 under the same key, and every failure branch after that point routes through the same rollback.
 
+**Failure/check:** failed resume leaves a usable hook token, or a late crash removes a replacement's
+registration. Inject failures after registration and process start; check artifacts on every exit
+and preserve the replacement generation. §5 governs the claim; §23 governs identity at teardown.
+
 ## 5. Check-then-act needs an atomic claim or a generation token
 
-**Rule:** any "if pending then resolve" or "if active then fire" across goroutines must either
-claim atomically under one critical section (take-and-delete) or capture a generation counter and
-recheck it at fire time. Only the winner of the race may emit side-effect events. Snapshot+subscribe
-is one lock acquisition, never two.
+**Rule:** claim pending work atomically or recheck the captured generation (§23) at fire time.
+Only the winning caller emits the effect. Take a snapshot and subscribe under the same lock.
+
+**Failure/check:** concurrent permission resolution emits two results, or snapshot/subscription loses
+an intervening update. Release competing callers together and assert one claim and one side effect;
+insert an update at the snapshot boundary and verify it is observed.
 
 ## 6. A new interface/runtime must join every existing contract (checklist)
 
-**Rule:** the terminal runtime shipped as a second-class citizen and produced the single largest
-concentration of BLOCKING findings (6 findings, one review). Any new interface, runtime, or driver
-must explicitly walk this checklist — silence on any line is a bug, not a default:
+**Rule:** a new runtime, driver, or external execution interface participating in agent lifecycle
+must explicitly walk this checklist — silence on an applicable line is a bug. Routine internal Go
+interfaces do not trigger it; mark genuinely unsupported contracts with their refusal behavior:
 
 - [ ] **Persistence:** gets a `sessions` row → visible in archive, resumable, survives Stop.
 - [ ] **LaunchSpec:** honors the full composed spec (model, system prompt, add_dirs, MCP
       registration) — via the shared resolvers of §2.
-- [ ] **Fan-out/drain:** output readable by N viewers and drained when *zero* viewers are attached
-      (a full kernel tty queue stalled an unobserved CLI indefinitely). Pattern:
-      `internal/runtime/terminal/ptyhub.go` — one always-on reader per PTY, bounded scrollback
-      ring, non-blocking fan-out that drops slow subscribers (§16). Never `dup()` a shared fd per
-      viewer (splits the stream), and never let a transient view's teardown close a long-lived fd
-      it doesn't solely own (a WS unmount once SIGHUP'd the live CLI). Keystrokes use binary
-      WebSocket frames; text frames are reserved for the `{cols,rows}` resize channel — a
-      text-frame keystroke is silently eaten (`ui/src/components/chat/TerminalTab.tsx`).
+- [ ] **Fan-out/drain:** with zero or many viewers, one reader drains each PTY into bounded
+      scrollback and drops slow subscribers (§16, `internal/runtime/terminal/ptyhub.go`).
+      Duplicating a shared fd splits the stream. A departing viewer must leave the live PTY open.
+      `TerminalTab.tsx` sends binary keystrokes and reserves text frames for `{cols,rows}` resize.
 - [ ] **Messaging:** either it can drain its mailbox (`check_messages`) or `ResolveRecipient`
-      excludes it — an undrainable nudge loop once burned thousands of paid turns.
+      excludes it from nudges.
 - [ ] **Turn boundaries:** its turn signal is identified and wired into every per-turn reset
       (`resetTurnBudgetTx` via `terminalTurnID`) — not lumped into a generic status hook.
 - [ ] **Reconcile:** the sweep knows its shape (no chat-shaped preview stomping, §1).
-- [ ] **Hooks/status:** feature flags scoped to the actual risk surface, not blanket-applied
-      (`CHUCK_HOOK_REGISTRATION` once muted terminal agents entirely).
-- [ ] **Capabilities honesty:** never advertise what no API/UI surface can select (`tmux:true`
-      with no selector shipped).
+- [ ] **Hooks/status:** scope registration flags to the affected runtime so other agents still report status.
+- [ ] **Capabilities:** advertise only options that a supported API or UI can select.
 - [ ] **Teardown:** joins §4's single teardown on every exit path.
+
+**Failure/check:** a terminal agent is absent from archive or stalls when no viewer drains its PTY.
+Exercise the new execution path through launch, detached output, messaging, turn end, stop, resume
+and crash; record evidence for each applicable checklist line rather than inferring chat parity.
 
 ## 7. Read paths must not swallow errors or amplify damage
 
 **Rule:** iteration and repair code treats each record/entity as independently failable: check the
 real error signal, skip the bad record, continue, and report — never abort the whole stream or
 wipe-then-fail.
+
+**Failure/check:** one corrupt row hides later valid records, or a repair deletes good data before
+its replacement fails. Mix valid and corrupt records, inject iteration/write failure, and verify
+continued progress, retained good data and a reported error. Check `rows.Err()` after SQL iteration.
+
+**Guard:** the [Claude post-edit hook](../../.claude/hooks/post-edit.sh) flags a Go file with
+`rows.Next()` and no `rows.Err()`. Review individual loops when a file contains several.
 
 ## 8. User-facing surfaces get parsed, bounded, in-vocabulary data — and errors always surface
 
@@ -161,32 +147,44 @@ builder. A disabled action names the condition that blocks it, and alternatives 
 state their different consequences beside the controls. A mutation's warning or success-adjacent
 feedback stays owned by a surface that remains mounted, or is handed off before that surface closes.
 
+**Failure/check:** a closing dialog loses a failed save's toast, or a card renders raw provider JSON.
+Fail the mutation and close its initiating surface; verify persistent feedback and recovery. Feed
+oversized/unknown output and inspect the bounded, declared vocabulary at the render boundary.
+
 ## 9. Liveness & durability primitives are weaker than they look
 
-**Rule:** the OS and SQLite primitives this codebase leans on all have sharp edges that already cut:
+**Rule:** corroborate OS/SQLite guarantees before destructive maintenance or durable writes:
 
 - **Bare `kill(pid, 0)`** proves only that *some* process has the PID (reuse!). Used in
   `internal/cli/pidfile.go` — corroborate (start-time/comm/nonce) where it gates destructive
-  action, and never remove a pidfile without verifying it names your own PID. Orphan reapers and
-  both reconcilers once trusted it and could SIGKILL a reused PID; they now compare the running
-  row's recorded kernel birth (`runtime.ClassifyProcess`) and refuse unknown proof.
+  action, and never remove a pidfile without verifying it names your own PID. Process identity and
+  late-action fencing belong to §23; use `runtime.ClassifyProcess` for recorded process proof.
 - **Atomic-write-via-rename** must fsync the file AND the parent directory
   (`internal/config/atomic.go`, `pidfile.go`).
-- **`CREATE VIRTUAL TABLE IF NOT EXISTS`** freezes a degraded fallback forever — a
-  capability-upgrading migration must detect and replace the fallback object
-  (`ensureSessionsFTS`, `internal/state/migrate.go`).
+- **`CREATE VIRTUAL TABLE IF NOT EXISTS`** cannot upgrade an existing fallback object. Detect and
+  replace it (`ensureSessionsFTS`, `internal/state/migrate.go`); §24 governs fallback recovery.
 - **Append-only writers** must truncate a crash-torn trailing record on `Open()` before appending,
   or the torn tail fuses with the next record (`internal/transcript/writer.go`).
 - **In-memory accumulators feeding replace-style (DELETE+INSERT) writes** must lazily reseed from
   the durable table on first use per process — an empty-seeded buffer once wiped all FTS content
-  after a restart (`seedLocked`, `internal/index/indexer.go`).
+  after a restart. Alternatively retain independent durable documents rather than replacing the
+  whole history from a process-local buffer (`insertTranscriptDocument`, `internal/index/indexer.go`).
 - **Destructive CLI ops sharing the live server's DB hard-refuse on liveness** (`reindex` once only
   warned).
+
+**Failure/check:** restart with a torn transcript, durable indexed history and a live server; verify
+tail repair before append, history preservation and refusal of destructive maintenance. Simulate
+write/rename failure and inspect file and parent-directory sync ordering; syscall success alone is
+not proof of crash durability. `TestOpenTruncatesTornTrailingLine` covers the transcript case.
 
 ## 10. Ship the wiring; kill the drift
 
 **Rule:** a feature isn't done until every surface that promises it can reach it, and every doc
 that describes it matches. Gating stubs are un-gated in the same effort that ships the gate.
+
+**Failure/check:** desktop exposes a supported action while phone still refuses through a stub.
+List the promised entry surfaces from the FS acceptance criteria, exercise each, and compare its
+capabilities and guidance with the shipped behavior.
 
 ## 11. Cross-boundary serialization and protocol contracts preserve meaning
 
@@ -202,6 +200,10 @@ never acquires a terminal meaning by default.
 first touches a server collection; structurally validate required nested collections decoded from
 hand-editable files; validate required protocol identity/status fields before mutating runtime state.
 
+**Failure/check:** an empty API result crashes a UI iterator, or an omitted peer status settles a
+turn as successful. Serialize empty collections through the real wire boundary and inject missing
+identity/status fields; assert usable empty collections and no invented terminal state.
+
 ## 12. External-CLI invocations must tolerate version and environment variance
 
 **Rule:** any `exec.Command` of a user-installed tool (agent CLIs, probers) runs against whatever
@@ -211,53 +213,51 @@ be interrogated reports "unknown"/"skipped", **never** "failed" — a wrongly fa
 user harder than no gate at all. Exit zero is not success: validate the output's shape before
 relying on it. What Chuck may then claim about the tool's effective state is §20.
 
-**Canonical pattern:** `runClaudeAuthStatus` (`internal/backend/credcheck/claude.go`) — try with
-optional flags, sniff the error output, retry bare. The `/usability-review` S3 sweep audits every
-external `exec.Command` for this class.
+**Canonical pattern:** `claudeProber.Check` (`internal/backend/credcheck/claude.go`) — retry without
+`--no-color` only when the diagnostic identifies that unsupported flag. Inspect affected tool calls
+under [targeted static leads](USABILITY-REVIEW.md#4-targeted-static-leads).
+
+**Failure/check:** an older CLI rejects a cosmetic flag and Chuck reports invalid credentials.
+Use a fake executable that rejects that flag, then returns valid bare output; also return malformed
+exit-zero output and an unsupported status command. Verify retry, shape validation and unknown or
+skipped results without converting genuine authentication failure into success.
 
 ---
 
 ## 13. The test suite cannot see CSS or layout
 
-**Rule:** the UI styles itself with hand-written global CSS (`ui/src/styles/global.css`, tokens in
-`tokens.css`) — no Tailwind, no CSS modules. A `className="x"` with **no** matching selector renders
-as unstyled default-browser markup. Testing Library never evaluates CSS and MSW/Vitest render into
-jsdom, so a whole surface can reference dozens of undefined classes and every unit test stays green;
-the breakage is only visible in a real browser. Any TSX className string literal must have a
-selector in a stylesheet (utility/state classes applied via template literals are the exception — they
-carry their own defined selectors).
+**Rule:** TSX class names, including dynamically composed state classes, must resolve to the
+intended stylesheet selectors. The cascade enters through `ui/src/styles/index.css`. jsdom
+can establish DOM behavior; geometry and visual states require a rendered browser.
 
-**Canonical guard:** the `/usability-review` S2 sweep three-ways the referenced-className set against
-defined selectors (both directions) and every journey renders the surface in a real browser and
-checks computed styles / stylesheet rule count, not just DOM presence.
+**Failure/check:** a dialog has valid DOM but undefined classes or covers its own controls at phone
+width. Compare affected class names with stylesheet selectors, then render supported widths and
+appearances in a real browser and assert computed styles, geometry and reachable controls. DOM
+presence and stylesheet rule count alone cannot establish layout correctness. Follow
+[execution and evidence](USABILITY-REVIEW.md#5-execution-and-evidence); no universal CSS guard is implied.
 
 ---
 
 ## 14. A loopback bind is not a browser or filesystem security boundary
 
-**Rule:** binding 127.0.0.1 keeps remote *sockets* out, but not remote *attackers*. A malicious
-web page can still reach the server through the victim's own browser (DNS rebinding makes
-attacker.com resolve to 127.0.0.1, so the page becomes "same-origin" with the dashboard;
-cross-origin WebSocket handshakes and "simple" no-preflight POSTs are sent regardless of CORS
-response headers). And any other account on the machine can read world-readable files. Therefore:
+**Rule:** browsers can reach loopback services, and other local users can read permissively
+created files. Keep both boundaries enforced:
 
-- Every HTTP route — API, raw-mounted transports (`/mcp`), WebSockets, static UI — must sit behind
-  the `localOnly` guard (`internal/server/security.go`), which rejects non-local `Host` headers
-  (DNS rebinding) and non-local `Origin` headers (cross-site WS/CSRF) with 403. The guard wraps
-  the **entire mux** in `routes.go`; never mount a handler outside it, and never rely on CORS
-  headers as access control — they only gate what a compliant browser lets a page *read*.
-  (TS-05.R23) The tailnet remote listener is the one other chain: its routes sit behind
-  the remote guard, device authentication, and allowlist of TS-13.R4/R5 instead — never behind
-  neither guard, and never mixed with `localOnly`.
-- Everything under `~/.chuck` (config with backend env/API keys, `state.db`, transcripts,
-  hook/MCP token files, logs) is owner-only: `0o700` dirs, `0o600` files (hook scripts `0o700`).
-  `MkdirAll` never re-modes an existing dir and SQLite creates files umask-relative, so creation
-  paths must pass tight modes AND `EnsureLayout`/`state.Open` explicitly `Chmod` what may already
-  exist from older builds.
+- On the local listener, `localOnly` wraps the entire mux, including static UI, API, MCP and
+  WebSockets. Reject non-local Host or Origin with 403 (TS-05.R23). CORS cannot authorize requests.
+  The tailnet listener has its own route chain with the remote guard, device authentication
+  and the TS-13.R4/R5 allowlist.
+- Under `~/.chuck`, create directories and executable hook scripts with mode `0700`, and other
+  files with `0600`. `EnsureLayout` and `state.Open` must also tighten existing paths; `MkdirAll`
+  leaves existing modes intact and SQLite creates files relative to umask.
 
-**Canonical guard:** `localOnly` + `isLocalHost`/`isLocalOrigin` (`internal/server/security.go`).
-Test requests must carry a loopback Host — use `newLocalRequest` (`server_test.go`), not bare
-`httptest.NewRequest` (whose default Host, example.com, is rejected by design).
+**Canonical guard:** `localOnly`, `isLocalHost` and `isLocalOrigin` in `internal/server/security.go`.
+Use `newLocalRequest` for ordinary local-route tests; the default `httptest.NewRequest` host is rejected.
+
+**Failure/check:** a cross-origin WebSocket bypasses an API-only guard or old state files remain
+world-readable. `TestDNSRebindingHostRejected` and `TestCrossOriginRequestRejected` cover local
+request rejection; additionally exercise each listener's full route chain and reopen an existing
+permissive layout to verify modes, including remote device-auth/allowlist refusal where applicable.
 
 ---
 
@@ -273,6 +273,10 @@ effect if the natural retry can duplicate that effect.
 one database; otherwise compensating rollback or a caller-supplied idempotency key with a uniqueness
 constraint. Tests inject the failure after the first would-be side effect and retry the operation.
 
+**Failure/check:** a notification releases a peer before the task write commits, or retry creates
+two externally visible jobs. Inject failure between stores and before publication, then retry with
+the same operation id; assert one durable result and no uncommitted effect visible to the peer.
+
 ---
 
 ## 16. Bound work and memory where they enter the system
@@ -287,6 +291,10 @@ owner or lifecycle ends (§4).
 a process-wide in-flight cap for sweeps; ref-counted registration with per-owner teardown; temporary
 reconciliation tails instead of permanent duplicate projections.
 
+**Failure/check:** a slow subscriber or endless CLI output grows memory despite a final truncation.
+Drive more than the stated limit while a consumer stalls; inspect retained bytes/items and active
+workers at admission, then detach the last owner and verify release.
+
 ---
 
 ## 17. Tests must prove their contract independently
@@ -299,11 +307,13 @@ table or helper under test. A regression test is confirmed against the pre-fix b
 check is practical. Test doubles mirror the real producer's failure modes and serialized shapes,
 not the idealized contract.
 
-**Canonical patterns:** build request fixtures with the real client serializer and response
-fixtures from a captured frame of the pinned peer; enumerate producers independently from their policy table; drive the real
-wire/serialization boundary; make fixtures trigger the named OS or storage failure; inspect built
-artifacts rather than trusting build commands; for a bug regression, demonstrate the test fails on
-the old behavior before relying on it.
+**Canonical patterns:** use the real client serializer and a pinned peer's captured response at
+the wire boundary. Compare policy tables with registered producers, exercise real OS/storage
+failure modes, and inspect the built artifact for packaging claims.
+
+**Failure/check:** a capability test copies the implementation's incomplete table and stays green
+when a backend is omitted. Remove a real producer from the policy under test or replay its actual
+wire shape; verify the independent oracle detects the omission or malformed handling.
 
 ---
 
@@ -324,6 +334,10 @@ pass or blocked move. In-process timers do not survive a restart (§9), so the d
 from durable state. A soft request to an external peer (cancel) has a time-bounded escalation tier
 (grace, then SIGINT) distinct from Stop's hard kill.
 
+**Failure/check:** a task waits forever after its assigned agent exits, or restart loses the only
+timer. Enter the wait, end/replace its owner and restart; verify a legal completion/decline or
+attention transition from durable evidence, including a lost-CAS re-evaluation.
+
 ---
 
 ## 19. Accepted input has one durable owner; a refusal changes nothing
@@ -343,6 +357,10 @@ commit before the effect; this class says who owns the input while that happens.
 is the sole authority and every surface derives held/recovered/delivered from it instead of keeping
 its own copy; a handoff acknowledges the request id it took; validation and eligibility checks run
 before the first write so a refusal has nothing to undo.
+
+**Failure/check:** a timed-out prompt retry delivers twice, or a refused annotation still wakes an
+agent. Retry the same request across disconnect/restart and interrupt an owner handoff; assert one
+durable owner and acknowledged transfer. Snapshot state before a refusal and verify no mutation.
 
 ---
 
@@ -365,6 +383,11 @@ unknown, and let unknown reach the server-side recheck; derive selectable values
 request fields from the executing runtime or the shared request type (`backend.Support`); one
 typed turn-outcome value consumed by status, settlement and receipt code alike.
 
+**Failure/check:** the UI reports the requested model after the peer selected another, or EOF is
+treated as successful completion. Return a mismatch, omitted evidence and competing terminal
+signals; verify unknown remains distinct and all consumers use the same outcome.
+`TestResolveTurnOutcome` (`internal/runtime/turn_outcome_test.go`) covers outcome precedence.
+
 ---
 
 ## 21. Agent-facing instructions and refusals are protocol
@@ -381,6 +404,11 @@ about truth and consistency, not volume: procedure belongs in the skill the text
 **Canonical patterns:** compose agent-facing text for new, existing and continued assignees in one
 place; test that each refusal's message matches its condition and its retry class; when a protocol
 gains a state, add the move that lets an agent express it.
+
+**Failure/check:** a refusal tells an agent to retry an operation that requires human approval, or
+a continued assignee misses an instruction sent only on fresh launch. Compare fresh/existing/
+continued assignment text with the actual state machine, and exercise each refusal's stated next
+move; verify it is legal for that condition and preserves the declared retry class.
 
 ---
 
@@ -399,6 +427,10 @@ debugging is impossible, so a failure point that logs nothing is a defect in its
 identities and typed codes, never payloads; preserve `code` plus an allowlisted reason through
 error wrapping; give terminal-result failures the same diagnostic as failed RPCs.
 
+**Failure/check:** a semantic RPC failure returns HTTP success and leaves no correlated diagnostic,
+or a raw provider error leaks prompt text. Capture logs for refusals, transport and envelope-level
+failures; assert bounded identity/operation/reason fields and absence of submitted payloads.
+
 ---
 
 ## 23. A reusable name is not an identity
@@ -415,6 +447,11 @@ failed to match: wrong party, wrong generation, or already done.
 capture-and-recheck of `turnSeq`; transport sessions bound to the launch that created them; re-read
 identity while holding the claim.
 
+**Failure/check:** a delayed crash callback tears down a new launch, or a reaper signals a reused
+PID. Replace the owner before releasing a delayed action and supply mismatched/unknown process
+birth proof; assert replacement state survives and no unverified process is signaled. §4 specifies
+cleanup coverage, §5 the atomic claim, and §9 the underlying OS/durability limits.
+
 ---
 
 ## 24. A fallback is a state change: fail closed, or make it visible, bounded and reversible
@@ -426,10 +463,13 @@ it can. A fallback never reports the intended path's success, never becomes perm
 and never supplies a permissive or terminal value for missing evidence. Where the caller needs the
 intended guarantee — permissions, history, identity — fail closed.
 
-**Canonical patterns:** refuse where the guarantee matters; otherwise name the mode in the result
-(`history_handoff` reports what actually happened) and in status; give every degraded mode an exit
-condition and a test that it is taken; cache only validated responses; treat an absent field as
-`unknown` (§20).
+**Canonical patterns:** `history_handoff` identifies the mode in the result and status.
+Cache only validated responses and treat absent evidence as `unknown` (§20).
+
+**Failure/check:** a temporary FTS fallback persists after FTS becomes available, or history recovery
+claims native resume. Force the primary path unavailable, inspect the recorded/reported mode, then
+restore it and trigger recovery; assert the fallback exits and required guarantees refuse while
+unavailable. §9 covers the SQLite object upgrade mechanism.
 
 ---
 
@@ -438,8 +478,8 @@ condition and a test that it is taken; cache only validated responses; treat an 
 | Helper | Where | Use for |
 |---|---|---|
 | `useInputDelivery` / `RecoveryOffer` / `withdrawHeldMessage` | `ui/src/components/chat`, `ui/src/lib/heldMessage.ts` | desktop and phone prompt submission, retry, recovery and withdrawal (§2, §19) |
-| `teardownAgentRegistration` | `internal/server/launch.go` | every agent exit/failure path (§4) |
-| `startResumedRuntime` | `internal/server/resume.go` | compose, start and persist explicit resume, wakes and both Switch starts under the lifecycle claim (§2, §4) |
+| `teardownAgentRegistration` / `handleAgentExit` | `internal/server/launch.go`, `internal/server/server.go` | shared registration cleanup; exit callback generation checks live in `handleAgentExit`, and callers must hold the lifecycle claim or establish ownership before cleanup (§4, §5, §23) |
+| `startRuntimeClaimed` | `internal/server/lifecycle_start.go` | compose, start, rollback and persist applied identity for launch/resume origins while the caller holds its lifecycle claim (§2, §4) |
 | `composeLaunch`, `composeResumeSpec`, `composeSwitchSpec`, `resolveSkip`, `expandAddDirs`, `composeEnv` | `internal/server/{launch,resume,switch}.go` | any path that builds/rebuilds a LaunchSpec (§2) |
 | `resolveStartCheckout` / `ensureRunWorkspace` | `internal/server/pipeline_workspace.go` | every launch/resume/switch/clone cwd readiness, project-owned or run-owned (§2) |
 | `placeRunTaskTx` / `checkRunTarget` | `internal/state/pipeline_workspaces.go` | run group placement and existing-target checkout eligibility for run work (§2, §5) |
@@ -450,7 +490,7 @@ condition and a test that it is taken; cache only validated responses; treat an 
 | `SubscribeWithSnapshot` | `internal/bus/bus.go` | any snapshot+subscribe consumer (§5) |
 | `runtime.ClassifyProcess` / `StopRecordedProcess` / `ReconcileStale` | `internal/runtime/procstart.go`, `reconcile.go` | every liveness decision, signal or prune for a process the registry doesn't hold; proof is recorded leader PID + kernel birth (§4, §9) |
 | PTY hub pattern | `internal/runtime/terminal/ptyhub.go` | any shared-fd broadcast need (§6) |
-| `seedLocked` | `internal/index/indexer.go` | in-memory buffers feeding replace-style writes (§9) |
+| `insertTranscriptDocument` / `replaceMetadataDocument` | `internal/index/indexer.go` | durable transcript documents and separately replaced metadata; do not replace whole history from a process-local buffer (§9) |
 | `config.ValidSlug` | `internal/config/validate.go` | every path-param on every verb (§2) |
 | `foldTranscript` / `appendRenderedEvent` | `ui/src/store/transcriptStore.ts` | identical live and replay event projection (§2) |
 | `transcript.ProjectEvent` / `runtime.AllEventTypes` | `internal/transcript`, `internal/runtime` | every Go transcript text consumer and exhaustive normalized-event coverage (§2) |

@@ -31,11 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**Invariant inventory maintenance** (baseline `993d8dd0`). Live finding citations now resolve
-against the numbered class headings; grouped and unknown-ID fixtures pass. The revised inventory
-and startup rules are in the working tree. Read-routing replays found the replacement-agent
-cooldown defect and skipped the inventory for a local formatter edit. Next: verify the final
-class IDs, references and workflow checks, then queue the completed unit for review.
+None.
 
 ## Decisions needing input
 
@@ -74,6 +70,11 @@ class IDs, references and workflow checks, then queue the completed unit for rev
   switch shows it above the composer.
 
 ## Review queue
+
+- **Invariant inventory maintenance** — available for independent review. Baseline `993d8dd0`;
+  finding citation checker `22e5edd4` plus the inventory and startup changes closing this unit.
+  Scope: INV §§1–24, TS-01 §4, TS-06 spec lint. Decision replays covered a replacement agent
+  inheriting a cooldown and a private formatter interface outside the execution lifecycle.
 
 - **Streamlined developer workflows** — available for independent review. Baseline `0cf9a04f`,
   model routing in `1d1e9614`, launcher/procedure migration in `b7b17477`, followed by the

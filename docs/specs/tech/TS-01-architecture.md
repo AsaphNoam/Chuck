@@ -913,7 +913,7 @@ lost.
 - **INV §2 — Parallel paths share one helper.** Binds R6/R9: launch/resume/switch WILL drift unless routed through `composeLaunch`/`composeResumeSpec`/`composeSwitchSpec` and the shared field resolvers. Its corollary (permission re-resolution fails closed) governs `resolveSkip` inputs (see TS-05).
 - **INV §4 — Create/teardown symmetry.** Binds R6/R8: every artifact created at registration (hook token, MCP session/file, DB row) is torn down by the single `teardownAgentRegistration` on every exit path, generation-scoped, old-before-new.
 - **INV §1 — Crossing a boundary resets or republishes derived state.** Binds R7/R8: resume/switch/reconnect must reset or republish state derived from the old identity/connection; the reconcile fallback must not overwrite fresher runtime-derived state.
-- **INV §6 — A new runtime joins every existing contract.** Binds R4: any new interface/driver walks the §6 checklist (persistence, full LaunchSpec via R6 resolvers, fan-out/drain, messaging, turn boundaries, reconcile, teardown) before it is first-class.
+- **INV §6 — A new runtime joins every existing contract.** Binds R4: a runtime, driver or external execution interface that participates in the agent lifecycle accounts for each §6 contract, including persistence, launch configuration, fan-out/drain, messaging, turn boundaries, reconciliation and teardown.
 - **INV §14 — Loopback is not a security boundary.** Binds R2: the bind constraint keeps remote sockets out but is not access control; TS-05 owns the actual boundary.
 - **INV §5/§15 — Claim before firing; commit before side effects.** Bind R19–R21: one claim token
   owns each activation transition, and the kind-owned durable attempt/start transition plus ordinary
