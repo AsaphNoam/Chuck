@@ -6,311 +6,84 @@ says how agents work with them.
 
 ## 1. Start with the current state
 
-1. Read the handoff's **Current position** and **Active change**, then inspect `git status` and the
-   diff. Treat a dirty tree as user or interrupted work; do not discard it. When a session-start hook
-   already injected that header, do not re-read it. Open the rest of [`HANDOFF.md`](HANDOFF.md) —
-   review findings, blocked-on-human — and the owed gates in
-   [`ACCEPTANCE-GATES.md`](ACCEPTANCE-GATES.md) only when the header points at them or the
-   task needs them, and read those sections by name rather than reading a file end to end.
-2. Read the change file and relevant feature, technical, and invariant requirements for the unit
-   selected by the invoked role before reading code. A role invocation may select any available unit
-   in that role's queue: use the unit the user names, otherwise choose one clearly recorded available
-   unit and say which one you took. Several available units are not a reason to ask or to block, and
-   pending design, work, review, or fix units never gate another role's queue. Outside an explicit
-   role request, do not choose future work yourself.
-3. **Isolate broad discovery.** Delegate an uncertain multi-file search, subsystem survey, or commit-
-   range survey when its raw output would otherwise stay in the main context through substantial
-   follow-up work. Give the child the question, paths, and answer shape; use Sonnet on Claude Code or
-   Luna with `fork_turns: "none"` on Codex; take back a distilled result. Keep a known-path lookup,
-   bounded search, targeted edit, and conversation-dependent judgment in this thread: a child has
-   its own startup cost, so delegation is not automatically cheaper.
-4. **Independent role queues; one selected unit per run.** Design, work, review, and fix queues may
-   each contain multiple units, and no queue or chronology blocks another. An invocation selects one
-   available unit for its role and finishes that role's work on it before taking another unless the
-   user asks for more. A substantive change remains the same unit through its review findings and
-   fixes. Review reports, finding-fix commits, release records, and handoff, archive, or queue-only
-   commits are administrative closure of their originating unit and never enter the review queue.
-
-Use plain status words: **waiting to start**, **in progress**, **paused**, and **finished**.
-Requirement IDs such as `FS-05.A2` and `TS-03.R4` are kept because they are stable links to a
-precise requirement, not process vocabulary.
+1. Use the injected handoff header, or read **Current position** and **Active change** in [HANDOFF.md](HANDOFF.md). Open the selected queue and change by name. For edits, inspect Git status, staged changes and the existing diff in affected paths. Preserve other people's work.
+2. Use the unit the human names. An explicit role command with no unit selects one eligible unit from its own queue. Say which one. Other queues and chronology do not gate it. Outside a role request, stay within the requested scope.
+3. Read only the governing FS/TS items, relevant surrounding requirements, and the procedure named by the launcher. For work or review, scan the [invariant trigger index](INVARIANTS.md#trigger-index) and open matching classes. New interfaces, runtimes and drivers must satisfy the full INV §6 checklist. The specs define the contract.
+4. Keep one originating unit through review and repair. Administrative commits, including fix closure, handoff edits and release records, never create review units. Use [§5](#5-commit-and-resume-safely) when changing repository state and [§6](#6-human-update) at exit. Companions reuse the parent’s scope and already-loaded context.
 
 ## 2. Make a change
 
-For a large change, record a compact plan in the active handoff (or link a temporary plan): the next
-few coherent slices, their dependencies, and the focused evidence needed to close each. Keep one
-integration slice active in the parent; independent delegated work may proceed alongside it. If a
-slice cannot be verified independently, revise its boundary rather than accumulating unrelated
-unfinished work or forcing an arbitrary tiny commit.
+For `/work`, resume the selected handoff unit or take a named or available **Waiting to start** change from `docs/ready-changes/`; move it into the active handoff. If none is available, report that. Use [§3](#3-when-to-ask-the-user) for unresolved decisions.
 
-For each piece:
+Implement large changes in independently verifiable slices. Record the next slices and dependencies in the handoff. Update the governing [specification](#10-keep-specifications-accurate) before changing behavior or architecture; a restoration of specified behavior needs no spec change. Extend an existing seam where it satisfies the requirement. Use [write-tests](#17-write-purposeful-tests) when new evidence or materially changed tests are needed. For material presentation changes use [design](#14-design-ui); for a changed task flow or consequential interaction use [UX](#15-shape-and-test-the-experience).
 
-1. If it changes what a user sees or changes an architectural rule, update the relevant specification
-   first. Add or change its R/A items and mark unshipped behavior `(planned)`. A bug fix that restores
-   already-specified behavior does not need a specification change.
-2. Implement the work and add or keep the test that demonstrates the requirement. Use `write-tests`
-   (§17) when behavior needs new verification or tests/fixtures materially change; reuse adequate
-   existing evidence rather than add tests for their own sake.
-3. Run the narrow test, type check, or syntax check that gives useful feedback for that piece. Do
-   not run the full closure matrix after every edit.
-4. Check that the specifications match the piece, update the handoff (§4), and inspect the selected
-   diff for unfinished or accidental changes. Commit the verified piece with its specification and
-   handoff updates on `main` (§5), then immediately continue with the next piece. Do not defer these
-   checkpoints until the whole request passes final closure.
+Run focused checks while iterating. At each verified checkpoint, inspect the scoped diff, update the [handoff](#4-keep-the-handoff-useful), commit, and continue while the selected unit has actionable work. On completion, add one substantive unit to the review queue alongside existing units.
 
-At request completion, run the applicable closure matrix once after the final relevant edit,
-before the final closure commit (TS-06.R5):
+### Completion checks
 
-| Changed behavior | Local completion checks |
+Run the applicable closure once after the final relevant edit (TS-06.R5). Run `git diff --check` for all changes.
+
+| Changed inputs | Completion |
 |---|---|
-| Go product code, Go dependencies or Go build behavior | `make test` and `make build`; omit the latter when `make dist` follows. Add affected UI checks and focused race tests for concurrency hot spots. |
-| UI-only source | `make check-specs`, then `(cd ui && npm test && npm run build)`; omit the UI build when `make dist` follows. Add focused Go integration checks for a changed Go-facing contract, not both full Go suites. |
-| Documentation, workflow or verification tooling | `make check-specs`, appropriate link/syntax checks and focused checks of changed tooling or claims; no unrelated product suites. |
+| Go product, dependencies or build | `make test` (both Go variants, includes spec checks) and `make build`. Include affected UI checks and focused race checks for concurrency changes. |
+| UI only | `make check-specs`, then `cd ui && npm test && npm run build`. Add focused Go integration evidence for a changed Go-facing contract. |
+| Docs, workflow or verification tooling | `make check-specs` and relevant link, syntax or focused tooling/claim checks. |
 
-Use `make dist` when producing a distributable or refreshing embedded UI output. Generated embed
-changes alone do not trigger Go suites. For a focused UI check, use `npm test -- <file-or-filter>`;
-style/presentation checks run once through the completion build's `prebuild` hook.
+`make dist` rebuilds UI, embedded assets and binary; omit the superseded build steps. Generated embed changes alone do not trigger Go suites. For focused UI tests use `npm test -- <filter>`. Capture verbose logs to a temporary file and inspect the summary or failure.
 
-`make test` already runs `make check-specs`; do not repeat it separately in the same closure pass.
-`make dist` already rebuilds the UI and binary. Run `git diff --check` for every change.
-Reuse a passing check across work, fix and release when its relevant source, dependencies,
-command/flags and environment are unchanged. Record the command, result and checked revision or
-scope briefly in the commit message of the work it verified; bookkeeping-only commits do not
-invalidate it. If this evidence is missing or affected inputs changed, rerun that check. Reuse
-never turns a failed, blocked or unrun check into a pass. CI still runs its full clean-clone
-checks (TS-06.R8).
-
-A lifecycle, concurrency or recovery test that fails and then passes on rerun has not passed.
-Record the failing output as an open finding under `## Review findings` (§7 format) on the unit
-that owns the code, or as its own unit when the owner is unclear. A green rerun, or many, does not
-close it: this is the code where Chuck's real defects concentrate, and an intermittent failure
-there is evidence of a race until a cause says otherwise. Closing it takes that cause — a product
-ordering repaired, or a fixture made to control the schedule it depends on.
-
-Capture verbose test/build output in a temporary log. Inspect the summary on success and bounded
-failure excerpts on failure; retain the log path when useful. Do not load or repeat entire passing
-suite logs in the conversation.
-
-Commit final specification/handoff closure and any remaining verified work. When the substantive
-change finishes, add it to the available review units without replacing or blocking units already
-there; §8 governs a commit that closes existing review findings. Passing checks, a clean tree, a
-commit, or a progress summary is a checkpoint, not a reason to end an unfinished request.
-
-Implement the smallest change that satisfies the requirement. Extend an existing seam, pattern, or
-interface before inventing a parallel one (INV §2 and its canonical-helpers registry), and do not
-add abstraction, configurability, or edge-case handling that no requirement or real report demands.
-When a requirement itself seems to force disproportionate machinery, question it under §3 rather
-than building around it.
-
-Use the harness's native patch/edit tool for source changes. Do not use Python, Perl, or shell
-heredoc replacement scripts that embed the old and new source in the conversation.
-
-Do not claim work is complete while required checks fail. Do not make tests pass by weakening useful coverage or by changing a requirement without recording that change in the relevant specification.
+Reuse a passing check across work, fix and release only when source, dependencies, flags and environment still match. Record command, result and revision or scope in the verifying commit. CI still checks a clean clone. Keep a failing lifecycle, concurrency or recovery test open in the live findings until its cause is explained and repaired; a passing rerun cannot close it.
 
 ## 3. When to ask the user
 
-Stop and ask only when the next action requires a product, security, privacy, compatibility, or data-retention decision; credentials or other external input; a destructive/irreversible action; or resolving a real conflict between requirements and shipped behavior. Also ask when honest attempts cannot make required checks pass.
-
-Record the question under `## Blocked on human` in `HANDOFF.md`, with enough context for someone starting cold. Leave the repository in the last verified state when possible.
-
-For a reversible local implementation choice, record a short note for the next independent review rather than asking the user. The reviewer either removes it after confirming it is sound or turns it into a user question when it has broader consequences.
-
-A note never narrows a stated requirement. When the simpler implementation delivers less than an FS/TS item promises — a bound left unreserved, "every process" built for one — either change the requirement through §10, with the user's decision where §3 reserves it, or keep the gap as an open finding. A note beside a contradicted requirement is not closure.
+Ask when an unresolved product, security, privacy, retention or compatibility choice changes the contract, an action needs credentials or destructive/irreversible authority, requirements conflict, or required checks remain blocked after reasonable attempts. Record a blocking decision and its consequence in **Blocked on human**. Make reversible local choices within the contract; flag consequential assumptions for review. A local note cannot narrow a promised requirement.
 
 ## 4. Keep the handoff useful
 
-`HANDOFF.md` is current working state, not history. It contains the available or resumable units for
-each role, their next small steps, unresolved user questions, and open review findings tied to
-their originating units. Review state lists substantive units independently; it is not a raw commit
-ledger or an ordered pipeline. Remove finished steps and resolved findings. Keep completed details
-in specifications, tests, commits, and Git history.
+At each verified slice and before an intentional interruption, record the selected unit, completed work, next action, and checks passed or owed. On resumption check that state and the current diff before repeating work. Queue entries name the unit, commit or range, requirements and outstanding decisions. Git retains history. Remove resolved state and keep outstanding acceptance checks in [ACCEPTANCE-GATES.md](ACCEPTANCE-GATES.md).
 
-The handoff keeps no changelog and no test transcripts. The commit message says what changed, which
-findings it closed and which checks passed; Git history is the changelog. A queue entry is a
-pointer: the unit's name, its commit or range, the governing requirement IDs, and only what the
-next role cannot learn from that commit. Acceptance gates still owed live in
-[`ACCEPTANCE-GATES.md`](ACCEPTANCE-GATES.md), one line per gate; the handoff names a gate only
-when it blocks the current work.
-
-Update the active handoff at each verified checkpoint and before an intentional interruption:
-briefly identify completed slices, current unfinished work, the next action, and checks already
-passed or still owed. Retain only execution facts useful for resumption: canonical test commands,
-known sandbox requirements, and important file/interface locations. Read these notes on resumption
-or after compaction before repeating discovery; re-check facts when the relevant code has changed.
-Routine checkpoints must keep the work resumable without anticipating quota exhaustion.
-
-A failed acceptance gate or live-provider check is live state, not a report artifact. Record it
-under `## Review findings` in the §7 format before the role that ran it closes, and keep the
-archived run record as supporting evidence rather than as the only trace. If that write is
-impossible — another session owns the state file, or the write conflicts — leave the role explicitly
-blocked under §3 instead of archiving the finding: §1.1's read order never reaches an archived
-report, so an unrecorded failure is invisible to every later role and an already-detected defect
-goes on being treated as an open gate. A commit or review that carries an acceptance run record
-reconciles every **Must fix** in that record against the live findings before the record is
-archived. The same holds for an investigation or review recorded anywhere other than `main`'s
-handoff — a side branch, a cloud workspace, an uncommitted local tree: its findings are not in the
-fix queue or any release gate until they are on `main`, so the role that produced them says where
-they are and what publishing them still needs before it closes.
-
-Delegate bounded work with an explicit deliverable, file/interface ownership, dependencies, and
-verification criteria. Keep shared migration ordering and tightly coupled lifecycle changes under
-one owner; use a read-only audit when a stable implementation boundary is unavailable. The main
-agent remains responsible for interpreting requirements, integration, and final verification.
+A failed acceptance or provider check belongs in live **Review findings** under [§7](#finding-and-fix-routing). Reconcile every Must fix in a run report before archiving. If a conflicting writer or separate workspace prevents recording it on main, identify where the evidence is and what remains blocked. An archived report alone cannot put a finding in the fix queue.
 
 ## 5. Commit and resume safely
 
-Commit each completed, verified piece directly to `main`; this repository does not use per-change branches or pull requests. The message should say what changed and, where useful, cite the requirement IDs. Push only when the user or environment authorizes it.
+Commit each verified slice directly on `main`, including its scoped state and applicable checks. Stage only owned changes. State-only roles commit the handoff and artifacts permitted by their role. An empty queue takes no commit. Push only with authorization covering what will be published.
 
-Every role that changes repository state ends in a commit, including roles that write no product
-code. Their state file is `HANDOFF.md`; where a section below says to commit only the state file, it
-means that file plus whatever that section explicitly allows. A state-only role commit is
-administrative closure, not a new review obligation. If a review finds no eligible unit, report that
-and make no empty state commit.
-
-Before a final response, check whether authorized work remains that can be performed now. If so,
-continue. End only when the request is complete, the user stops or redirects it, a concrete blocker
-prevents further progress (§3), or an actual execution/usage limit forces an interruption. State the
-completed outcome or the specific blocker; a planned next slice is not a blocker.
-
-Before an intentional exit, leave verified work committed and describe any unfinished work and its
-verification state in the handoff. Preserve unverified edits without presenting them as complete;
-do not discard them to obtain a clean tree. An abrupt limit may prevent this final update, which is
-why checkpoint updates are required throughout the work.
+Continue until the selected unit is complete, the user redirects, or an actual blocker or usage limit intervenes. Keep unfinished edits and leave the handoff resumable; list unverified work explicitly.
 
 ## 6. Human update
 
-Every feature-design, implementation, review, fix, and usability-review session sends one short
-human update as its final response. Do not duplicate that response into a repository history file;
-the handoff, specifications, and commit retain the durable project state.
-
-Write for the person who asked for the work, not for the next agent. Use plain language. Explain a project abbreviation the first time it matters, or leave it out. Do not use internal process labels, requirement-ID strings, commit hashes, command inventories, or changed-file lists unless the person needs one to act. The handoff holds the internal detail.
-
-Use this shape:
-
-```md
-### YYYY-MM-DD — <kind of work>: <plain-language scope>
-
-<What changed or was learned, why it matters, and how it affects the product or next decision.>
-
-**Needs attention:** <a real decision, blocker, or material risk; otherwise “None.”>
-
-**Next:** <one concrete next action and who should take it.>
-```
+Tell the operator the outcome, any material risk or verification limit, and the next action and owner when one remains. Include a fix routing recommendation when another agent needs to take the unit.
 
 ## 7. Review work
 
-Review another agent's substantive change, not your own. Use the unit or range the user names;
-otherwise choose any available review unit named by the handoff and say which one you took. An
-eligible unit materially changes product code, shipped behavior or architecture requirements, build
-or release safety, or this workflow. Its range includes its implementation and any fixes made to
-findings on that implementation.
+Review another agent's substantive change. Use the named range or an eligible review unit from the handoff. Read its requirements before the diff. Check both directions: promised behavior actually works, and shipped user-visible behavior and architecture are specified. Verify normal-use defects and unnecessary parallel mechanisms at the relevant boundary. Tag findings with matching invariant classes. Challenge materially changed tests against TS-06.R35 and INV §17. Material visual changes require independent [rendered inspection](#144-inspect-the-rendered-result).
 
-Do not create default review units for review reports, finding-fix commits, release publication
-records, or handoff, archive, and idea/ready-queue-only bookkeeping. Skip those commits when advancing
-the selected unit's review state. Chronology does not constrain selection, and closing one unit does
-not affect the state of another. If the handoff names no eligible unit, there is nothing to review.
-Read the relevant requirements before the diff.
+### Finding and fix routing
 
-For material visual changes, complete the independent rendered verification in §14.4, including
-its browser-execution permission routing; a source-only review cannot close that gate.
+For each finding record location, reachable trigger, consequence, governing requirement when available, and a distinguishing check or suggested repair. **Must fix** covers a likely normal-use failure, data loss or a requirement violation. **Worth fixing** covers other material improvements. Complexity is independent of severity:
 
-Check both directions:
+- **Trivial/easy**: a local repair at an existing seam, with clear expected behavior and low state or concurrency risk.
+- **Medium**: a coordinated repair with known ownership. A fix that changes how concurrent writers preserve user data is at least medium, even when it takes one line.
+- **Difficult**: new or uncertain ownership/lifecycle machinery, risky data migration, external protocol uncertainty or cross-system architecture.
 
-- Does the code do what the relevant requirements say?
-- Did the change introduce user-visible behavior or an architectural rule that the specifications do not describe?
+Choose the unit's band by its hardest open fix. Write one **Fix model** recommendation using the [model routing table](MODEL-ROUTING.md) in the unit heading and repeat it in the human update. Reassess when its open findings change.
 
-Also look for normal-use bugs: missing error handling at boundaries, realistic races, unsafe writes, dead code, and incomplete wiring. Unrequired complexity is likewise a finding: a new parallel mechanism or abstraction where an existing seam could extend, or code serving a case no requirement names. Ignore style preferences, demands for speculative edge-case handling, and micro-optimizations.
-
-Classify each fix independently from finding severity, then assign the selected review unit exactly
-one recommendation at the level of its most difficult open fix:
-
-- `**Fix model:** trivial/easy — Claude Sonnet or Codex Luna.` for a localized change at an existing
-  seam with a clear contract, straightforward regression test, and low state or concurrency risk.
-- `**Fix model:** medium — Codex Terra or Claude Opus.` for coordinated changes across layers,
-  specifications, or tests, including bounded concurrency or provider integration where ownership
-  and the desired behavior are already clear.
-- `**Fix model:** difficult — Codex Sol.` for new lifecycle or ownership machinery, durable
-  concurrent state, risky data migration, external-protocol uncertainty, or cross-subsystem
-  architecture.
-
-This is the right-sized model for the whole grouped fix run, not another severity label: a Must-fix
-may be trivial/easy and a Worth-fixing item may be difficult. Record the recommendation once with the
-unit, not on its individual findings. Repeat it in the human update so the operator can route the fix
-without reopening the findings. Recalculate it whenever findings are added to or removed from the
-unit; the recommendation may step down only after the harder findings are closed.
-
-**A trivial/easy unit is fixed in the review session.** When every finding in the selected unit is
-trivial/easy, the reviewer repairs them in the same run under §8 — confirm, fix, regression test,
-focused checks, then §2's applicable closure — and commits the repair with the review state. The
-commit message names each finding and its fix; nothing is written to `## Review findings`, and the
-unit closes. §8 never gave such a fix a second reader, so no independence is lost and a session, a
-state commit and a queue round-trip are saved. A unit with any medium or difficult finding is
-recorded whole and left for `/fix`: do not split it, and do not shade a classification down to
-keep the work.
-
-**A second fix round stops the patching.** Before recording findings, check whether the same
-subsystem — the same state column, queue or lifecycle owner — already had findings fixed in the
-last 30 days (`git log` and the handoff archive show this). If it did, say so on the unit and add
-one finding that asks for an inventory: every writer of the affected state, every entry point to
-the affected operation, and where the legal moves are stated. Repeated findings in one place mean
-the structure produces them; another local patch buys the next round. §8 says what the fixer does
-with it.
-
-Record each real finding in `## Review findings` in `HANDOFF.md` with its location, normal-use
-trigger, why it matters, relevant requirement ID when one exists, and a suggested test or fix. Start
-the bullet with either **Must fix** (a likely normal-use failure, data-loss risk, or requirement
-violation) or **Worth fixing** (useful but not urgent). Findings keep the selected unit open. A
-no-finding review closes it and creates no new review obligation; advance review state across that
-unit and its skipped administrative commits, leaving every other available unit unchanged. Commit
-only the state file (§5), or the state file with the repair when the unit was fixed in session.
+If clean, close this unit and commit its review state. If **all** repairs are trivial/easy, perform [§8](#8-fix-review-findings) in-session and close with verified fixes and handoff in one commit; name the findings and checks there. Otherwise record the **whole unit** in live **Review findings** for `/fix`. Commit only the handoff and leave product code and specs untouched. If prior repairs and current failures share an unresolved ownership or invariant problem, attach an inventory finding with the common cause.
 
 ## 8. Fix review findings
 
-Choose the findings from any one available review in a run, then handle its **Must fix** findings
-first, one finding at a time. That review continues its originating change unit (§1.4): finish its
-findings, then stop rather than continuing into another unit unless the user asks for more.
+Take the named scope or one available findings unit; handle Must fix first. The unit retains its [finding and fix routing](#finding-and-fix-routing). Confirm each finding at the real entry point. Unskip and confirm a committed reproduction where available. For a false or already-fixed finding, remove it with the evidence. Otherwise repair the cause, examine sibling paths that share it and use [write-tests](#17-write-purposeful-tests) for meaningful regression evidence. Update the [spec](#10-keep-specifications-accurate) when behavior changes or coverage was missing.
 
-1. Confirm the report is true by reading the code, the cited requirement, and the real path. Reproduce it with a failing test when practical. A finding that cites a committed skipped reproduction test (§12) starts by un-skipping it and confirming it fails.
-2. If it is false or already fixed, remove the finding and record the short evidence in the commit message and human update; do not change code.
-3. If it is real, fix it, add or keep a regression test, run the required checks, and update the relevant specification if the correct fix changes behavior or fills missing coverage. Use `write-tests` (§17) when behavior needs new verification or tests/fixtures materially change. Before closing, check the defect's siblings: the adjacent fields, routes or consumers built on the same assumption, and what the changed code now does to its neighbours. Fix a sibling that shares the cause; record any other as its own finding.
-4. When the work is verified, remove the finding, update the handoff, and commit.
+Run focused checks per repair and [completion checks](#completion-checks) once per unit. For inventory findings, repair urgent loss or misdelivery first, inventory the writers, entry points and divergent rule, and attach remaining same-cause work to one idea for feature design. Other defects remain independent findings.
 
-Use focused regression checks per finding; run §2's applicable completion checks once after the
-final repair in the selected review unit.
+Use the [independent fix check](#independent-fix-check) when applicable. Remove verified findings and close only their originating unit. Record finding IDs, applicable invariants and checks in the repair commit. A blocked finding stays open. For architectural findings follow the [receipt and release gate](#receipt-and-release-gate): commit the verified repair before recording its exact commit and evidence in the original receipt.
 
-**A medium or difficult unit gets one independent check before it closes.** Give a fresh-context
-subagent the finding text, the governing requirement and the fix diff, without your account of why
-the fix is right. Use a model at the unit's own band or stronger, not the discovery tier. Ask three
-things: does the diff close the finding at the real boundary; what does the changed code now do to
-one adjacent path — a sibling entry point, the restart or repair path, or an unchanged consumer of
-the changed state; and can the regression test fail. Repair what it confirms and record what you
-dispute as a finding with the evidence. This is verification inside the unit: it creates no review
-unit, is not repeated over its own repairs, and the checker reruns no full suite. If the harness
-cannot start a subagent, leave the unit open with one line saying the independent check is owed.
-Trivial/easy units and §18 architectural findings keep their existing closure.
+### Independent fix check
 
-**An inventory finding ends the patching (§7).** Repair the Must-fix findings that lose work or
-misdirect an agent. Then do the inventory, record its result — the writers, the entry points, and
-the missing or divergent rule — as an entry in `docs/ideas.md` for `/design-feature`, and leave the
-unit's remaining same-cause findings attached to that idea instead of patching them one at a time.
-
-When every finding from the review is closed, close the originating change unit. The finding-fix
-commit is part of that closure and does not become a new default review unit. A fix that adds
-unrelated behavior is a separate substantive change and must be recorded as one, not hidden inside
-the closure.
-
-For findings listed in a §18 architectural-review receipt, commit the verified repair first, then
-append its exact commit IDs, finding IDs and focused verification/closure evidence to that receipt
-in the administrative handoff-closure commit. Fixing architectural findings does not require another
-architectural review for that release. Do not invoke `architectural-review` again merely because a
-fix landed; the gate accepts recorded finding fixes. Unrelated new behavior needs its affected
-coverage updated and cannot be mislabeled as remediation.
-
-If the correct fix needs a user decision or cannot pass the required checks, leave the finding open and follow §3.
+Before closing a medium or difficult unit, give a fresh reviewer the finding, requirement and diff, without the fixer's justification. Use a model at the unit’s band or stronger. Check the real boundary, one adjacent consumer/restart path and whether the regression test can fail. Repair confirmed defects; record disputed ones with evidence. If an independent reviewer is unavailable, leave the check owed and the unit open. This check runs once within the unit, without another full suite or review cycle. Architectural receipt findings use §18's verified closure.
 
 ## 9. Usability reviews
 
-Usability reviews do not change product code or specifications. Exercise the real user journeys in [`USABILITY-REVIEW.md`](USABILITY-REVIEW.md) against the feature acceptance criteria. Record problems a person is likely to meet, with reproduction evidence, using the same **Must fix** / **Worth fixing** format as §7. If a browser or credentialed journey cannot run, say so plainly rather than treating it as passed. Commit only the state file (§5) and finish with the §6 human update.
+Usability reviews do not change product code or specifications. Narrow the requested journey or surface to its FS acceptance items, then use the matching charters in [`USABILITY-REVIEW.md`](USABILITY-REVIEW.md); a scoped review does not inherit the full matrix. Confirm user-impact findings in the real product and record them using §7's **Must fix** / **Worth fixing** format. Mark blocked browser or credentialed checks explicitly. Follow §§5–6 for closure; retain a run report when its scope or evidence warrants one. Push only with explicit authorization.
 
 ## 10. Keep specifications accurate
 
@@ -333,11 +106,11 @@ results into the planned FS requirements and acceptance items, not into a separa
 the trigger does not pass, continue without recording a UX ceremony or rationale.
 
 1. Use the idea named by the user from any `docs/ideas.md` section, including `Known things to
-   improve`, and move that recorded entry through design rather than duplicating it as a fresh idea.
+   improve`. A new prompt can supply the idea directly. Clarify an ambiguous name.
    If none is named, automatic selection is limited to the available or resumable ideas: choose any
    resumable entry under `Ideas being defined` or available entry under `New ideas`; the explicit
    role invocation authorizes that selection. Idea age and other role queues do not constrain the
-   choice.
+   choice. Ignore template examples. Ask for an idea if both queues are empty.
 2. Move a newly selected idea to `Ideas being defined`, then work with the user to understand its
    outcome, scope, exclusions, edge cases, compatibility, and acceptance criteria.
 3. Draft the feature specification first. Extend an existing FS when it already owns the capability;
@@ -347,20 +120,12 @@ the trigger does not pass, continue without recording a UX ceremony or rationale
    lifecycle/retention effects, exclusions, and each remaining product decision. Do not ask a
    person to confirm an unspecified “behavior.” Then wait for their confirmation before designing
    the architecture.
-5. Draft the matching technical specification. Read the relevant code and invariants first. For a
-   non-trivial tradeoff, explain the options and recommendation and wait for the user's decision;
-   do not silently choose security, privacy, persistence, compatibility, migration, or protocol
-   boundaries.
+5. Draft the matching technical specification using the relevant code, pinned interfaces and
+   invariants. Verify an assumed limitation before proposing a workaround. Apply [lifecycle
+   design](#lifecycle-design) where relevant. Explain the options and wait for material unresolved
+   decisions reserved by [§3](#3-when-to-ask-the-user), including destructive migrations and
+   externally visible protocol changes. Choose reversible implementation details within scope.
 
-   **When the change adds or alters a durable state, a wait, or which component owns a record or
-   effect, write its transition table** in the change file. One row per state; one column per event
-   that can reach it — at least restart, Stop or cancel, replacement of the owner, refused or failed
-   input, a quota or timeout hold, and a late callback from the previous owner. Each cell names the
-   next state, who owns the durable record, and what the person or agent observes. An empty cell is
-   an open design question, not a default. Then have a fresh-context subagent on a strong model run
-   §13's review over the change file and its planned items before step 6. This stays inside the
-   design unit: revise in place with the human, and record in the handoff only a finding that
-   remains open. Other changes need neither the table nor the automatic review.
 6. When both specifications are complete, create a descriptive file in `docs/ready-changes/` with
    the exact requirements and acceptance evidence, remove the source idea, and run the documentation
    checks. Do not make the change active in `HANDOFF.md`; implementation has not started. Commit the
@@ -369,486 +134,181 @@ the trigger does not pass, continue without recording a UX ceremony or rationale
 If a material decision remains unresolved, leave the idea under `Ideas being defined` and do not
 call it ready. Keep partial specifications honest and record what is needed from the user.
 
+### Lifecycle design
+
+When durable state, waits, or effect ownership changes, record the affected transitions in the
+change file: next state, durable owner, and observable result. Include only reachable events;
+consider restart, Stop/cancel, owner replacement, failed input, quota/timeout, and late callbacks.
+An unresolved reachable transition is an open question. When this exposes actual ownership or
+recovery risk, have a fresh-context capable subagent review the planned items under §13 before
+step 6. Revise within this design unit; retain only unresolved findings in the handoff. A local
+state addition without such risk does not require an independent review.
+
 ## 12. Investigate a reported bug
 
-`/investigate-bug` turns a field bug report into a diagnosed finding that §8 can fix. Reports come
-from real use, often from a machine where live debugging is impossible, so the report and any
-captured logs may be the only evidence there will ever be. The investigation changes no product code
-and no specifications, with one exception: it may commit a reproduction test marked skipped.
+Capture the report as given, its entry point, environment, version and logs or absence of logs. Ask for a report if none was supplied. Read the requirements governing the symptom and check history for a repair since the reported revision. If it works as specified, explain the mismatch and route a requested improvement to the ideas list. Record a requirement gap separately from any code defect.
 
-1. **Record the report.** Capture the report verbatim before interpreting it: the symptom, what the
-   person was doing, the Chuck version or commit when known, the environment, and the logs — or
-   the explicit fact that nothing was logged. If the request carries no report, ask for one.
-2. **Establish expected behavior first.** Find the FS/TS/INV items that govern the reported area
-   before reading code, and classify the report:
-   - a **code defect** — shipped behavior violates a requirement; keep investigating;
-   - a **spec gap** — the behavior is unspecified; record a coverage finding, and keep investigating
-     any defect that remains;
-   - **works as specified** — an expectation mismatch, not a bug. Say so plainly, route the wish to
-     `docs/ideas.md` or a user product question, and stop.
-3. **Investigate with evidence.** Map each log line — and each silence — to the exact code path, and
-   check history for when the behavior changed. Try to reproduce locally; a failing test is the
-   strongest evidence. When one is achieved, commit it marked skipped with a comment citing the
-   finding, so the repository stays green; the §8 fix session un-skips it as the regression test.
-4. **State confidence honestly.** Every conclusion is **confirmed** (reproduced, or proven from the
-   code path), **probable** (consistent with all evidence but not reproduced), or **undetermined**.
-   Never present a plausible story as a confirmed root cause.
-5. **Missing observability is a finding.** When the investigation stalls because the failure point
-   logged nothing, record what diagnostic should exist, where, and what question it would have
-   answered, as its own finding. An undiagnosable report must at least make the next one diagnosable.
-6. **Close.** Record findings in `## Review findings` in `HANDOFF.md` using the §7 format plus the
-   confidence label, so §8 consumes them unchanged. Every code-defect, specification-gap, or
-   observability findings that need work form one investigation fix unit with the exact §7 **Fix
-   model** recommendation at the level of its most difficult fix; a works-as-specified conclusion
-   needs none. Commit only the state file and any skipped reproduction test, then finish with the §6
-   human update.
+Trace the evidence that distinguishes plausible causes. Try the reported path and environment where available. Label conclusions **confirmed**, **probable** or **undetermined**. Distinguish reproducing a defect from establishing that it caused this incident. If missing diagnostics prevent attribution, record the missing observation and question it would answer.
+
+Keep product and spec files read-only. A reproducible failure may be committed as a skipped regression referencing its finding. Use [finding and fix routing](#finding-and-fix-routing) for one investigation unit plus confidence labels. Commit the handoff and any skipped reproduction.
 
 ## 13. Review a design
 
-`/review-design` reviews a waiting change in `docs/ready-changes/` — its change file and the planned
-FS/TS/INV items it cites — before implementation starts. It is the §7 author/reviewer split applied
-to a design: record findings, change nothing. Resolving findings is follow-up design-feature work
-with the human (§11), which removes each finding as it revises. A design with a §11 transition
-table gets this review automatically inside its design session; the explicit role remains for any
-other waiting change. Read such a table cell by cell: an empty cell, or one that says only "as
-before", is a finding whenever a real journey reaches it.
+`/review-design` checks one waiting change and its cited planned FS/TS items before implementation.
+Use the named change, or choose one waiting change when none is named. Follow §1; read the cited
+requirements, adjacent shipped contract, and matching invariant classes. Change no product code,
+specifications, or change file.
 
-`$ARGUMENTS` names the change; without arguments, choose any waiting change and say which one you
-took. Other design, work, review, or fix units do not block it. Read the change file, every planned
-requirement it cites, the shipped requirements around them, and the matching invariant classes
-before judging. Then review through three lenses, in this order:
+Check three things:
+- **Scope:** each requirement serves the confirmed outcome, a real report, or a binding invariant.
+  Unneeded modes, abstraction, and hypothetical edge-case machinery are findings.
+- **Extension:** reuse an existing capability, seam, route, or storage shape where it fits. A new
+  mechanism must justify its contract and maintenance cost.
+- **Evidence:** verify claimed capabilities and limitations against the actual code and pinned
+  tool. Research newer releases or alternatives when a claimed limitation drives a workaround.
+  Check existing guards before claiming a failure.
 
-1. **Over-engineering.** Every planned requirement must earn its place from the confirmed user
-   outcome, a real report, or a binding invariant. Abstraction layers, configuration surfaces,
-   modes, and edge-case machinery that no journey or report demands are findings; a requirement
-   that exists "in case" of an unobserved situation is a finding, not prudence. This repository
-   stays understandable only while each feature ships at its smallest coherent size.
-2. **Maintainability and extension.** Prefer a design that extends an existing FS/TS area, seam,
-   route, storage shape, or presentation pattern over one that mints a parallel mechanism,
-   interface, or vocabulary an existing one could stretch to cover — the design-level twin of
-   INV §2. Anything genuinely new must be worth the full §6 interface-contract cost, and the
-   design should say why extension was rejected.
-3. **Research.** Verify the design's factual assumptions against the tree: the cited seams,
-   helpers, and routes exist and behave as assumed; claimed package, CLI, or protocol capabilities
-   are real for the pinned versions; named dependencies are actually available. An assumption the
-   code or a pinned tool contradicts is a finding, recorded with the contradicting evidence.
-   Claimed limitations get the same rigor as claimed capabilities, and an implied limitation is
-   still a claim: when a design says something cannot be done the straightforward way, silently
-   takes an indirect route whose only sensible motive is such a limitation, or reads as a strange
-   strategy for the stated goal, validate the limitation itself. Show it is real against the
-   actual code, the pinned tool's real surface, newer releases, and better alternatives — a direct
-   approach, an existing seam, an official package — with the evidence in the change file. An
-   unverified impossibility claim is a finding, and the workaround it motivated is re-judged under
-   lens 1 once the claim falls. Your own findings are claims too and earn the same rigor: before
-   asserting that something fails, check whether the tree already prevents it — a guard, an existing
-   validation, an ordering the design inherits — and cite what you read. A finding whose scenario the
-   shipped code forbids is worse than silence, because the revision it forces deletes a real
-   protection's justification.
+For lifecycle designs (§11), inspect each reachable transition for state, owner, observable result,
+failure, concurrency, and recovery. Also check planned tags, consistency with shipped requirements,
+observable acceptance, and reserved human decisions.
 
-Also check the design's own hygiene: planned items tagged `(planned)`; no contradiction with
-shipped requirements or invariant classes; failure, concurrency, and rollback paths owned;
-acceptance evidence observable; and no product decision silently pre-made. Where a hygiene defect has
-a real consequence it is a finding; where it exists only on the page it is a consistency note.
-
-**Every finding names its consequence.** Write each one as who experiences what, and when: the person
-or agent affected, the situation that reaches them, and what goes wrong. A finding you cannot finish
-that sentence for is not a finding. "Two requirements word this differently" is not a consequence; "an
-agent that reports a result never receives its tool response" is. Order findings by that consequence,
-worst first, so severity is visible without reading all of them.
-
-**Findings and consistency defects are separate outputs.** A defect that exists only on the page — an
-acceptance item that drifted from the requirement it verifies, a list missing a state named elsewhere,
-a sentence an earlier edit left stale — goes in `## Design consistency notes` in `HANDOFF.md` as a
-plain list for the next design pass to sweep. It is not a Must fix, it does not gate implementation,
-and it does not belong in `## Review findings`. Mixing the two flattens severity and makes a
-proofreading pass read like a broken design. Expect most of them to come from the previous round's own
-edits: report them, do not dramatise them.
-
-**The review has an exit.** A round that produces no finding with a user-visible or unbuildable
-consequence closes the design for review — say so plainly, record it in the review history, and do not
-ask for another pass. Without an exit the answer to "did you find anything" is always yes, because any
-document can be sharpened indefinitely. Falling severity across rounds is evidence the design is
-ready, not a reason to look harder.
-
-Record findings in `## Review findings` in `HANDOFF.md` using the §7 format. The change stays
-`Waiting to start` — implementation must not begin while a design has open Must-fix findings.
-Consistency notes never hold it. With no findings, say so plainly and leave the change untouched.
-Commit only the state file and finish with the §6 human update.
+Every finding states who encounters what consequence and when, with supporting evidence. Record
+real findings in the handoff's **Review findings** using §7; page-only defects belong in **Design
+consistency notes** and do not block implementation. Open Must-fix design findings block starting
+that change. A round without user-visible or unbuildable consequences closes the review; do not
+request another pass for proofreading. Follow §§5–6 for the state commit and human update.
 
 ## 14. Design UI
 
-`/design` is the design-quality workflow for Chuck's interface. It runs explicitly when named
-and accompanies another role automatically when that role materially depends on visual judgment:
-a new screen, redesign, meaningful composition or styling change, motion, visual polish, or design
-critique. It stays out of data wiring, state fixes, behavior tests, copy-only changes, and other
-frontend engineering whose visual result should remain unchanged.
-
-The workflow does not authorize work by itself. It never chooses an idea or ready change, enlarges
-the active request, replaces `/design-feature`, turns review into implementation, or relaxes the
-specification and role rules above. It adds design reasoning and rendered verification to the work
-the human already selected. A design-only or critique request edits no product code; an explicit
-implementation request follows §§1–6 and §10, including specification-first behavior changes.
+`/design` runs explicitly or accompanies material visual work: new screens, redesigns, meaningful
+composition/styling, motion, polish, or critique. Data wiring, behavior tests, copy-only edits, and
+style-preserving fixes do not trigger it. It adds judgment to authorized work; it never selects or
+enlarges a change. Standalone critique edits no repository files. Implementation follows §§1–6
+and §10.
 
 ### 14.1 Ground the direction
 
-Read the governing feature requirements, FS-12, TS-08, `ui/AGENTS.md`, the affected components and
-styles, and at least one representative rendered incumbent surface. Treat the shipped presentation
-as authority unless the request is a redesign. A local addition inherits its surrounding visual
-language; it is not a reason to invent another skin, theme, component layer, or identity.
+Read the affected FS/TS requirement IDs, relevant FS-12/TS-08 rules, `ui/AGENTS.md`, affected code,
+and one rendered incumbent surface. Inherit the shipped visual language unless redesign is requested.
 
-Before implementation, capture a compact direction in the working plan or existing change document:
-
-- **Operator and job:** who uses this surface, the repeated task, its frequency, and the one result
-  the first view must make easiest.
-- **Composition:** first-view thesis, reading order, density, focal point, and what stays quiet.
-- **Chuck proof:** one choice rooted in agent lifecycle, coordination, technical work, or another
-  real product mechanism; name why it belongs here rather than in any administration dashboard.
-- **States and interaction:** real content ranges plus relevant empty, loading, error, permission,
-  paused, active, and completed states; feedback for every action in scope.
-- **Motion decision:** no motion, or one named purpose: feedback, spatial continuity, state
-  indication, or bridging a jarring change. Delight is reserved for rare moments.
-- **Anti-goals:** the incumbent behavior and visual commitments that must survive, plus category
-  defaults the result must not fall into.
-
-For a standalone `/design` critique, do not create a direction or change document. Use the governing
-requirements and the rendered incumbent surface as the evaluation direction, report the evidence in
-the conversation, and edit no repository file.
-
-Do not create a parallel design-brief hierarchy. Keep transient direction in the plan; put durable
-user-visible behavior in the governing FS and durable presentation architecture in TS-08. If a
-genuinely open new screen or redesign has materially different viable structures, show the human two
-or three named compositions that differ in hierarchy, density, interaction, or motion before
-building. Do not run this exploration for a narrow extension or an already-settled direction.
+For a narrow extension, state the intended improvement and important states briefly in the working
+plan. For a new screen or redesign, also capture the operator's task, reading order, density, focal
+point, product-specific hierarchy, motion purpose, and commitments to preserve. Explore two or three
+compositions only when materially different structures remain open. Keep direction in the existing
+plan; durable behavior belongs in FS and presentation architecture in TS-08. Critique uses the
+requirements and incumbent as its direction without creating a document.
 
 ### 14.2 Compose before decorating
 
-Make hierarchy legible before adding polish. Structure must encode real information: sequence,
-ownership, state, dependency, urgency, or scope. Avoid flattening the interface into equal cards,
-nested surfaces, decorative labels, or repeated icon tiles. Use real product-shaped content while
-designing so long names, dense runs, blocked work, errors, and empty states influence the result.
+Use real content ranges, including long names, dense work, errors, and empty states. Hierarchy should
+express sequence, ownership, state, urgency, dependency, or scope. Keep frequent controls and
+technical content clear; typography, spacing, alignment, and copy carry most of the finish.
 
-Spend visual boldness in one place and keep the operating surface disciplined around it. Chuck's
-lifecycle and coordination states are strong material: transitions between working, waiting,
-blocked, delegated, failed, and completed can carry hierarchy and continuity. Expression must never
-obscure the task, state, familiar control, semantic status color, or technical content. Typography,
-spacing, alignment, and copy carry most of the finish in a frequently used tool.
-
-Implement through TS-08's existing seams: semantic `--ad-*` tokens, `components/ui`, feature-owned
-composition, the versioned presentation hooks, Core, Sky & Grove, and the deterministic visual
-matrix. Extend a seam only when the requested result requires it. Do not add a design framework,
-theme provider, one-off token system, screenshot baseline, runtime dependency, or generic design
-detector as part of this workflow.
+Extend TS-08's tokens, primitives, feature composition, and presentation hooks. Preserve Core and
+the declared skins. Do not introduce a framework, theme provider, dependency, token system, or
+screenshot baseline merely to carry out this workflow.
 
 ### 14.3 Make motion earn its place
 
-Frequency is a gate. High-frequency and keyboard-driven actions should normally be instant;
-occasional transitions may be brief; rare lifecycle milestones have the most room for expression.
-Animate only when the purpose named in the direction improves comprehension. Prefer the cheapest
-existing mechanism, usually a narrow CSS transition or animation, and do not install a motion
-library for an effect CSS already handles. Prefer compositor-friendly `transform` and `opacity`
-over animating layout properties. Match easing to the motion's type — for example, ease-out for
-entrances — and keep routine UI transitions roughly 100–250ms and normally under 300ms, deviating
-only when the specific interaction justifies it.
+Use motion for feedback, spatial continuity, or state comprehension. Frequent and keyboard-driven
+actions normally stay instant. Prefer narrow CSS transform/opacity transitions; routine motion is
+usually 100–250ms and under 300ms unless the interaction warrants more.
 
-Motion must preserve stable reading and interaction: do not move content the person is reading for
-decoration; make triggered motion interruptible where repeat input is possible; use an origin that
-explains where an overlay or item came from; gate hover behavior to hover-capable pointers; and ship
-a `prefers-reduced-motion` treatment with the change. Lifecycle motion plays for a newly observed
-transition, not on initial render, reload, background refetch, or history replay.
+Preserve reading position, make repeated input interruptible, gate hover to capable pointers, and
+provide reduced motion. Lifecycle animation belongs to newly observed transitions, never initial
+render, reload, refetch, or history replay.
 
 ### 14.4 Inspect the rendered result
 
-Rendered review is required for material visual work. Run the working tree's actual UI in a real
-browser and inspect the affected route or fixture after fonts, data, and motion settle. The visual
-matrix is repeatable input, not a substitute for the product surface. When the inspection needs
-representative product states — live, blocked, or delegated sessions, permission prompts,
-failures — reuse the rendered-run setup from [`USABILITY-REVIEW.md`](USABILITY-REVIEW.md) §2 as
-applicable: the real built binary, an isolated review-owned `CHUCK_HOME`, and the
-deterministic `fakeacp` backend. This borrows that environment only; a small visual edit whose
-states the affected route already reaches does not inherit the full usability-review ceremony.
-Choose viewports from the governing requirements and affected layout rather than assuming
-universal mobile support; always include the supported desktop floor when layout changes. Compare
-Core and Sky & Grove when a shared token, primitive, hook, integration, or feature composition
-changes.
+Material visual changes require the working tree's real UI in a browser; use
+[`BROWSER-SETUP.md`](BROWSER-SETUP.md) for isolated setup. The deterministic matrix supports,
+but does not replace, inspection of the affected product surface. Choose supported widths from
+the affected requirements; include the desktop floor for layout changes and relevant skins when
+shared presentation changes.
 
-Assign browser execution to an agent that can request the permissions its environment requires.
-Codex's native review child was observed with `approval_policy: never`: it could inspect source
-but could not escalate loopback or Chromium execution on macOS. When that restriction blocks
-rendered review, use an independent approval-capable agent and bounded approved execution for the
-loopback-only harness and browser, retaining the isolated home and fake backend above. Confirm
-execution succeeds before treating the access block as resolved. Do not disable the sandbox
-globally or work around a denied approval; retain the open gate when approved execution is unavailable.
+Check the affected content/state range, keyboard and focus flow, hover feedback, hierarchy,
+contrast, clipping, overflow, and stacking. Observe motion at normal speed, repeated/interrupted
+input, and reduced motion. Source or static fixtures alone cannot establish these claims.
 
-Exercise the important state matrix from the direction, including interaction states that static
-fixtures cannot prove. For motion, observe the transition at normal speed, repeat or interrupt it,
-and check reduced motion. A valid inspection checks hierarchy, scan path, density, state salience,
-copy, focus and hover feedback, contrast, alignment, clipping, overflow, stacking, and whether the
-result still belongs unmistakably to Chuck.
-
-Critique against the direction rather than personal taste. Name rendered evidence and consequence,
-rank implementation findings as **Must fix**, **Worth fixing**, or polish, and remove unsupported
-decoration before adding more. A major new or redesigned surface benefits from an independent,
-fresh-context rendered critique when delegation is available; a narrow edit does not justify that
-overhead. In a build/fix role, batch the in-scope findings into a repair pass and render again. If
-material in-scope problems remain, repair them and re-render; otherwise stop. Do not continue
-iterating on subjective polish once the direction and material findings are satisfied. A standalone
-`/design` critique reports rendered evidence and findings in the conversation and edits no
-repository file. A §7 code review records findings and state updates exactly as §7 directs. Source
-review alone cannot close a visual claim, and open-ended polishing is not a completion strategy.
+Name evidence and user consequence. In implementation, repair material in-scope findings and
+re-render; stop when the direction and material issues are satisfied. Use independent rendered
+critique for a substantial new/redesigned surface when it adds value, not automatically for local
+edits. A §7 review records findings under §7; standalone critique reports in conversation only.
+If the browser cannot run, leave the visual claim unverified.
 
 ## 15. Shape and test the experience
 
-`/ux` improves how a person understands and completes a task across Chuck's interface, CLI,
-and AI-assisted behavior. It runs explicitly when named. During `/design-feature` or implementation,
-use it automatically only when the work changes an established task flow or introduces an
-unfamiliar or consequential decision, ambiguous state, recovery path, long-running operation, or AI
-uncertainty. Ordinary user-facing additions, familiar interactions, internal APIs and data wiring,
-style-only visual changes, and specification-preserving fixes do not pass this trigger.
-
-The workflow does not authorize work by itself. It never selects a feature, enlarges the request,
-turns critique into implementation, invents user evidence, or replaces `/design-feature`,
-`/design`, `/review`, or `/usability-review`. It is primarily a design-time companion; rendered
-validation tests the resulting experience after it exists.
-
-Chuck currently serves a small set of experienced internal operators. Default to their actual
-knowledge, learned habits, and repeated-use needs: speed, density, keyboard flow, predictability,
-and control. Do not simplify a workflow for a hypothetical novice. First-use guidance matters when
-onboarding is the task; rediscoverability matters when an operation is rare or consequential enough
-for even an expert to forget it.
+`/ux` runs explicitly or during feature design/implementation when an established flow changes or
+there is an unfamiliar/consequential decision, ambiguous state, recovery, long operation, or AI
+uncertainty. Ordinary familiar additions, internal wiring, styling, and specification-preserving
+fixes do not trigger it. It does not select work or authorize implementation.
 
 ### 15.1 Start with the human task
 
-Read the governing feature requirements and acceptance items, the adjacent shipped experience, and
-the affected UI, CLI, or AI boundary. Frame one primary task with the greatest frequency or
-consequence risk. Add a second only when it is a materially different high-risk branch:
+Read the relevant FS acceptance IDs and adjacent shipped experience. Frame the operator, entry
+state, intended result, critical decisions, completion signal, and material consequence/recovery
+branch. Default to Chuck's experienced internal operators: speed, density, keyboard flow,
+predictability, and control. Do not invent novice needs or research evidence.
 
-- who is acting, what they already know and habitually do, the task's frequency, and the outcome;
-- the entry point, necessary decisions, critical path, completion signal, and useful next step;
-- relevant empty, waiting, success, error, permission, interruption, and recovery states;
-- meaningful time, cost, privacy, destructive, or automation consequences.
-
-When the trigger rests on a changed learned workflow, an unfamiliar decision, or an infrequent
-consequential task, walk each critical step with two questions: given this operator's actual
-knowledge and habits, will the intended action remain obvious and efficient; after acting, will the
-response explain what changed, whether they progressed, and what to do next? State the likely
-failure story before proposing a repair. A walkthrough is a prediction, not proof; its checks are
-§15.3's rendered pass and, for an assumption about the operator's actual habits or frequency, the
-operator's own confirmation at the existing checkpoints.
-
-Use judgment, not a heuristic inventory. The strongest recurring decisions are:
-
-- shape sequence, grouping, and language around the person's goal rather than storage, protocol, or
-  implementation structure;
-- keep the essential path visible and reveal advanced or rare choices in a clear next layer without
-  hiding frequent, risky, or prerequisite decisions; learned shortcuts and dense expert controls
-  are preferable when they make repeated work faster without obscuring state or consequence;
-- make state legible for resuming work: every available, unavailable, in-progress, completed, and
-  failed action explains its state, consequence, and next step in product language; success says
-  what changed and what is next; errors preserve work while naming a practical repair;
-- acknowledge long work promptly; show stage, progress, or time only when trustworthy; preserve
-  context and offer safe leave, cancel, retry, resume, or history behavior as the task warrants;
-- prevent consequential errors with clear labels, scope, and previews; interrupt with confirmation
-  only when the cost or irreversibility earns it, and prefer undo or recovery where feasible;
-- for AI behavior, set honest capability and quality expectations, expose relevant uncertainty,
-  permissions, time, and cost, and preserve practical ways to correct, dismiss, edit, retry, or
-  stop. Do not imply human understanding or invent model quality evidence;
-- for CLI behavior, preserve predictable syntax, composable input/output, meaningful exit status,
-  concise help and examples, human-repairable errors, and non-interactive behavior outside a TTY.
-
-Do not add a modal, explanation, progress display, option, or recovery mechanism merely because a
-source guideline mentions it. Add only what resolves a concrete task risk at the smallest coherent
-scope.
+Walk the risky steps: can this operator find the action, and does feedback explain progress,
+consequence, and next action? Name the likely failure before adding a control. Preserve work on
+errors; disclose material scope, uncertainty, cost, and permissions; offer recovery when needed.
+For CLI work, retain composability, meaningful exit status, concise help, and non-TTY behavior.
+Add only mechanisms that resolve a concrete task risk.
 
 ### 15.2 Harden behavior before the contract hardens
 
-During feature design, when the trigger passes, use the task frame and any warranted walkthrough to
-revise proposed behavior before the human confirms it. Resolve missing steps, hidden prerequisites,
-unclear state, unsafe consequences, and dead ends in the feature specification. Acceptance items
-should exercise the actual task and its material state or recovery branch, not assert that a
-heuristic or component exists. Keep transient task framing in the working plan or conversation;
-keep durable behavior only in the governing FS and ready change.
-
-Ask the human only for decisions the normal workflow reserves for them. When an assumption about
-the operator's habits, frequency, or comprehension materially shapes the behavior, confirm it at
-the existing confirmation step rather than recording abstract validation debt. Do not manufacture
-research or model quality evidence.
+Use the frame before feature confirmation to resolve hidden prerequisites, unclear states, unsafe
+consequences, and dead ends. Put durable behavior and task-based acceptance in FS; keep transient
+reasoning in the plan/conversation. Confirm material assumptions about operator habits at the
+existing human checkpoints; ask only for decisions those checkpoints reserve.
 
 ### 15.3 Exercise the task in the real product
 
-Run post-implementation validation only when rendered interaction, timing or state transition,
-recovery behavior, or the unresolved design-time risk could change the judgment. Ordinary behavior
-fully established by acceptance tests does not earn a browser pass; an explicit standalone `/ux`
-critique does. When validation is warranted, run the working tree's real product and complete the
-framed task from the operator's normal entry state. Reuse `USABILITY-REVIEW.md` §§2 and 5 for an
-isolated `CHUCK_HOME`, the built binary, `fakeacp` when deterministic live behavior is
-needed, and the browser fallback ladder. Exercise the primary task plus only the state,
-consequence, interruption, or recovery branch likely to change the judgment. Source inspection and static rendering may identify risks but cannot prove an
-experienced finding.
+Validate in the real product when interaction, timing, state, recovery, or unresolved risk could
+change the judgment; explicit standalone critique also requires this. Reuse
+[`BROWSER-SETUP.md`](BROWSER-SETUP.md). Run the primary task and material branch, not a product
+tour. Acceptance tests suffice for ordinary behavior outside these risks.
 
-Every finding must name:
-
-- the human task and entry context;
-- the observed friction and evidence;
-- the consequence for understanding, progress, control, or recovery;
-- one concrete, proportionate improvement.
-
-Rank implementation or review findings using the active role's severity terms. In a build/fix role,
-repair in-scope findings under the normal specification-first rules and repeat the task while
-material friction remains. In a §7 review, record findings as §7 directs. A standalone `/ux`
-critique reports evidence and improvements in the conversation and edits no product code,
-specification, handoff, or brief. If the real-product path cannot run, say what remains unverified;
-do not convert a static hypothesis into a finding.
-
-Stop when the person can complete the scoped task, understand the resulting state and consequences,
-and recover from the material branch. Do not expand into a product-wide tour or continue tuning
-subjective preferences. `/usability-review` owns the broad acceptance-journey regression and its
-stored run reports.
+A finding states task/context, observed friction and evidence, consequence, and a proportionate
+improvement. Static hypotheses remain risks, not experienced findings. In build/fix work, repair
+in-scope findings under the normal specification rules and repeat the affected task. In review,
+record findings under §7. Standalone critique reports in conversation and edits no repository
+files. If the real path cannot run, state what remains unverified. Stop once the scoped task,
+state/consequence comprehension, and material recovery branch work.
 
 ### 15.4 Work with `/design` without splitting the experience
 
-`/ux` owns the task outcome, sequence, terminology, discoverability, state and consequence model,
-and control or recovery need. `/design` owns composition, visual hierarchy, typography, spacing,
-color, motion, and finish. Their concerns overlap whenever visual treatment affects whether a person
-can find an action, read state, predict a consequence, or understand feedback.
-
-When both trigger, share one task frame and one rendered browser pass. Describe the user problem
-once: `/ux` establishes what the experience must communicate or enable, and `/design` makes that
-need perceptible and coherent in Chuck's visual system. Do not bounce a finding between the two,
-duplicate evidence, or let visual polish stand in for a missing step, unsafe action, or absent
-recovery path.
+UX owns task sequence, language, discoverability, state, consequence, and recovery; design makes
+them perceptible through hierarchy, composition, typography, color, and motion. When both trigger,
+share one task frame and rendered pass. Record each problem once; visual polish cannot replace a
+missing step or recovery path. `/usability-review` owns broad acceptance-journey regression.
 
 ## 16. Cut a release
 
-`/release` tags a new version and keeps the shipped `operating-chuck` skill package matched to
-what that version actually ships. It does not add features, fix findings, or change product
-behavior; when the release range needs one of those, that work happens first under §2 or §8.
-
-1. **Fix the range and check readiness.** The previous release is the highest `vX.Y.Z` tag; the
-   release range is that tag to `main`. Do not release from a dirty tree. Before proposing a version,
-   report the commits in range, any substantive change unit the handoff still lists as open for review, and
-   every open review finding. An open **Must fix** finding blocks the release and goes back to §8. An
-   open review unit is a user decision under §3, not something to wave through.
-
-2. **Refresh the shipped operator skill.** Read the range for anything that changes what an agent
-   operating Chuck must know: agent-facing tool behavior and results, coordination and task
-   semantics, pipeline stage and supervision behavior, agent lifecycle, configuration, interfaces,
-   and project resources. For each such change, decide whether the embedded package is now wrong,
-   incomplete, or stale, and correct it in `internal/agentknowledge/operating-chuck/**` — the
-   single source (TS-11.R1). Never edit an installed cache view, which is a disposable projection,
-   and never confuse the shipped package with this repository's own `.claude/skills` and
-   `.agents/skills` launchers. TS-11.R8 decides which file owns a correction, and its exclusions
-   still hold: no argument schemas, no registration inventory, no planned, experimental,
-   unverifiable, or credential-specific claims, and no development or release-maintenance guidance.
-   A range that changes nothing agent-facing is a result to state, not a step to skip.
-
-   Apply the same test to the other release-matched claims the range may have falsified: the README
-   install and command text, and the pinned component versions in `install.sh` and
-   `scripts/release/assemble.sh`.
-
-3. **Choose the version with the user.** Patch for fixes and internal work, minor for new or changed
-   user-visible capability. Say which number you propose and why, and wait for confirmation:
-   publishing is outward-facing and cannot be cleanly withdrawn.
-
-4. **Verify the release build.** Ensure `make test` and the UI tests have passed for the candidate,
-   reusing recorded passing checks under §2 when their relevant inputs and environment are unchanged.
-   Run any missing or invalidated checks, then `make dist VERSION=<version>` for the release build;
-   its UI build includes the style gate, so do not run another UI build/style pass alongside it.
-   Every shipped binary carries `sqlite_fts5` (TS-06.R2, TS-06.R13). Assembling the darwin/arm64
-   archive with its private Node runtime belongs to release CI, not to a local step.
-
-   Commit verified release preparation, then obtain the §18 architectural review if this release
-   has none. It runs after preparation so shipped knowledge/generated artifacts are included. If
-   the review already ran and its findings were fixed, reuse it with §8's recorded fix evidence;
-   do not force another architectural review for this release. Resolve Must-fix findings through
-   fix, commit the receipt/closure state, and run:
-   `node scripts/check-architectural-review.mjs --release-tag vX.Y.Z`.
-   A missing/incomplete review or uncovered substantive change blocks tagging. The receipt and
-   handoff alone do not require repeating the product closure matrix.
-
-5. **Cut it.** Commit remaining release state and rerun the architectural gate if the candidate
-   changed, then create the annotated tag `vX.Y.Z` with the message `Release vX.Y.Z`. Pushing
-   `main` and that tag is what triggers assembly and publication, so it needs the explicit
-   authorization §5 requires. Ask for it in the terms it actually has: pushing the branch publishes
-   every unpushed commit on `main`, not only the release commit, and the tag needs them because it
-   must point at a commit the remote has. Say how many commits that is and stop at the unpushed tag
-   if the authorization is not given.
-
-6. **Confirm what actually published.** Release CI verifies archive contents, FTS5 tagging, pinned
-   components, checksum rejection, and a fresh installation (TS-06.R21). Check that its run succeeded
-   and that the archive, checksum, and manifest are attached to the GitHub Release. The credentialed
-   Claude and Codex checks remain manual gates: name them as owed rather than implying this release
-   passed them. A gate that was run and failed is recorded as a §4 finding before this role closes,
-   never left to the run record alone.
-
-7. **Close.** Record the released version in `HANDOFF.md` and the gates still owed in
-   `ACCEPTANCE-GATES.md`, commit the state files (§5), and finish with the §6 human update.
-
-   A release is a mandatory epoch boundary for the handoff, and an earlier cut is warranted whenever
-   settled content obscures live state. Move everything the new
-   version settled — closed findings, finished changes, resolved decisions, superseded review state —
-   out of `HANDOFF.md` into `docs/archive/state/HANDOFF-through-YYYY-MM-DD.md`. What stays live is what an
-   agent starting cold on the *next* change needs: current position, active change, open findings,
-   open gates, blocked-on-human. Keep the injected Current position plus Active change slice under
-   8 KiB; that slice, not the whole file, is the recurring session-start cost. Write the final update
-   as release notes a person can read — what this version gives them — drawing on the release range,
-   specifications, and handoff rather than a duplicate response history.
+1. On clean `main`, identify the highest merged release tag and the commits since it. Read the live review queue, findings, human blockers and [owed gates](ACCEPTANCE-GATES.md). Report open units for a human decision; send open Must fix findings to §8. Read the relevant release requirements in FS-10 and TS-06.R13–R22.
+2. Compare agent-facing changes in the range with the embedded `internal/agentknowledge/operating-chuck/` package. Update affected guidance under FS-18 and TS-11.R1/R8, README install/command claims and release component pins where needed. Record when the range changes nothing agent-facing. Keep product fixes in their own unit.
+3. Use the version the human specified, or propose patch for fixes/internal changes and minor for new/changed capability. Obtain version confirmation before tagging. Run missing or invalidated Go/UI checks under [completion checks](#completion-checks), then `make dist VERSION=<version>`. Hosted CI assembles the Darwin archive and private Node runtime.
+4. Commit verified preparation. Obtain or reuse the candidate's [architectural review](#18-review-architecture-for-a-reliable-development-hub), then run the [receipt and release gate](#receipt-and-release-gate) before tagging. Recheck after any candidate change.
+5. Create an annotated `vX.Y.Z` tag with message `Release vX.Y.Z`. Report the branch, count of all unpushed commits and tag. Pushing main and the tag triggers publication and requires explicit authorization for that scope. Without it, stop at the local tag.
+6. After authorized publication, verify release CI, archive, checksum, manifest and installation evidence. Distinguish failed, waived or owed native/provider/device checks from passes. Record failures under §4.
+7. Record actual release state and owed gates, archive settled handoff content under `docs/archive/state/HANDOFF-through-YYYY-MM-DD.md`, and keep the injected header under 8 KiB. Commit the scoped state and report what the version delivers and what remains unverified.
 
 ## 17. Write purposeful tests
 
-`write-tests` is a companion to the selected work/fix scope, automatically used when behavior
-needs new verification or tests/fixtures materially change. It is also available explicitly for
-test work. It selects no new queue unit and creates no extra approval, author, commit or closure
-cycle inside its parent. Standalone test changes use §§2–6 for their requested scope.
-
-TS-06.R35 owns test value and level selection; INV §17 owns independent proof. Before a nontrivial
-test, identify the promise, expected-answer authority, real boundary and smallest meaningful
-falsifier. Keep this brief in the test/working plan rather than create a report per test. Existing
-adequate evidence can justify no new test. Unit tests prove local behavior; integration/native
-evidence is needed when the promise crosses those boundaries. Extra layers/cases must buy distinct
-confidence worth their runtime and maintenance cost.
-
-Review checks the claimed evidence and its limits, including redundant/brittle tests; it does not
-invoke a writing skill or change product code. Run focused checks while iterating, then the parent
-performs the applicable closure matrix once (§2). No testing project is added to a copy-only,
-cosmetic or documentation edit without a real behavioral risk.
+Within work or fix, reuse the parent scope, evidence and closure. Standalone `/write-tests` covers only the requested behavior and follows [completion checks](#completion-checks). Read **R35 and its evidence table** in [TS-06](../specs/tech/TS-06-build-test.md) and the [independent-oracle rule](INVARIANTS.md#17-tests-must-prove-their-contract-independently). Use the smallest check that distinguishes the plausible defect at the promised boundary. Reuse adequate coverage. For regressions, demonstrate pre-fix failure when practical. Isolate user data; credentialed provider runs need their own authorization.
 
 ## 18. Review architecture for a reliable development hub
 
-Chuck exists to make real development dependable: saved work remains recoverable, instructions
-and messages reach the right agent, eligible work progresses, execution stays in its intended
-workspace, results/control tell the truth, and overhead remains reasonable. Without these promises
-Chuck fails its core purpose. This is the review's decision criterion; style preferences, cosmetic
-glitches and unsupported one-in-a-million scenarios are not its mission.
+Use a fresh reviewer on the stable committed candidate after release preparation, including fixes-only releases. An explicit narrower audit can contribute bounded evidence; release completion requires combined-system coverage. Start from the previous release, its assessed capability/owner map and valid evidence, or the [core audit map](CORE-RELIABILITY-AUDIT-PLAN.md) for the first run. Read relevant requirements and pinned runtime facts.
 
-Run once before every release, including fixes-only releases, after preparation at a stable
-committed candidate. Explicit `/architectural-review` can also select the next-release candidate
-between releases. Use a fresh reviewer rather than have an author certify their own combined work.
-This is distinct from §7's change review and §13's pre-implementation design review.
-An explicitly narrower audit records bounded evidence but does not claim a completed release
-review unless the required combined-system coverage was assessed.
+Assess recoverable work, faithful delivery, progress, intended execution/workspace, truthful results and control, and operating cost. For each high-consequence scenario identify the real stimulus, promised response, owner and evidence. Trace changed assumptions through unchanged callers, schedulers, repair paths and installed artifacts. Probe consequential uncertainty; measure performance claims under representative workloads and distinguish local, fake and provider evidence.
 
-Read the current handoff/requirements, previous release and completed review/fix evidence, pinned
-runtime facts and the capability map in the previous architectural receipt. The
-`CORE-RELIABILITY-AUDIT-PLAN.md` map seeds the first run; FS/TS remain authoritative. The reviewer
-updates the compact coverage/map in this release's receipt; no parallel specification is created.
-
-For each selected high-consequence scenario, name the normal-use stimulus/condition, promised
-response, authority/owner and actual evidence. Follow changed assumptions through unchanged
-repairers, callers, schedulers and installed artifacts. Check unsafe design assumptions as well as
-implementation violations. Reuse sound evidence, investigate the most consequential uncertainties,
-and add small independent probes where they buy confidence. Do not merely summarize prior reports
-or reread every file; coverage/depth scales with risk. Cost/performance claims need representative
-measurement. Fake/source proof cannot become a native/provider/device receipt.
-
-Record real findings with §7 severity/fix-model rules in the live handoff, preserving an existing
-owner rather than duplicating it. New cross-system findings form one architectural fix unit. Link
-its receipt from that unit. A round can be complete with findings open; `/fix` then handles them
-under §8. A no-finding review adds no default change-review unit. Review changes no product code
-or normative specs; it may commit its receipt, bounded evidence report/reproducer and handoff.
-Reference existing release-blocking finding IDs in the receipt too, retaining their original
-owners; their repairs can then use the same no-rerun closure path.
+Apply [finding and fix routing](#finding-and-fix-routing) to live findings. Preserve existing owners; group new cross-system findings as one repair unit. Commit only the handoff, receipt and necessary bounded evidence. Reference every release-blocking finding in the receipt. A completed review can have open findings; §8 closes the repairs in that same receipt.
 
 ### Receipt and release gate
+
+Before tagging run `node scripts/check-architectural-review.mjs --release-tag vX.Y.Z` on the committed candidate. Resolve rejected provenance or open findings before proceeding.
 
 Use one JSON receipt at `docs/archive/reviews/architecture/<previous-tag>-next.json` (or
 `initial-next.json` without an earlier release). The gate derives the highest merged `vX.Y.Z` tag,

@@ -32,11 +32,10 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 ## Active change
 
 **Streamline Chuck's development workflow** (requested directly, baseline `0cf9a04f`).
-TS-06 and the model-routing table are in place; finding validation accepts existing handoff
-headings and tests new recommendations against that table. Next: finish the twelve launcher pairs,
-shared workflow and structural routing checks in the working tree. Then replay clean, easy and
-concurrent-loss cases against old/new instructions, record model and token evidence and queue
-one completed workflow unit for review.
+The model table, twelve launcher pairs, shared procedures, scoped browser setup and structural
+mutation checks are implemented. Matched Sol 6.1, Sol 6.2 and Opus 5.5 review/fix replays are
+complete (temporary evidence in `/private/tmp/role-replay.yLCFl7`). Next: integrate the
+independent audit, retain the pilot results, run docs/tooling closure and queue one workflow unit.
 
 ## Decisions needing input
 

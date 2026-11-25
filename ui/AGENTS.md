@@ -1,7 +1,7 @@
 # Chuck UI presentation rules
 
-Read `docs/specs/features/FS-12-application-interface.md` and
-`docs/specs/tech/TS-08-frontend-presentation.md` before changing presentation code.
+Read the FS-12 and TS-08 requirement IDs governing the affected presentation surface before editing;
+use their index and adjacent contract when needed rather than reading unrelated sections.
 
 Use the repository's `/design` workflow for new screens, redesigns, meaningful layout or styling,
 motion, visual polish, or critique. It may trigger automatically for those tasks, but stays out of
@@ -50,6 +50,6 @@ never move them into a skin or make Core depend on `[data-skin]`.
 ## Required checks
 
 Run `npm run check:styles` for presentation edits. `npm test` and `npm run build` run it
-automatically. A visual change also needs the deterministic development matrix and a real-browser
-review of the affected surfaces. Never edit `internal/server/ui/dist`; regenerate it with
+automatically. A visual change also needs the applicable deterministic matrix states and real-browser
+review of the affected surfaces (workflow §14.4 and `docs/features/BROWSER-SETUP.md`). Never edit `internal/server/ui/dist`; regenerate it with
 `make embed`.

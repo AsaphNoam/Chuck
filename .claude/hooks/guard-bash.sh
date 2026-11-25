@@ -1,8 +1,7 @@
 #!/bin/sh
 # PreToolUse[Bash]: workflow guards for shell commands.
-# Trunk-based repo: normal pushes to origin are part of task completion
-# (AGENT-WORKFLOW §6) and pass through. Only history-rewriting pushes
-# still require an explicit human request (§3 destructive action).
+# Normal pushes follow the workflow's publication authorization; passing this
+# hook grants no authority. History rewrites additionally prompt for confirmation.
 command -v jq >/dev/null 2>&1 || exit 0
 cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
 case "$cmd" in

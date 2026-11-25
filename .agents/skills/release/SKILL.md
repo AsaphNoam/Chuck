@@ -1,43 +1,6 @@
 ---
 name: release
-description: Explicit invocation only. Run only when the user sends `/release`; do not trigger from a natural-language request.
+description: "Explicit invocation only. Prepare a Chuck version on explicit `/release`."
 ---
 
-# Cut a release
-
-At startup, inspect `git status` and the existing diff before any repository edit. Use the injected
-handoff header when present; otherwise read only **Current position** and **Active
-change** in [`HANDOFF.md`](../../../docs/features/HANDOFF.md). Open its **Review findings** and
-**Blocked on human** sections and
-[`ACCEPTANCE-GATES.md`](../../../docs/features/ACCEPTANCE-GATES.md) for readiness, then read FS-10 and
-TS-06.R13–R22 for the release contract,
-FS-18 and TS-11 for the shipped `operating-chuck` package, and
-[`AGENT-WORKFLOW.md`](../../../docs/features/AGENT-WORKFLOW.md) §§2–6 and §16 completely. Then
-follow the shared workflow; the workflow and specs take precedence over this launcher.
-
-Require `architectural-review` before every release under workflow §18 and TS-06.R36, after
-committing verified release preparation. Reuse this release's completed review and recorded fixes.
-Fixing architectural findings does not require another architectural review for that release.
-Before tagging, run `node scripts/check-architectural-review.mjs --release-tag vX.Y.Z`; missing
-review, open Must-fix findings or uncovered substantive changes block release. The gate accepts
-exact verified finding fixes and administrative closure without rerunning the review skill.
-
-`$ARGUMENTS`, if present, names the intended version. Otherwise propose one from the release range
-and confirm it with the user before tagging.
-
-The release range runs from the previous `vX.Y.Z` tag to `main`. Read it for behavior an agent
-operating Chuck must know, and refresh the embedded package under
-`internal/agentknowledge/operating-chuck/` — the single source, never an installed cache view
-and never this repository's own skill launchers. State plainly when the range changes nothing
-agent-facing. Do not add features or fix findings here; an open **Must fix** finding returns to
-`/fix` before a release.
-
-Publishing is outward-facing and irreversible. Follow workflow §§2/16: reuse recorded passing
-checks whose relevant inputs and environment are unchanged, run missing or invalidated full Go/UI
-checks, then `make dist`. Push `main` and the tag only with explicit authorization; stop at the
-unpushed tag otherwise.
-Close with the handoff update, commit, and concise human update written as readable release notes.
-
-Archiving the handoff is part of closing a release (workflow §16.7): move what this version settled
-to `docs/archive/state/`, leave live only what the next change needs, and keep the injected Current
-position plus Active change slice under 8 KiB.
+`$ARGUMENTS` may supply the intended version. Use [shared startup](../../../docs/features/AGENT-WORKFLOW.md#1-start-with-the-current-state) and the [release procedure](../../../docs/features/AGENT-WORKFLOW.md#16-cut-a-release). Read the linked sections as the task reaches them.

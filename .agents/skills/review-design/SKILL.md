@@ -1,26 +1,6 @@
 ---
 name: review-design
-description: Explicit invocation only. Run only when the user sends `/review-design`; do not trigger from a natural-language request.
+description: "Explicit invocation only. Review a waiting change on explicit `/review-design`."
 ---
 
-# Review a waiting design
-
-At startup, inspect `git status` and the existing diff before any repository edit. Use the injected
-handoff header when present; otherwise read only **Current position** and **Active
-change** in [`HANDOFF.md`](../../../docs/features/HANDOFF.md). Then read the ready change under
-review, every planned
-FS/TS item it cites plus the shipped requirements around them,
-[`INVARIANTS.md`](../../../docs/features/INVARIANTS.md)'s trigger index and the classes the
-change touches, and workflow §§3, §5–7, and §13
-completely, then follow the design-review process: over-engineering, extension over new mechanism,
-and unverified assumptions are the primary lenses.
-
-`$ARGUMENTS` names the waiting change in `docs/ready-changes/`; without arguments, choose any
-waiting change and say which one you took. Several waiting changes and other role queues do not
-block selection. Do not change product code, specifications, or the change file.
-
-Every finding names who experiences what, and when; one you cannot state that way is a consistency
-note, not a finding. Verify a failure against the tree before asserting it — a scenario the shipped
-code already prevents is worse than silence. A round with no user-visible or unbuildable consequence
-closes the design; do not ask for another pass. Record findings and consistency notes in their
-separate sections, make the required state commit, and close with the concise human update.
+`$ARGUMENTS` may name a waiting design. Use [shared startup](../../../docs/features/AGENT-WORKFLOW.md#1-start-with-the-current-state) and the [review-design procedure](../../../docs/features/AGENT-WORKFLOW.md#13-review-a-design). Read the linked sections as the task reaches them.

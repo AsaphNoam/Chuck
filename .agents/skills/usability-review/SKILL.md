@@ -1,17 +1,6 @@
 ---
 name: usability-review
-description: Explicit invocation only. Run only when the user sends `/usability-review`; do not trigger from a natural-language request.
+description: "Explicit invocation only. Exercise acceptance journeys on explicit `/usability-review`."
 ---
 
-# Review usability
-
-At startup, inspect `git status` and the existing diff before any repository edit. Use the injected
-handoff header when present; otherwise read only **Current position** and **Active
-change** in [`HANDOFF.md`](../../../docs/features/HANDOFF.md). Open
-[`ACCEPTANCE-GATES.md`](../../../docs/features/ACCEPTANCE-GATES.md) when the
-scope points there, then read relevant FS acceptance items,
-[`USABILITY-REVIEW.md`](../../../docs/features/USABILITY-REVIEW.md), and workflow §§3, §5–6, and
-§9 completely, then follow the usability-review process.
-
-`$ARGUMENTS` may name the journey or scope. Do not change product code. Record every finding or
-unable-to-run journey, make the required state commit, and close with the concise human update.
+`$ARGUMENTS` may specify a journey or scope. Use [shared startup](../../../docs/features/AGENT-WORKFLOW.md#1-start-with-the-current-state) and the [usability-review procedure](../../../docs/features/AGENT-WORKFLOW.md#9-usability-reviews). Read the linked sections as the task reaches them.
