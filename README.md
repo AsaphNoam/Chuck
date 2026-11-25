@@ -2,26 +2,24 @@
 
 **Run a team of coding agents from one dashboard on your Mac.**
 
-Chuck launches and supervises Claude Code and Codex agents (plus OpenCode and OpenHands) side by
+Chuck launches and supervises Claude Code and Codex agents side by
 side. You can watch every agent work, step in when one needs you, switch a live agent to another
 model, and let agents hand work to each other. Everything runs locally: no account, no cloud
 service, no telemetry.
 
 ![The Chuck dashboard with several agents working on one project](docs/images/dashboard.png)
 
-▶ **[Watch the one-minute tour](docs/images/chuck-tour.mp4)** (silent)
-
 ## What you can do
 
-**Talk to a team, not a terminal.** Every agent gets a persistent name, a live status and a full
-streaming chat. Ask Chucky, the built-in coordinator, for an outcome and it proposes the agents and
-steps to get there.
+Every agent gets a persistent name, a live status and a full
+streaming chat. No need to learn how to use Chuck, just ask Chucky, the built-in coordinator / guide, 
+for an outcome and it proposes the agents and steps to get there.
 
 ![Chucky proposing a plan in chat](docs/images/chat.png)
 
 **Run repeatable pipelines.** Define stages once (design, implement, review, ship) and start a run
-with a goal. Chuck starts each stage when its inputs are ready, and you review and approve every
-proposal before it runs.
+with a goal. Chuck starts lets complex multi step tasks move between stages with standing instructions and orchestrators to manage the show. 
+Define it once and reuse as much as you like.
 
 ![A completed pipeline run](docs/images/pipeline-run.png)
 
@@ -35,12 +33,12 @@ without losing its history.
 
 ![Switching an agent's backend after a quota error](docs/images/switch-model.png)
 
-**Point at the exact thing.** Select a sentence, an event or diff lines, attach an instruction and
+**You don't have to be the messenger anymore.** Select a sentence, an event or diff lines, attach an instruction and
 send it to this agent or another one.
 
 ![Annotating a sentence and assigning it to the code reviewer](docs/images/annotate.png)
 
-**Approve from your phone.** Pair a phone over your own Tailscale network to see what needs you,
+**Kepp working on the go.** Pair a phone over your own Tailscale network to see what needs you,
 approve permission requests and keep conversations going while you're away.
 
 <img src="docs/images/phone-approve.png" alt="Approving a deploy permission request on a phone" width="320">
