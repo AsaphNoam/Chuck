@@ -594,7 +594,7 @@ func (r *Registry) StopGuardedIdle(ctx context.Context, agentID, expectedGenerat
 	extra := r.onExitExtra
 	r.mu.Unlock()
 	if err := r.chat.Stop(ctx, agentID); err != nil {
-		if extra != nil && errors.Is(err, ErrStopNotSettled) {
+		if extra != nil && stopEnded(err) {
 			extra(agentID, expectedGeneration, "requested_stop", TurnUnknown)
 		}
 		return true, err
@@ -603,6 +603,12 @@ func (r *Registry) StopGuardedIdle(ctx context.Context, agentID, expectedGenerat
 		extra(agentID, expectedGeneration, "requested_stop", TurnUnknown)
 	}
 	return true, nil
+}
+
+// stopEnded reports whether a failed Stop still ended the process, so its exit
+// teardown ran and only settlement or the journal release is outstanding.
+func stopEnded(err error) bool {
+	return errors.Is(err, ErrStopNotSettled) || errors.Is(err, ErrStopJournalPending)
 }
 
 // Stop routes a stop to the owning runtime and forgets the agent.
@@ -633,7 +639,7 @@ func (r *Registry) Stop(ctx context.Context, agentID string) error {
 		}
 		// A stopped but unsettled process still ran its exit teardown; the
 		// retry only settles the kept running row.
-		if extra != nil && errors.Is(err, ErrStopNotSettled) {
+		if extra != nil && stopEnded(err) {
 			extra(agentID, generation, "requested_stop", TurnUnknown)
 		}
 		return err

@@ -957,7 +957,13 @@ func (s *Server) stopAgentClaimed(ctx context.Context, id string) *runtime.APIEr
 	if err != nil {
 		return apiError(runtime.CodeInternal, "quota owner could not be read")
 	}
-	if err := s.registry.Stop(ctx, id); err != nil {
+	// A pending journal release still ended the process and settled its running
+	// row, so manual control takes effect even if the caller left during that
+	// wait: tear down and cancel the quota schedule before reporting it
+	// (ARCH-POST025-1). Any other failure keeps the agent and its schedule.
+	err = s.registry.Stop(ctx, id)
+	journalPending := errors.Is(err, runtime.ErrStopJournalPending)
+	if err != nil && !journalPending {
 		if !errors.Is(err, runtime.ErrNoHandle) {
 			return orphanReapAPIError("", err)
 		}
@@ -978,6 +984,9 @@ func (s *Server) stopAgentClaimed(ctx context.Context, id string) *runtime.APIEr
 		if err := s.cancelQuotaSnapshots([]state.QuotaControlSnapshot{*snapshot}); err != nil {
 			return apiError(runtime.CodeInternal, "agent stopped but quota schedule could not be invalidated")
 		}
+	}
+	if journalPending {
+		return apiError(runtime.CodeInternal, "agent stopped but its conversation history is still closing")
 	}
 	return nil
 }

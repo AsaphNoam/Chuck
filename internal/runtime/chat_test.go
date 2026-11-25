@@ -1920,8 +1920,8 @@ func TestStopCannotReportSuccessWhileJournalIsClosing(t *testing.T) {
 		t.Fatal("stop did not begin closing the transcript")
 	}
 	cancel()
-	if err := <-stopped; !errors.Is(err, ErrStopNotSettled) || !errors.Is(err, context.Canceled) {
-		t.Fatalf("stop with journal still closing = %v, want unsettled cancellation", err)
+	if err := <-stopped; !errors.Is(err, ErrStopJournalPending) || !errors.Is(err, context.Canceled) {
+		t.Fatalf("stop with journal still closing = %v, want pending journal cancellation", err)
 	}
 }
 

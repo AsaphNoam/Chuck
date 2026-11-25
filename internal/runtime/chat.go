@@ -1725,7 +1725,7 @@ func (c *ChatRuntime) Stop(ctx context.Context, agentID string) (stopErr error) 
 		select {
 		case <-as.persistenceDone:
 		case <-waitCtx.Done():
-			stopErr = fmt.Errorf("%w: wait for conversation journal: %w", ErrStopNotSettled, waitCtx.Err())
+			stopErr = fmt.Errorf("%w: %w", ErrStopJournalPending, waitCtx.Err())
 		}
 	}()
 	processSignaled := make(chan struct{})

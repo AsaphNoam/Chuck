@@ -520,7 +520,9 @@ parallel copy of them.
   openings, private room-owned work and room-backed pipeline stages join the same quota contract.
 - **R43 (implemented 2026-10-11)** — Cancellation and admission share a revision/attempt compare-and-swap.
   Wire FS-01.R43 invalidation through the existing successful human-input/lifecycle/owner-control
-  seams; an old callback cannot cancel or renew a later episode. Manual actions reserve only the
+  seams; an old callback cannot cancel or renew a later episode. A Stop that ended the process
+  invalidates the captured schedule even when its journal release is still pending or the
+  requesting client has gone; a refused Stop keeps it. Manual actions reserve only the
   affected agents and owner, including an automatic continuation's pipeline parent; unrelated
   Stop/group controls remain available during provider startup. Global disable and automatic
   admission retain one policy ordering through the provider boundary. Startup establishes the durable

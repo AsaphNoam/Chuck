@@ -11,8 +11,12 @@ import (
 	"github.com/AsaphNoam/Chuck/internal/state"
 )
 
+// stopForArchive treats a pending journal release as stopped: the process has
+// ended and archive never appends to the conversation, so a client that leaves
+// during that wait cannot strand an unarchived agent with a live quota schedule
+// (ARCH-POST025-1).
 func (s *Server) stopForArchive(ctx context.Context, id string) *runtime.APIError {
-	if err := s.registry.Stop(ctx, id); err != nil {
+	if err := s.registry.Stop(ctx, id); err != nil && !errors.Is(err, runtime.ErrStopJournalPending) {
 		if !errors.Is(err, runtime.ErrNoHandle) {
 			return orphanReapAPIError("stop agent: ", err)
 		}

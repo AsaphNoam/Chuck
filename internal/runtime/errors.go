@@ -28,6 +28,11 @@ var (
 	// ErrStopNotSettled: Stop ended the process but could not record the final
 	// state; the running row stays so a retried Stop settles it (FS-01.R6).
 	ErrStopNotSettled = errors.New("runtime: stopped process could not be settled")
+	// ErrStopJournalPending: Stop ended the process and settled its running row,
+	// but the old generation had not released its conversation journal when the
+	// wait ended. Termination is committed; only a caller that appends to the
+	// conversation next must treat the stop as failed (TS-01.R43).
+	ErrStopJournalPending = errors.New("runtime: stopped process has not released its conversation journal")
 	// ErrExitedDuringStart: the process exited before its launch committed, so
 	// the start failed rather than registering a dead runtime (TS-01.R41).
 	ErrExitedDuringStart = errors.New("runtime: agent process exited during startup")
