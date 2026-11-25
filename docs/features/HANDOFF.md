@@ -31,11 +31,7 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-**Streamline Chuck's development workflow** (requested directly, baseline `0cf9a04f`).
-The model table, twelve launcher pairs, shared procedures, scoped browser setup and structural
-mutation checks are implemented. Matched Sol 6.1, Sol 6.2 and Opus 5.5 review/fix replays are
-complete (temporary evidence in `/private/tmp/role-replay.yLCFl7`). Next: integrate the
-independent audit, retain the pilot results, run docs/tooling closure and queue one workflow unit.
+None.
 
 ## Decisions needing input
 
@@ -75,8 +71,13 @@ independent audit, retain the pilot results, run docs/tooling closure and queue 
 
 ## Review queue
 
-No implementation unit awaits its first review. **Start a first chat with Claude or Codex** is
-closed; its remaining same-cause completion/default questions are an entry in `docs/ideas.md`.
+- **Streamlined developer workflows** — available for independent review. Baseline `0cf9a04f`,
+  model routing in `1d1e9614`, launcher/procedure migration in `b7b17477`, followed by the
+  verification and handoff closure. Scope covers TS-06.R5/R35/R36, scoped role reads,
+  review/fix authority and browser evidence. [Matched replay results](../archive/reviews/workflow-skills-2026-11-25.md).
+
+**Start a first chat with Claude or Codex** is closed; its remaining same-cause completion/default
+questions are an entry in `docs/ideas.md`.
 
 **Core reliability audit units (added 2026-11-13):** explicitly requested subsystem reviews of the
 complete current implementation and callers, not of a commit. Read the charter, refresh fix

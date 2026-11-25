@@ -7,8 +7,8 @@ says how agents work with them.
 ## 1. Start with the current state
 
 1. Use the injected handoff header, or read **Current position** and **Active change** in [HANDOFF.md](HANDOFF.md). Open the selected queue and change by name. For edits, inspect Git status, staged changes and the existing diff in affected paths. Preserve other people's work.
-2. Use the unit the human names. An explicit role command with no unit selects one eligible unit from its own queue. Say which one. Other queues and chronology do not gate it. Outside a role request, stay within the requested scope.
-3. Read only the governing FS/TS items, relevant surrounding requirements, and the procedure named by the launcher. For work or review, scan the [invariant trigger index](INVARIANTS.md#trigger-index) and open matching classes. New interfaces, runtimes and drivers must satisfy the full INV §6 checklist. The specs define the contract.
+2. Use the unit the human names. For a queue-owning role, an explicit command with no unit selects one eligible unit from its own queue. Say which one. Other queues and chronology do not gate it. Companions inherit the active task. For a standalone critique or test with no identifiable scope, ask which surface or behavior to examine.
+3. Read only the governing FS/TS items, relevant surrounding requirements, and the procedure named by the launcher. For implementation, review, repair or investigation, scan the [invariant trigger index](INVARIANTS.md#trigger-index) and read each matching class in full. New interfaces, runtimes and drivers must satisfy the full INV §6 checklist. The specs define the contract.
 4. Keep one originating unit through review and repair. Administrative commits, including fix closure, handoff edits and release records, never create review units. Use [§5](#5-commit-and-resume-safely) when changing repository state and [§6](#6-human-update) at exit. Companions reuse the parent’s scope and already-loaded context.
 
 ## 2. Make a change
@@ -137,7 +137,8 @@ call it ready. Keep partial specifications honest and record what is needed from
 ### Lifecycle design
 
 When durable state, waits, or effect ownership changes, record the affected transitions in the
-change file: next state, durable owner, and observable result. Include only reachable events;
+change file. Use a state/event table for interacting transitions; give the next state, durable
+owner, and observable result. Include only reachable events;
 consider restart, Stop/cancel, owner replacement, failed input, quota/timeout, and late callbacks.
 An unresolved reachable transition is an open question. When this exposes actual ownership or
 recovery risk, have a fresh-context capable subagent review the planned items under §13 before
@@ -154,7 +155,7 @@ Keep product and spec files read-only. A reproducible failure may be committed a
 
 ## 13. Review a design
 
-`/review-design` checks one waiting change and its cited planned FS/TS items before implementation.
+`/review-design` independently checks another author's waiting change and its cited planned FS/TS items before implementation.
 Use the named change, or choose one waiting change when none is named. Follow §1; read the cited
 requirements, adjacent shipped contract, and matching invariant classes. Change no product code,
 specifications, or change file.

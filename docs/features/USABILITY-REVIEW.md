@@ -10,7 +10,7 @@ and drives selected journeys through the actual UI. It complements the static di
 > specs govern expected product behavior; this file governs the verification method.
 
 **Prime directive: user-impact findings are confirmed against the running app. Static sweeps produce
-risk leads, not product findings, until reproduced or routed to the §8 code-review path.**
+risk leads until reproduced or routed to the [code review](AGENT-WORKFLOW.md#7-review-work) procedure.**
 
 ---
 
@@ -33,7 +33,7 @@ When recording a finding: BLOCKER/MAJOR → **Must fix**; MINOR → **Worth fixi
 recording only when the fix is obvious and tiny.
 
 **Non-goals** (do not spend tokens here): code-quality opinions, naming/style, performance
-micro-audits, redesign proposals, or unverified feature ideas. The §8 diff review and
+micro-audits, redesign proposals, or unverified feature ideas. The §7 diff review and
 `INVARIANTS.md` own code-level classes; this review owns *experienced behavior*.
 
 ---

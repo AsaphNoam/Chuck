@@ -10,8 +10,12 @@ errors = []
 
 with tempfile.TemporaryDirectory() as temporary:
     base = pathlib.Path(temporary) / "base"
-    for relative in (".agents/skills", ".claude/skills", "docs/features"):
+    for relative in (".agents/skills", ".claude/skills"):
         shutil.copytree(root / relative, base / relative)
+    docs = pathlib.Path("docs/features")
+    (base / docs).mkdir(parents=True)
+    for filename in ("AGENT-WORKFLOW.md", "MODEL-ROUTING.md"):
+        shutil.copyfile(root / docs / filename, base / docs / filename)
 
     def run(tree):
         return subprocess.run([str(checker), "--root", str(tree)], capture_output=True, text=True)
@@ -42,8 +46,10 @@ with tempfile.TemporaryDirectory() as temporary:
     mutation("invalid-target", twins("fix"), "AGENT-WORKFLOW.md#8-fix-review-findings", "AGENT-WORKFLOW.md#missing", "nonexistent workflow anchor")
     mutation("divergent", [twins("ux")[0]], "#", "##", "launchers differ")
     mutation("identity", twins("work"), "name: work", "name: review", "invalid role frontmatter")
-    mutation("explicit-trigger", twins("review"), "Explicit invocation only", "Always invoke", "missing explicit-only trigger")
-    mutation("automatic-trigger", twins("design"), "or automatically", "or optionally", "missing automatic companion trigger")
+    for role, diagnostic in (("review", "missing explicit-only trigger"), ("design", "missing automatic companion trigger")):
+        paths = twins(role)
+        description = re.search(r"^description: .+$", (base / paths[0]).read_text(), re.M)[0]
+        mutation(role + "-trigger", paths, description, "description: Handles a Chuck task.", diagnostic)
     for target in ("17-write-purposeful-tests", "18-review-architecture-for-a-reliable-development-hub", "finding-and-fix-routing", "independent-fix-check", "lifecycle-design", "receipt-and-release-gate"):
         mutation("link-" + target, workflow, f"](#{target})", "](missing)", "missing link")
     mutation("map-link", workflow, "](MODEL-ROUTING.md)", "](missing)", "missing link MODEL-ROUTING.md")

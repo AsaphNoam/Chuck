@@ -4,7 +4,7 @@ Chuck is a local Go server with an embedded React/Vite UI that supervises agent 
 
 ## Repository work
 
-Use [shared startup](docs/features/AGENT-WORKFLOW.md#1-start-with-the-current-state) and the invoked role's launcher. Read only the linked sections needed at this stage. `/work`, `/review`, `/fix`, `/design-feature`, `/review-design`, `/usability-review`, `/investigate-bug` and `/release` require explicit invocation. Design, UX and test companions support authorized work; architectural review also runs before release. A natural-language request authorizes its own scope.
+Use [shared startup](docs/features/AGENT-WORKFLOW.md#1-start-with-the-current-state) and the invoked role's launcher. Read only the linked sections needed at this stage. `/work`, `/review`, `/fix`, `/design-feature`, `/review-design`, `/usability-review`, `/investigate-bug` and `/release` require explicit invocation. Design, UX and test companions support authorized work; architectural review also runs before release. Outside an explicit role request, work only on what the human asked for.
 
 Feature and technical specs define the product. The workflow governs process, the handoff records current state, and ideas or archives supply context. Read [spec authoring rules](docs/specs/README.md) when changing requirements. Consult the [invariant index](docs/features/INVARIANTS.md#trigger-index) for affected hot spots. Use the [completion checks](docs/features/AGENT-WORKFLOW.md#completion-checks) for the changed inputs.
 

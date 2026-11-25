@@ -33,9 +33,12 @@ for line in text.splitlines():
     if current is not None:
         sections[current] += line + "\n"
 
-roles = dict(zip(
-    "work review fix usability-review design-feature investigate-bug review-design design ux release write-tests architectural-review".split(),
-    [2, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18]))
+roles = {
+    "work": 2, "review": 7, "fix": 8, "usability-review": 9,
+    "design-feature": 11, "investigate-bug": 12, "review-design": 13,
+    "design": 14, "ux": 15, "release": 16, "write-tests": 17,
+    "architectural-review": 18,
+}
 role_anchors = {}
 for number in roles.values():
     heading = re.search(rf"^## {number}\. (.+)$", text, re.M)
