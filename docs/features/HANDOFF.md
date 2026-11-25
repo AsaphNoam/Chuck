@@ -195,16 +195,6 @@ specs, live user state or unrelated dirty files changed.
   planned text and checklist entry to the recorded retirement so release work has one answer.
   FS-10.R25/A14, TS-02.R41, INV §10.
 
-### CHECK-CONTRACT — finding-contract self-test fails (found 2026-11-25 at `f121765b`) — **Fix model:** trivial/easy — cheapest advertised capable model.
-
-- **Worth fixing** — CHECK-CONTRACT-1: `make check-specs` stops at
-  `scripts/check-review-finding-contract-test.sh`, so `make test` never reaches the Go suites.
-  On macOS (darwin/arm64), the fixtures `INV §§3/5` and `INV §§2, 3, 7–11, 14–15, 17` are
-  rejected as untagged, and `INV §3–999`, `§3-999` and `§3/999` pass when they should fail.
-  The real `scripts/check-specs.sh` passes. Reproduce with `sh scripts/check-review-finding-contract-test.sh`
-  on a clean `f121765b` worktree. The likely cause is the invariant-tag parsing added in
-  `e26abf4a`/`8e77c206`. Make the parser and its self-test agree. TS-06.R5.
-
 ### AUTH-TRUST — a person's authorization reaches the agent only as tool output (investigated 2026-11-16 at `3f1700d3`) — **Fix model:** medium — Codex Terra or Claude Opus.
 
 **Report (verbatim):** “Bug: Chuck’s user authorization is not recognized by automatic execution

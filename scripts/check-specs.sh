@@ -193,27 +193,27 @@ check_review_findings() {
     }
     function validate_invariants(text,   rest, citation, plural, endpoint, i, separator) {
       rest = text
-      while (match(rest, /INV[[:space:]]+§+[0-9]+/)) {
+      while (match(rest, /INV[[:space:]]+(§)+[0-9]+/)) {
         citation = substr(rest, RSTART, RLENGTH)
         plural = citation ~ /§§/
         rest = substr(rest, RSTART + RLENGTH)
-        sub(/^INV[[:space:]]+§+/, "", citation)
+        sub(/^INV[[:space:]]+(§)+/, "", citation)
         while (1) {
           validate_class(citation)
-          if (match(rest, /^[[:space:]]*(-|–)[[:space:]]*§*[0-9]+/)) {
+          if (match(rest, /^[[:space:]]*(-|–)[[:space:]]*(§)*[0-9]+/)) {
             endpoint = substr(rest, RSTART, RLENGTH)
             rest = substr(rest, RSTART + RLENGTH)
-            sub(/^[[:space:]]*(-|–)[[:space:]]*§*/, "", endpoint)
+            sub(/^[[:space:]]*(-|–)[[:space:]]*(§)*/, "", endpoint)
             validate_class(endpoint)
             # Bound range validation by the authority, even for an enormous typo.
             for (i = citation + 1; i < endpoint && i <= max_class; i++) validate_class(i)
           }
-          separator = plural ? "^[[:space:]]*(,|/|and[[:space:]])[[:space:]]*§*[0-9]+" : \
-                               "^[[:space:]]*(/[[:space:]]*§*|(,|and[[:space:]])[[:space:]]*§+)[0-9]+"
+          separator = plural ? "^[[:space:]]*(,|/|and[[:space:]])[[:space:]]*(§)*[0-9]+" : \
+                               "^[[:space:]]*(/[[:space:]]*(§)*|(,|and[[:space:]])[[:space:]]*(§)+)[0-9]+"
           if (!match(rest, separator)) break
           citation = substr(rest, RSTART, RLENGTH)
           rest = substr(rest, RSTART + RLENGTH)
-          sub(/^[[:space:]]*(,|\/|and[[:space:]])[[:space:]]*§*/, "", citation)
+          sub(/^[[:space:]]*(,|\/|and[[:space:]])[[:space:]]*(§)*/, "", citation)
         }
       }
     }
@@ -246,7 +246,7 @@ check_review_findings() {
         if (normalized ~ /\*\*Fix model:\*\*/) {
           print "finding must not contain a per-item **Fix model:** recommendation: " first
         } else if (normalized ~ /\.(go|ts|tsx|sh|css|json)/ &&
-                   normalized !~ /INV[[:space:]]+§+[0-9]/ && normalized !~ /\(no invariant class\)/) {
+                   normalized !~ /INV[[:space:]]+(§)+[0-9]/ && normalized !~ /\(no invariant class\)/) {
           print "finding cites code but has no INV §n tag or (no invariant class): " first
         }
       }
