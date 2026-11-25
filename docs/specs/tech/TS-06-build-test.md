@@ -425,6 +425,8 @@ shared target guarantees.
   by `TestPrivateCodexResolvesWithoutGlobalInstall`, `TestRequiredLayoutAndManifestComponentsAgree`,
   and `TestAuthCommandIsPresentForEveryProvider`.
 - Spec lint: `scripts/check-specs.sh`.
+- Live code-review findings cite an existing numbered class in the invariant appendix or record
+  `(no invariant class)`. Spec lint checks cited class numbers; reviewers establish applicability.
 - Role launchers route both providers to the same shared startup and role procedure. Under
   `make check-specs`, `scripts/check-launcher-contract.sh` and its mutation tests check provider
   parity, reachable instructions and required companion or safety routes. Decision replays on

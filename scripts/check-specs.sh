@@ -158,8 +158,13 @@ check_spec_file() {
 check_review_findings() {
   file=$1
   model_map="$ROOT/docs/features/MODEL-ROUTING.md"
+  invariants="$ROOT/docs/features/INVARIANTS.md"
   if [ ! -f "$model_map" ]; then
     fail 'missing model routing map'
+    return
+  fi
+  if [ ! -f "$invariants" ]; then
+    fail 'missing invariant classes'
     return
   fi
   problems=$(awk '
@@ -172,6 +177,45 @@ check_review_findings() {
         models[++models_count] = "**Fix model:** " recommendation
       }
       next
+    }
+    FILENAME == ARGV[2] {
+      if ($0 ~ /^## [0-9]+\. /) {
+        class = $2
+        sub(/\.$/, "", class)
+        classes[class] = 1
+        if (class + 0 > max_class) max_class = class + 0
+      }
+      next
+    }
+    function validate_class(class) {
+      if (!(class in classes))
+        print "finding cites unknown invariant class: INV §" class ": " first
+    }
+    function validate_invariants(text,   rest, citation, plural, endpoint, i, separator) {
+      rest = text
+      while (match(rest, /INV[[:space:]]+§+[0-9]+/)) {
+        citation = substr(rest, RSTART, RLENGTH)
+        plural = citation ~ /§§/
+        rest = substr(rest, RSTART + RLENGTH)
+        sub(/^INV[[:space:]]+§+/, "", citation)
+        while (1) {
+          validate_class(citation)
+          if (match(rest, /^[[:space:]]*(-|–)[[:space:]]*§*[0-9]+/)) {
+            endpoint = substr(rest, RSTART, RLENGTH)
+            rest = substr(rest, RSTART + RLENGTH)
+            sub(/^[[:space:]]*(-|–)[[:space:]]*§*/, "", endpoint)
+            validate_class(endpoint)
+            # Bound range validation by the authority, even for an enormous typo.
+            for (i = citation + 1; i < endpoint && i <= max_class; i++) validate_class(i)
+          }
+          separator = plural ? "^[[:space:]]*(,|/|and[[:space:]])[[:space:]]*§*[0-9]+" : \
+                               "^[[:space:]]*(/[[:space:]]*§*|(,|and[[:space:]])[[:space:]]*§+)[0-9]+"
+          if (!match(rest, separator)) break
+          citation = substr(rest, RSTART, RLENGTH)
+          rest = substr(rest, RSTART + RLENGTH)
+          sub(/^[[:space:]]*(,|\/|and[[:space:]])[[:space:]]*§*/, "", citation)
+        }
+      }
     }
     function validate_unit(   normalized, copy, tag_count, model_count) {
       if (unit == "") return
@@ -198,10 +242,11 @@ check_review_findings() {
       } else {
         normalized = buf
         gsub(/[[:space:]]+/, " ", normalized)
+        validate_invariants(normalized)
         if (normalized ~ /\*\*Fix model:\*\*/) {
           print "finding must not contain a per-item **Fix model:** recommendation: " first
         } else if (normalized ~ /\.(go|ts|tsx|sh|css|json)/ &&
-                   normalized !~ /INV §[0-9]/ && normalized !~ /\(no invariant class\)/) {
+                   normalized !~ /INV[[:space:]]+§+[0-9]/ && normalized !~ /\(no invariant class\)/) {
           print "finding cites code but has no INV §n tag or (no invariant class): " first
         }
       }
@@ -220,7 +265,7 @@ check_review_findings() {
     }
     insection && buf != "" { buf = buf " " $0; next }
     END { if (insection) { flush_finding(); validate_unit() } }
-  ' "$model_map" "$file")
+  ' "$model_map" "$invariants" "$file")
 
   [ -n "$problems" ] || return
   old_ifs=$IFS

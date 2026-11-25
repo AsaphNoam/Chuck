@@ -31,7 +31,11 @@ Use [AGENT-WORKFLOW.md](AGENT-WORKFLOW.md) for role rules; archives are not live
 
 ## Active change
 
-None.
+**Invariant inventory maintenance** (baseline `993d8dd0`). Live finding citations now resolve
+against the numbered class headings; grouped and unknown-ID fixtures pass. The revised inventory
+and startup rules are in the working tree. Read-routing replays found the replacement-agent
+cooldown defect and skipped the inventory for a local formatter edit. Next: verify the final
+class IDs, references and workflow checks, then queue the completed unit for review.
 
 ## Decisions needing input
 

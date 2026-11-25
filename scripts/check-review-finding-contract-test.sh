@@ -94,4 +94,33 @@ file="$work/ungrouped/HANDOFF.md"
 write_handoff "$file" '- **Must fix** — No originating unit.'
 expect_failure 'ungrouped finding' 'finding is not grouped under a ### finding unit' "$file"
 
+# Only live finding citations are checked; historical text remains compatible.
+for citation in 'INV §3' 'INV §3/§5' 'INV §3/5' 'INV §3, §5' 'INV §§3/5' \
+  'INV §§2, 3, 7–11, 14–15, 17' 'INV §3 and §5' 'INV §3-5' \
+  'INV §3, 500 ms elapsed' '(no invariant class)'; do
+  file="$work/invariant-valid/HANDOFF.md"
+  write_handoff "$file" '### invariant — **Fix model:** difficult — Codex Sol.' '' \
+    "- **Must fix** — Repair example.go. $citation."
+  expect_pass "$citation" "$file"
+done
+
+for citation in 'INV §999' 'INV §3/§999' 'INV §3, §999' 'INV §999; INV §3' \
+  'INV §999 (no invariant class)' 'INV §3–999' 'INV §3-999' \
+  'INV §3 and §999' 'INV §§3, 999' 'INV §3/999'; do
+  file="$work/invariant-invalid/HANDOFF.md"
+  write_handoff "$file" '### invariant — **Fix model:** difficult — Codex Sol.' '' \
+    "- **Must fix** — Repair example.go. $citation."
+  expect_failure "$citation" 'finding cites unknown invariant class: INV §999' "$file"
+done
+
+file="$work/invariant-missing/HANDOFF.md"
+write_handoff "$file" '### invariant — **Fix model:** difficult — Codex Sol.' '' \
+  '- **Must fix** — Repair example.go.'
+expect_failure 'missing code invariant' 'finding cites code but has no INV §n tag or (no invariant class)' "$file"
+
+file="$work/invariant-history/HANDOFF.md"
+write_handoff "$file" '### invariant — **Fix model:** difficult — Codex Sol.' '' \
+  '- **Must fix** — Documentation only.' '' '## Historical notes' '' 'INV §999: example.go.'
+expect_pass 'historical citation outside live findings' "$file"
+
 [ "$errors" -eq 0 ] || exit 1
