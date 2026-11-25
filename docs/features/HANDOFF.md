@@ -199,7 +199,12 @@ picks this up: install v0.24.0 and repeat the report's approval through Continue
 
 ## Blocked on human
 
-None. The file reader's withdrawal test already matches the exact recovery error.
+- **AUTH-TRUST-3** (2026-11-25 `/fix`): the installed managed runtime is still v0.20.0, so the
+  finding cannot be checked at its real entry point. Needed from the operator: install v0.24.0 or
+  later, enable the provider's automatic review, approve a push/PR through Continue, and record
+  whether `create_task` is allowed. The finding stays open in **Review findings** until then.
+
+The file reader's withdrawal test already matches the exact recovery error.
 The full UI suite passed all 1,294 tests on 2026-11-19.
 
 The published `v0.11.0` release body remains empty; its notes are in
